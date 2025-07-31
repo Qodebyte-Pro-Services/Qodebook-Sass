@@ -31,6 +31,41 @@ const attributeController = require('../controllers/attributeController');
  */
 router.post('/', authenticateToken, attributeController.createAttribute);
 
+
+/**
+ * @swagger
+ * /api/attributes/bulk:
+ *   post:
+ *      summary: Create multiple attributes and their values
+ *      tags: [Attribute]
+ *      security:
+ *         - bearerAuth: []
+ *      requestBody:
+ *        required: true
+ *        content:
+ *          application/json:
+ *            schema:
+ *              type: object
+ *              properties:
+ *                business_id:
+ *                  type: string
+ *                attributes:
+ *                  type: array
+ *                items:
+ *                  type: object
+ *                  properties:
+ *                    name:
+ *                      type: string
+ *                    values:
+ *                      type: array
+ *                    items:
+ *                      type: string
+ *      responses:
+ *        201:
+ *          description: Attributes created or skipped if they already exist
+ */
+router.post('/bulk', authenticateToken, attributeController.createAttributesBulk);
+
 /**
  * @swagger
  * /api/attributes:

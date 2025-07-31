@@ -52,6 +52,70 @@ exports.addAttributeValue = async (req, res) => {
   }
 };
 
+exports.createAttributesBulk = async (req, res) => {
+  const { business_id, attributes } = req.body;
+
+  if (!business_id || !Array.isArray(attributes)) {
+    return res.status(400).json({ message: 'business_id and attributes array are required.' });
+  }
+
+  try {
+    const createdAttributes = [];
+
+    for (const attr of attributes) {
+      const { name, values } = attr;
+
+      // Check if attribute already exists
+      const check = await pool.query(
+        'SELECT * FROM attributes WHERE business_id = $1 AND LOWER(name) = LOWER($2)',
+        [business_id, name]
+      );
+
+      if (check.rows.length > 0) {
+        createdAttributes.push({ name, status: 'exists' });
+        continue;
+      }
+
+      // Create attribute
+      const attributeRes = await pool.query(
+        'INSERT INTO attributes (business_id, name) VALUES ($1, $2) RETURNING *',
+        [business_id, name]
+      );
+      const attribute = attributeRes.rows[0];
+
+      const addedValues = [];
+
+      if (Array.isArray(values)) {
+        for (const value of values) {
+          const valueCheck = await pool.query(
+            'SELECT * FROM attribute_values WHERE attribute_id = $1 AND LOWER(value) = LOWER($2)',
+            [attribute.id, value]
+          );
+          if (valueCheck.rows.length === 0) {
+            const valueRes = await pool.query(
+              'INSERT INTO attribute_values (attribute_id, value) VALUES ($1, $2) RETURNING *',
+              [attribute.id, value]
+            );
+            addedValues.push(valueRes.rows[0]);
+          }
+        }
+      }
+
+      createdAttributes.push({ attribute, values: addedValues });
+    }
+
+    return res.status(201).json({
+      message: 'Attributes processed.',
+      data: createdAttributes,
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+
 exports.getAttribute = async (req, res) => {
   try {
     const { id } = req.params;

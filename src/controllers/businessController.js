@@ -1,16 +1,35 @@
 const pool = require('../config/db');
 const { sendBusinessCreatedEmail } = require('../services/emailService');
+const bucket = require('../config/firebase');
+const { v4: uuidv4 } = require('uuid'); 
+const path = require('path');
+
 
 exports.createBusiness = async (req, res) => {
   try {
     const { business_name, business_type, address, business_phone } = req.body;
     const user_id = req.user.user_id;
 
+   
     let logo_url = null;
+
     if (req.file) {
-      logo_url = `/uploads/${req.file.filename}`;
+      const filename = `${Date.now()}_${req.file.originalname}`;
+      const file = bucket.file(filename);
+      const uuid = uuidv4();
+
+      await file.save(req.file.buffer, {
+        metadata: {
+          contentType: req.file.mimetype,
+          metadata: {
+            firebaseStorageDownloadTokens: uuid,
+          },
+        },
+      });
+
+      logo_url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(filename)}?alt=media&token=${uuid}`;
     } else if (req.body.logo_url) {
-      logo_url = req.body.logo_url;
+          logo_url = req.body.logo_url;
     }
 
     const check = await pool.query('SELECT * FROM businesses WHERE business_name = $1 OR business_phone = $2', [business_name, business_phone]);
@@ -70,9 +89,23 @@ exports.updateBusiness = async (req, res) => {
     const business_id = req.params.id;
     const { business_name, business_type, address, business_phone } = req.body;
 
-    let logo_url = null;
+  let logo_url = null;
+
     if (req.file) {
-      logo_url = `/uploads/${req.file.filename}`;
+      const filename = `${Date.now()}_${req.file.originalname}`;
+      const file = bucket.file(filename);
+      const uuid = uuidv4();
+
+      await file.save(req.file.buffer, {
+        metadata: {
+          contentType: req.file.mimetype,
+          metadata: {
+            firebaseStorageDownloadTokens: uuid,
+          },
+        },
+      });
+
+      logo_url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(filename)}?alt=media&token=${uuid}`;
     } else if (req.body.logo_url) {
       logo_url = req.body.logo_url;
     }
