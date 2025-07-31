@@ -84,12 +84,4 @@ app.get('/', (req, res) => {
   res.send('Qodebook SaaS API is running');
 });
 
-
-
-const raw = require('./relax-4b278-firebase-adminsdk-bsd9c-8e4b0a309c.json');
-const jsonString = JSON.stringify(raw).replace(/\n/g, '\\n');
-
-console.log('FIREBASE_SERVICE_ACCOUNT=' + jsonString);
-
-
 module.exports = app;
