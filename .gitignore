@@ -25,5 +25,4 @@ Thumbs.db
 .git/
 
 # Optional: uploads or temp
-uploads/
 temp/
