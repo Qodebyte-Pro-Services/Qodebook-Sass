@@ -1,11 +1,12 @@
 const pool = require('../config/db');
+const uploadToFirebase = require('../utils/uploadToFireBase');
 
 exports.createProduct = async (req, res) => {
   try {
     const { business_id, category_id, name, brand, description, base_sku, taxable, threshold } = req.body;
-    let image_url = null;
+  let image_url = null;
     if (req.file) {
-      image_url = `/uploads/${req.file.filename}`;
+      image_url = await uploadToFirebase(req.file);
     } else if (req.body.image_url) {
       image_url = req.body.image_url;
     }
@@ -49,12 +50,13 @@ exports.updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, brand, description, base_sku, taxable, threshold, category_id } = req.body;
-    let image_url = null;
+      let image_url = null;
     if (req.file) {
-      image_url = `/uploads/${req.file.filename}`;
+      image_url = await uploadToFirebase(req.file);
     } else if (req.body.image_url) {
       image_url = req.body.image_url;
     }
+
     let setParts = [];
     let values = [];
     let idx = 1;

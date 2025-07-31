@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const uploadToFirebase = require('../utils/uploadToFireBase');
 
 exports.generateVariants = async (req, res) => {
   try {
@@ -7,7 +8,11 @@ exports.generateVariants = async (req, res) => {
     if (!variants || !Array.isArray(variants) || variants.length === 0) return res.status(400).json({ message: 'Variants array required.' });
     const inserted = [];
     
-    const uploadedImageUrl = req.file ? req.file.path.replace(/\\/g, '/') : null;
+      let imageUrl = null;
+
+    if (req.file) {
+      imageUrl = await uploadToFirebase(req.file);
+    }
     for (const v of variants) {
       const skuCheck = await pool.query('SELECT * FROM variants WHERE sku = $1', [v.sku]);
       if (skuCheck.rows.length > 0) return res.status(409).json({ message: `SKU ${v.sku} already exists.` });
@@ -65,12 +70,14 @@ exports.updateVariant = async (req, res) => {
     if (threshold !== undefined) { setParts.push('threshold = $' + idx); values.push(threshold); idx++; }
     if (sku) { setParts.push('sku = $' + idx); values.push(sku); idx++; }
    
+ 
     let finalImageUrl = null;
     if (req.file) {
-      finalImageUrl = req.file.path.replace(/\\/g, '/');
+      finalImageUrl = await uploadToFirebase(req.file);
     } else if (image_url) {
       finalImageUrl = image_url;
     }
+    
     if (finalImageUrl) { setParts.push('image_url = $' + idx); values.push(finalImageUrl); idx++; }
     if (expiry_date) { setParts.push('expiry_date = $' + idx); values.push(expiry_date); idx++; }
     setParts.push('updated_at = NOW()');
