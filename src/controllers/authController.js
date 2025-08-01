@@ -3,6 +3,13 @@
 
 const { verifyGoogleToken } = require('../services/socialAuthService');
 
+
+const pool = require('../config/db');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+const { sendOtpEmail } = require('../services/emailService');
+
 exports.verifyOtp = async (req, res) => {
   try {
     const { user_id, otp, purpose } = req.body;
@@ -70,11 +77,6 @@ exports.googleLogin = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 };
-const pool = require('../config/db');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-
-const { sendOtpEmail } = require('../services/emailService');
 
 exports.signup = async (req, res) => {
   try {
