@@ -1,3 +1,4 @@
+
 const express = require('express');
 const router = express.Router();
 const { authenticateToken, isAdmin } = require('../middlewares/authMiddleware');
@@ -251,7 +252,30 @@ const variantController = require('../controllers/variantController');
  *                     $ref: '#/components/schemas/Variant'
  */
 
-// Route bindings
+/**
+ * @swagger
+ * /api/variants/count-in-stock:
+ *   get:
+ *     summary: Get count of variants in stock
+ *     tags: [Variant]
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: Business ID
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: Branch ID
+ *     responses:
+ *       200:
+ *         description: Count of variants in stock
+ */
+router.get('/count-in-stock', require('../middlewares/authMiddleware').authenticateToken, require('../controllers/variantController').countVariantsInStock);
 router.post('/products/:id/variants/generate', authenticateToken, upload.single('image'), variantController.generateVariants);
 router.get('/products/:id/variants', authenticateToken, variantController.listVariants);
 router.get('/variants/product/:productId/variants/:variantId',authenticateToken,variantController.getVariantByProduct);

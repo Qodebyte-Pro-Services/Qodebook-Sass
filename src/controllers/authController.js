@@ -1,5 +1,6 @@
 
 
+
 const { verifyGoogleToken } = require('../services/socialAuthService');
 
 exports.verifyOtp = async (req, res) => {
@@ -78,7 +79,7 @@ const { sendOtpEmail } = require('../services/emailService');
 exports.signup = async (req, res) => {
   try {
     const { first_name, last_name, email, phone, password, is_social_media } = req.body;
-    if (!first_name || !last_name || !email || !phone || (!is_social_media && !password)) {
+    if (!first_name || !last_name || !email || (!is_social_media && !password)) {
       return res.status(400).json({ message: 'Missing required fields.' });
     }
 
@@ -211,6 +212,32 @@ exports.resetPassword = async (req, res) => {
     await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, user.id]);
     await pool.query('UPDATE user_otps SET used = true WHERE id = $1', [otpResult.rows[0].id]);
     return res.status(200).json({ message: 'Password reset successful.' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+
+exports.resendOtp = async (req, res) => {
+  try {
+    const { email, purpose } = req.body;
+    if (!email || !purpose) return res.status(400).json({ message: 'Email and purpose are required.' });
+    const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (userResult.rows.length === 0) return res.status(404).json({ message: 'User not found.' });
+    const user = userResult.rows[0];
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await pool.query(
+      'INSERT INTO user_otps (user_id, otp_code, purpose, expires_at, used) VALUES ($1, $2, $3, $4, $5)',
+      [user.id, otpCode, purpose, expiresAt, false]
+    );
+    try {
+      await sendOtpEmail(user.email, otpCode, 'OTP Resend');
+    } catch (e) {
+      console.error('Failed to send OTP email:', e);
+    }
+    return res.status(200).json({ message: 'OTP resent.' });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });

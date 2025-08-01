@@ -5,7 +5,7 @@ const validateSignup = [
   body('first_name').notEmpty().withMessage('First name is required'),
   body('last_name').notEmpty().withMessage('Last name is required'),
   body('email').isEmail().withMessage('Valid email is required'),
-  body('phone').notEmpty().withMessage('Phone is required'),
+  body('phone').optional(),
  
   body('password')
     .if(body('is_social_media').custom(value => !value))

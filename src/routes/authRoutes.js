@@ -21,7 +21,7 @@ const authController = require('../controllers/authController');
  *           schema:
  *             type: object
  *             properties:
- *               token:
+ *               idToken:
  *                 type: string
  *                 description: Google OAuth2 token
  *     responses:
@@ -64,6 +64,33 @@ router.post('/social-login/google', authController.googleLogin);
  *         description: Email already exists
  */
 router.post('/signup', validateSignup, authController.signup);
+
+/**
+ * @swagger
+ * /api/auth/resend-otp:
+ *   post:
+ *     summary: Resend OTP for signup, login, or reset
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *               purpose:
+ *                 type: string
+ *                 enum: [register, login, reset]
+ *     responses:
+ *       200:
+ *         description: OTP resent
+ *       404:
+ *         description: User not found
+ */
+router.post('/resend-otp', require('../controllers/authController').resendOtp);
+
 
 /**
  * @swagger

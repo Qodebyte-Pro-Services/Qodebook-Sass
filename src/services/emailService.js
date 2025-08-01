@@ -36,4 +36,15 @@ async function sendBusinessCreatedEmail(to, businessName) {
   return transporter.sendMail(mailOptions);
 }
 
-module.exports = { sendOtpEmail, sendBusinessCreatedEmail };
+async function sendNotificationEmail(to, subject, message) {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to,
+    subject,
+    text: message,
+    html: `<p>${message}</p>`
+  };
+  return transporter.sendMail(mailOptions);
+}
+
+module.exports = { sendOtpEmail, sendBusinessCreatedEmail, sendNotificationEmail };

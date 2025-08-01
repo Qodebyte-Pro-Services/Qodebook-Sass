@@ -1,3 +1,24 @@
+// Count variants in stock (optionally by business/branch)
+exports.countVariantsInStock = async (req, res) => {
+  try {
+    const { business_id, branch_id } = req.query;
+    let query = `SELECT COUNT(*) FROM variants v JOIN products p ON v.product_id = p.id WHERE v.quantity > 0`;
+    let params = [];
+    if (business_id) {
+      query += ' AND p.business_id = $1';
+      params.push(business_id);
+      if (branch_id) {
+        query += ' AND p.branch_id = $2';
+        params.push(branch_id);
+      }
+    }
+    const result = await pool.query(query, params);
+    return res.status(200).json({ count: Number(result.rows[0].count) });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
 const pool = require('../config/db');
 const uploadToFirebase = require('../utils/uploadToFireBase');
 

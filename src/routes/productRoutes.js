@@ -1,3 +1,4 @@
+
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middlewares/authMiddleware');
@@ -276,5 +277,30 @@ router.get('/category/:id', authenticateToken, productController.getProductsByCa
  *         description: List of products for the business
  */
 router.get('/business/:id', authenticateToken, productController.getProductsByBusiness);
+
+/**
+ * @swagger
+ * /api/products/count-in-stock:
+ *   get:
+ *     summary: Get count of products in stock
+ *     tags: [Product]
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: Business ID
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: Branch ID
+ *     responses:
+ *       200:
+ *         description: Count of products in stock
+ */
+router.get('/count-in-stock', require('../middlewares/authMiddleware').authenticateToken, require('../controllers/productController').countProductsInStock);
 
 module.exports = router;

@@ -1,12 +1,31 @@
-// qrcodeController.js
-// Use qrcode for QR code generation
+
+const QRCode = require('qrcode');
+
 module.exports = {
+ 
   generate: async (req, res) => {
-    // TODO: Generate QR code for variantId
-    res.json({ message: 'QR code generated (stub)' });
+    try {
+      const { variantId } = req.params;
+      const qrPng = await QRCode.toBuffer(variantId, { type: 'png', scale: 8 });
+      res.set('Content-Type', 'image/png');
+      res.send(qrPng);
+    } catch (err) {
+      console.error('QR code generation error:', err);
+      res.status(500).json({ message: 'Failed to generate QR code' });
+    }
   },
+
+
   download: async (req, res) => {
-    // TODO: Download QR code as PNG/PDF
-    res.json({ message: 'QR code download (stub)' });
+    try {
+      const { variantId } = req.params;
+      const qrPng = await QRCode.toBuffer(variantId, { type: 'png', scale: 8 });
+      res.set('Content-Disposition', `attachment; filename=qrcode-${variantId}.png`);
+      res.set('Content-Type', 'image/png');
+      res.send(qrPng);
+    } catch (err) {
+      console.error('QR code download error:', err);
+      res.status(500).json({ message: 'Failed to download QR code' });
+    }
   },
 };

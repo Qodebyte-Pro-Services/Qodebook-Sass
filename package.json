@@ -12,6 +12,7 @@
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "bull": "^4.16.5",
+    "bwip-js": "^4.7.0",
     "cloudinary": "^2.7.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
@@ -29,6 +30,8 @@
     "papaparse": "^5.5.3",
     "path": "^0.12.7",
     "pg": "^8.11.3",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^11.1.0",

@@ -4,6 +4,39 @@ const router = express.Router();
 const controller = require('../controllers/notificationController');
 const auth = require('../middlewares/authMiddleware');
 
+
+
+/**
+ * @swagger
+ * /api/notifications:
+ *   post:
+ *     summary: Create a new notification and send email (optional)
+ *     tags: [Notification]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               type:
+ *                 type: string
+ *               message:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *                 format: email
+ *     responses:
+ *       201:
+ *         description: Notification created
+ *       500:
+ *         description: Failed to create notification or send email
+ */
+router.post('/', auth.authenticateToken, controller.createAndNotify);
+
+
 /**
  * @swagger
  * /api/notifications:

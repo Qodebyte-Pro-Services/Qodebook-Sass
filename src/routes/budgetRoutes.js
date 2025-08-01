@@ -1,8 +1,36 @@
+
 // budgetRoutes.js
 const express = require('express');
 const router = express.Router();
 const controller = require('../controllers/budgetController');
 const auth = require('../middlewares/authMiddleware');
+
+/**
+ * @swagger
+ * /api/budgets/{category_id}/remaining:
+ *   get:
+ *     summary: Get remaining budget for a category (including spillover)
+ *     tags: [Budget]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: category_id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: Expense category ID
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: Business ID
+ *     responses:
+ *       200:
+ *         description: Remaining budget
+ */
+router.get('/:category_id/remaining', auth.authenticateToken, controller.remaining);
 
 /**
  * @swagger
