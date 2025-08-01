@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticateToken } = require('../middlewares/authMiddleware');
+const { authenticateToken, isAdmin } = require('../middlewares/authMiddleware');
 const upload = require('../middlewares/upload');
 const variantController = require('../controllers/variantController');
 
@@ -35,10 +35,20 @@ const variantController = require('../controllers/variantController');
  *     responses:
  *       201:
  *         description: Variants generated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 variants:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Variant'
  *       409:
  *         description: SKU already exists
  */
-router.post('/products/:id/variants/generate', authenticateToken, upload.single('image'), variantController.generateVariants);
 
 /**
  * @swagger
@@ -58,29 +68,53 @@ router.post('/products/:id/variants/generate', authenticateToken, upload.single(
  *     responses:
  *       200:
  *         description: List of variants
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 variants:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Variant'
  */
-router.get('/products/:id/variants', authenticateToken, variantController.listVariants);
+
 
 /**
  * @swagger
- * /api/variants/product/{id}:
+ * /api/variants/product/{productId}/variants/{variantId}:
  *   get:
- *     summary: Get variants of a product
+ *     summary: Get a specific variant of a product
  *     tags: [Variant]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: productId
  *         schema:
  *           type: string
  *         required: true
  *         description: Product ID
+ *       - in: path
+ *         name: variantId
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Variant ID
  *     responses:
  *       200:
- *         description: List of variants for the product
+ *         description: Variant found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 variant:
+ *                   $ref: '#/components/schemas/Variant'
+ *       404:
+ *         description: Variant not found for this product
  */
-router.get('/variants/product/:id', authenticateToken, variantController.getVariantsByProduct);
+
 
 /**
  * @swagger
@@ -125,10 +159,18 @@ router.get('/variants/product/:id', authenticateToken, variantController.getVari
  *     responses:
  *       200:
  *         description: Variant updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 variant:
+ *                   $ref: '#/components/schemas/Variant'
  *       404:
  *         description: Variant not found
  */
-router.put('/variants/:id', authenticateToken, upload.single('image'), variantController.updateVariant);
 
 /**
  * @swagger
@@ -148,7 +190,75 @@ router.put('/variants/:id', authenticateToken, upload.single('image'), variantCo
  *     responses:
  *       200:
  *         description: Variant deleted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
  */
+
+
+/**
+ * @swagger
+ * /api/variants/{id}:
+ *   get:
+ *     summary: Get a specific variant by ID
+ *     tags: [Variant]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Variant ID
+ *     responses:
+ *       200:
+ *         description: Variant details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 variant:
+ *                   $ref: '#/components/schemas/Variant'
+ *       404:
+ *         description: Variant not found
+ */
+
+/**
+ * @swagger
+ * /api/business/variants:
+ *   get:
+ *     summary: Get all variants under the authenticated user's business
+ *     tags: [Variant]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of variants for the business
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 variants:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Variant'
+ */
+
+// Route bindings
+router.post('/products/:id/variants/generate', authenticateToken, upload.single('image'), variantController.generateVariants);
+router.get('/products/:id/variants', authenticateToken, variantController.listVariants);
+router.get('/variants/product/:productId/variants/:variantId',authenticateToken,variantController.getVariantByProduct);
+router.get('/variants/:id', authenticateToken, variantController.getVariantById);
+router.get('/business/variants', authenticateToken, variantController.getVariantsByBusiness);
+router.put('/variants/:id', authenticateToken, upload.single('image'), variantController.updateVariant);
 router.delete('/variants/:id', authenticateToken, variantController.deleteVariant);
+
 
 module.exports = router;
