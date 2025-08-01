@@ -1,4 +1,8 @@
-// Count products in stock (optionally by business/branch)
+
+const pool = require('../config/db');
+// const uploadToFirebase = require('../utils/uploadToFireBase');
+const uploadToCloudinary = require('../utils/uploadToCloudinary');
+
 exports.countProductsInStock = async (req, res) => {
   try {
     const { business_id, branch_id } = req.query;
@@ -19,15 +23,13 @@ exports.countProductsInStock = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 };
-const pool = require('../config/db');
-const uploadToFirebase = require('../utils/uploadToFireBase');
 
 exports.createProduct = async (req, res) => {
   try {
     const { business_id, category_id, name, brand, description, base_sku, taxable, threshold } = req.body;
   let image_url = null;
     if (req.file) {
-      image_url = await uploadToFirebase(req.file);
+      image_url = await uploadToCloudinary(req.file);
     } else if (req.body.image_url) {
       image_url = req.body.image_url;
     }
@@ -73,7 +75,7 @@ exports.updateProduct = async (req, res) => {
     const { name, brand, description, base_sku, taxable, threshold, category_id } = req.body;
       let image_url = null;
     if (req.file) {
-      image_url = await uploadToFirebase(req.file);
+      image_url = await uploadToCloudinary(req.file);
     } else if (req.body.image_url) {
       image_url = req.body.image_url;
     }

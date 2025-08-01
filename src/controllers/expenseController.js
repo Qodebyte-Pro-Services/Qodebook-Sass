@@ -1,7 +1,9 @@
 const pool = require('../config/db');
 const upload = require('../middlewares/upload');
 const { io, userSockets } = require('../realtime');
-const uploadToFirebase = require('../utils/uploadToFireBase');
+// const uploadToFirebase = require('../utils/uploadToFireBase');
+const uploadToCloudinary = require('../utils/uploadToCloudinary');
+
 
 module.exports = {
 
@@ -11,7 +13,7 @@ module.exports = {
       let receipt_url = null;
       if (req.file) {
       
-        receipt_url = await uploadToFirebase(req.file);
+        receipt_url = await uploadToCloudinary(req.file);
       }
       if (!business_id || !category_id || !amount || !expense_date) {
         return res.status(400).json({ message: 'business_id, category_id, amount, and expense_date are required.' });
@@ -114,7 +116,7 @@ module.exports = {
       if (req.file) {
         updates.push(`receipt_url = $${updates.length + 1}`);
 
-        values.push(await uploadToFirebase(req.file));
+        values.push(await uploadToCloudinary(req.file));
       }
       if (updates.length === 0) {
         return res.status(400).json({ message: 'No fields to update.' });

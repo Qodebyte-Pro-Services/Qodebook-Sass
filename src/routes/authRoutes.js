@@ -1,12 +1,11 @@
-
-
+const passport = require('passport');
+const { configureFacebookStrategy } = require('../services/facebookAuthService');
+const facebookAuthController = require('../controllers/facebookAuthController');
 const express = require('express');
 const router = express.Router();
-
-
 const { validateSignup, validateLogin } = require('../middlewares/validateInput');
 const authController = require('../controllers/authController');
-
+// configureFacebookStrategy();
 
 /**
  * @swagger
@@ -31,6 +30,34 @@ const authController = require('../controllers/authController');
  *         description: Invalid credentials
  */
 router.post('/social-login/google', authController.googleLogin);
+
+
+// /**
+//  * @swagger
+//  * /api/auth/social-login/facebook:
+//  *   get:
+//  *     summary: Facebook social login (redirect)
+//  *     tags: [Auth]
+//  *     responses:
+//  *       302:
+//  *         description: Redirect to Facebook for authentication
+//  */
+// router.get('/social-login/facebook', passport.authenticate('facebook', { scope: ['email'] }));
+
+// /**
+//  * @swagger
+//  * /api/auth/social-login/facebook/callback:
+//  *   get:
+//  *     summary: Facebook social login callback
+//  *     tags: [Auth]
+//  *     responses:
+//  *       200:
+//  *         description: Facebook login successful
+//  *       401:
+//  *         description: Facebook authentication failed
+//  */
+// router.get('/social-login/facebook/callback', passport.authenticate('facebook', { session: false, failureRedirect: '/login' }), facebookAuthController.facebookCallback);
+
 
 /**
  * @swagger

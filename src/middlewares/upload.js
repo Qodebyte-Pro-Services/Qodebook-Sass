@@ -1,6 +1,6 @@
 const multer = require('multer');
 
-const storage = multer.memoryStorage(); // 🔄 Switch from disk to memory
+const storage = multer.memoryStorage(); 
 
 const fileFilter = (req, file, cb) => {
   if (file.mimetype.startsWith('image/')) {

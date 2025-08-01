@@ -3,7 +3,8 @@ const { sendBusinessCreatedEmail } = require('../services/emailService');
 const bucket = require('../config/firebase');
 const { v4: uuidv4 } = require('uuid'); 
 const path = require('path');
-const uploadToFirebase = require('../utils/uploadToFireBase');
+// const uploadToFirebase = require('../utils/uploadToFireBase');
+const uploadToCloudinary = require('../utils/uploadToCloudinary');
 
 
 exports.createBusiness = async (req, res) => {
@@ -11,13 +12,19 @@ exports.createBusiness = async (req, res) => {
     const { business_name, business_type, address, business_phone } = req.body;
     const user_id = req.user.user_id;
 
-   
-    let logo_url = null;
-        if (req.file) {
-      logo_url = await uploadToFirebase(req.file);
+     let logo_url = null;
+    if (req.file) {
+      logo_url = await uploadToCloudinary(req.file.buffer, req.file.originalname);
     } else if (req.body.logo_url) {
       logo_url = req.body.logo_url;
     }
+   
+    // let logo_url = null;
+    //     if (req.file) {
+    //   logo_url = await uploadToFirebase(req.file);
+    // } else if (req.body.logo_url) {
+    //   logo_url = req.body.logo_url;
+    // }
 
     const check = await pool.query('SELECT * FROM businesses WHERE business_name = $1 OR business_phone = $2', [business_name, business_phone]);
     if (check.rows.length > 0) {
@@ -77,9 +84,16 @@ exports.updateBusiness = async (req, res) => {
     const { business_name, business_type, address, business_phone } = req.body;
   
   
-    let logo_url = null;
+    // let logo_url = null;
+    // if (req.file) {
+    //   logo_url = await uploadToFirebase(req.file);
+    // } else if (req.body.logo_url) {
+    //   logo_url = req.body.logo_url;
+    // }
+
+        let logo_url = null;
     if (req.file) {
-      logo_url = await uploadToFirebase(req.file);
+      logo_url = await uploadToCloudinary(req.file.buffer, req.file.originalname);
     } else if (req.body.logo_url) {
       logo_url = req.body.logo_url;
     }

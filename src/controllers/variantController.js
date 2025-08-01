@@ -1,4 +1,8 @@
-// Count variants in stock (optionally by business/branch)
+
+const pool = require('../config/db');
+// const uploadToFirebase = require('../utils/uploadToFireBase');
+const uploadToCloudinary = require('../utils/uploadToCloudinary');
+
 exports.countVariantsInStock = async (req, res) => {
   try {
     const { business_id, branch_id } = req.query;
@@ -19,8 +23,6 @@ exports.countVariantsInStock = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 };
-const pool = require('../config/db');
-const uploadToFirebase = require('../utils/uploadToFireBase');
 
 exports.generateVariants = async (req, res) => {
   try {
@@ -32,7 +34,7 @@ exports.generateVariants = async (req, res) => {
       let imageUrl = null;
 
     if (req.file) {
-      imageUrl = await uploadToFirebase(req.file);
+      imageUrl = await uploadToCloudinary(req.file);
     }
     for (const v of variants) {
       const skuCheck = await pool.query('SELECT * FROM variants WHERE sku = $1', [v.sku]);
@@ -131,7 +133,7 @@ exports.updateVariant = async (req, res) => {
  
     let finalImageUrl = null;
     if (req.file) {
-      finalImageUrl = await uploadToFirebase(req.file);
+      finalImageUrl = await uploadToCloudinary(req.file);
     } else if (image_url) {
       finalImageUrl = image_url;
     }
