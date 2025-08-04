@@ -1,20 +1,33 @@
+
 const cloudinary = require('cloudinary').v2;
 
+const { CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = process.env;
+if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+  throw new Error('Cloudinary config missing: Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in your .env');
+}
+
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
+  cloud_name: CLOUDINARY_CLOUD_NAME,
+  api_key: CLOUDINARY_API_KEY,
+  api_secret: CLOUDINARY_API_SECRET,
 });
 
 const uploadToCloudinary = async (fileBuffer, filename) => {
   return new Promise((resolve, reject) => {
-    cloudinary.uploader.upload_stream(
+    const stream = cloudinary.uploader.upload_stream(
       { resource_type: 'image', public_id: filename },
       (error, result) => {
-        if (error) return reject(error);
+        if (error) {
+         
+          return reject(new Error(`Cloudinary upload failed: ${error.message || error}`));
+        }
+        if (!result || !result.secure_url) {
+          return reject(new Error('Cloudinary upload did not return a secure_url.'));
+        }
         resolve(result.secure_url);
       }
-    ).end(fileBuffer);
+    );
+    stream.end(fileBuffer);
   });
 };
 

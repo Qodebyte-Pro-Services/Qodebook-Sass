@@ -1,4 +1,38 @@
+
 const pool = require('../config/db');
+
+
+exports.adjustStock = async (req, res) => {
+  try {
+    const { variant_id, new_quantity, reason, type } = req.body;
+    if (!variant_id || typeof new_quantity !== 'number' || !reason || !type) {
+      return res.status(400).json({ message: 'variant_id, new_quantity, type, and reason are required.' });
+    }
+ 
+    const variantRes = await pool.query('SELECT * FROM variants WHERE id = $1', [variant_id]);
+    if (variantRes.rows.length === 0) return res.status(404).json({ message: 'Variant not found.' });
+    const old_quantity = variantRes.rows[0].quantity;
+    await pool.query('UPDATE variants SET quantity = $1 WHERE id = $2', [new_quantity, variant_id]);
+    await pool.query('INSERT INTO inventory_logs (variant_id, type, quantity, note) VALUES ($1, $2, $3, $4)', [variant_id, type, new_quantity - old_quantity, reason]);
+    return res.status(200).json({ message: 'Stock adjusted.', old_quantity, new_quantity });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+
+exports.getStockHistory = async (req, res) => {
+  try {
+    const { variant_id } = req.query;
+    if (!variant_id) return res.status(400).json({ message: 'variant_id is required.' });
+    const logs = await pool.query('SELECT * FROM inventory_logs WHERE variant_id = $1 ORDER BY created_at DESC', [variant_id]);
+    return res.status(200).json({ history: logs.rows });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
 
 
 exports.restockVariant = async (req, res) => {

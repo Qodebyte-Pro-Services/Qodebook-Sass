@@ -1,7 +1,58 @@
+
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middlewares/authMiddleware');
 const stockController = require('../controllers/stockController');
+/**
+ * @swagger
+ * /api/stock/adjust:
+ *   post:
+ *     summary: Manually adjust stock for a variant
+ *     tags: [Stock]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               variant_id:
+ *                 type: integer
+ *               new_quantity:
+ *                 type: integer
+ *               type:
+ *                 type: string
+ *                 enum: [adjustment, transfer, damage, return]
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Stock adjusted
+ */
+router.post('/adjust', authenticateToken, stockController.adjustStock);
+
+/**
+ * @swagger
+ * /api/stock/history:
+ *   get:
+ *     summary: Get full stock movement history for a variant
+ *     tags: [Stock]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: variant_id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: Variant ID
+ *     responses:
+ *       200:
+ *         description: Stock movement history
+ */
+router.get('/history', authenticateToken, stockController.getStockHistory);
 
 /**
  * @swagger

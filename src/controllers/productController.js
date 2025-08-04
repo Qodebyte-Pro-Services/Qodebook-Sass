@@ -40,7 +40,15 @@ exports.createProduct = async (req, res) => {
       'INSERT INTO products (business_id, category_id, name, brand, description, base_sku, image_url, taxable, threshold) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
       [business_id, category_id, name, brand, description, base_sku, image_url, taxable, threshold]
     );
-    return res.status(201).json({ message: 'Product created.', product: result.rows[0] });
+   
+    const product = result.rows[0];
+    if (!req.body.attributes || !Array.isArray(req.body.attributes) || req.body.attributes.length === 0) {
+      await pool.query(
+        'INSERT INTO variants (product_id, attributes, cost_price, selling_price, quantity, threshold, sku, image_url, expiry_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+        [product.id, JSON.stringify([]), req.body.cost_price || 0, req.body.selling_price || 0, req.body.quantity || 0, req.body.threshold || 0, req.body.base_sku || product.name, image_url, null]
+      );
+    }
+    return res.status(201).json({ message: 'Product created.', product });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
@@ -107,8 +115,8 @@ exports.updateProduct = async (req, res) => {
 exports.deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM products WHERE id = $1', [id]);
-    return res.status(200).json({ message: 'Product deleted.' });
+    await pool.query('UPDATE products SET deleted_at = NOW() WHERE id = $1', [id]);
+    return res.status(200).json({ message: 'Product soft-deleted.' });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });

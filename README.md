@@ -141,3 +141,26 @@ Controllers/Logic: Aggregate and return data for charts.
 WebSockets/SSE: For order status, inventory changes, notifications.
 9. Background Jobs
 Queue: Use Bull/Agenda for heavy tasks (reporting, emails, scheduled checks).
+
+Attribute Ordering: If attribute order matters for variant naming, ensure the frontend sends attributes in the desired order.
+Variant Uniqueness: You already check for SKU uniqueness. Consider also checking for uniqueness of attribute combinations per product.
+Default Variant: When no attributes, you might want to auto-create a default variant with the product.
+Variant Details: Allow custom fields per variant (e.g., barcode, custom price, etc.) if your business logic requires it.
+Soft Delete: Consider soft-deleting products/variants for audit/history instead of hard delete.
+
+
+Stock Reservation: If you need to support orders/invoices, consider a reserved stock state.
+Stock Adjustment: Add an endpoint for manual stock adjustment (e.g., for inventory audits).
+Stock Movement Types: Expand movement types (e.g., transfer, damage, return) for richer reporting.
+Movement Reason: Add a required reason/note for all stock changes for better traceability.
+Stock History: Provide a full stock history endpoint for a variant or product.
+
+Batch Operations: Support batch variant creation and stock updates for bulk operations.
+Validation: Add more robust validation (e.g., numeric checks, min/max values) on all endpoints.
+Error Messages: Make error messages more user-friendly and actionable.
+Swagger Examples: Add more request/response examples in Swagger for frontend clarity.
+
+Attribute Sets/Templates: Allow saving attribute sets for reuse across products.
+Variant Import/Export: Support CSV import/export for variants and stock.
+Stock Alerts: Add notification/email triggers for low/out-of-stock/expired items.
+Audit Logs: Track all changes to products, variants, and stock for compliance.

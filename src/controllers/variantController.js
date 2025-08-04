@@ -24,6 +24,29 @@ exports.countVariantsInStock = async (req, res) => {
   }
 };
 
+exports.generateVariantNames = (req, res) => {
+  const { product_name, attributes, separator } = req.body;
+  if (!product_name) return res.status(400).json({ message: 'product_name is required.' });
+
+ 
+  if (!attributes || !Array.isArray(attributes) || attributes.length === 0) {
+    return res.json({ variant_names: [product_name] });
+  }
+
+ 
+  const sep = typeof separator === 'string' ? separator : ' - ';
+
+  
+  const combine = (arr) => arr.reduce(
+    (acc, curr) => acc.flatMap(a => curr.values.map(v => [...a, v])),
+    [[]]
+  );
+
+  const combos = combine(attributes);
+  const variant_names = combos.map(combo => [product_name, ...combo].join(sep));
+  return res.json({ variant_names });
+};
+
 exports.generateVariants = async (req, res) => {
   try {
     const { id: product_id } = req.params;
@@ -37,12 +60,24 @@ exports.generateVariants = async (req, res) => {
       imageUrl = await uploadToCloudinary(req.file);
     }
     for (const v of variants) {
+    
       const skuCheck = await pool.query('SELECT * FROM variants WHERE sku = $1', [v.sku]);
       if (skuCheck.rows.length > 0) return res.status(409).json({ message: `SKU ${v.sku} already exists.` });
+
+      
+      const attrComboCheck = await pool.query(
+        'SELECT * FROM variants WHERE product_id = $1 AND attributes = $2',
+        [product_id, JSON.stringify(v.attributes)]
+      );
+      if (attrComboCheck.rows.length > 0) return res.status(409).json({ message: 'Variant with this attribute combination already exists.' });
+
+      
       const imageUrl = uploadedImageUrl || v.image_url || null;
+      const barcode = v.barcode || null;
+      const custom_price = v.custom_price || null;
       const result = await pool.query(
-        'INSERT INTO variants (product_id, attributes, cost_price, selling_price, quantity, threshold, sku, image_url, expiry_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
-        [product_id, JSON.stringify(v.attributes), v.cost_price, v.selling_price, v.quantity, v.threshold, v.sku, imageUrl, v.expiry_date]
+        'INSERT INTO variants (product_id, attributes, cost_price, selling_price, quantity, threshold, sku, image_url, expiry_date, barcode, custom_price) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
+        [product_id, JSON.stringify(v.attributes), v.cost_price, v.selling_price, v.quantity, v.threshold, v.sku, imageUrl, v.expiry_date, barcode, custom_price]
       );
       const variant = result.rows[0];
       inserted.push(variant);
@@ -60,7 +95,7 @@ exports.generateVariants = async (req, res) => {
 exports.listVariants = async (req, res) => {
   try {
     const { id: product_id } = req.params;
-    const result = await pool.query('SELECT * FROM variants WHERE product_id = $1', [product_id]);
+    const result = await pool.query('SELECT * FROM variants WHERE product_id = $1 AND deleted_at IS NULL', [product_id]);
     return res.status(200).json({ variants: result.rows });
   } catch (err) {
     console.error(err);
@@ -74,25 +109,21 @@ exports.getVariantsByBusiness = async (req, res) => {
     SELECT v.* FROM variants v
     JOIN products p ON v.product_id = p.id
     JOIN businesses b ON p.business_id = b.id
-    WHERE b.user_id = $1
+    WHERE b.user_id = $1 AND v.deleted_at IS NULL
   `, [user_id]);
-
   return res.status(200).json({ variants: result.rows });
 };
 
 exports.getVariantByProduct = async (req, res) => {
   try {
     const { productId, variantId } = req.params;
-
     const result = await pool.query(
-      'SELECT * FROM variants WHERE id = $1 AND product_id = $2',
+      'SELECT * FROM variants WHERE id = $1 AND product_id = $2 AND deleted_at IS NULL',
       [variantId, productId]
     );
-
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Variant not found for this product.' });
     }
-
     return res.status(200).json({ variant: result.rows[0] });
   } catch (err) {
     console.error(err);
@@ -103,16 +134,48 @@ exports.getVariantByProduct = async (req, res) => {
 exports.getVariantById = async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query('SELECT * FROM variants WHERE id = $1', [id]);
-
+    const result = await pool.query('SELECT * FROM variants WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Variant not found' });
     }
-
     return res.status(200).json({ variant: result.rows[0] });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+exports.createVariantsBatch = async (req, res) => {
+  try {
+    const { product_id, variants } = req.body;
+    if (!product_id || !Array.isArray(variants) || variants.length === 0) {
+      return res.status(400).json({ message: 'product_id and variants array are required.' });
+    }
+    const inserted = [];
+    for (const v of variants) {
+    
+      if (!v.sku || !v.cost_price || !v.selling_price) {
+        return res.status(400).json({ message: 'Each variant must have sku, cost_price, and selling_price.' });
+      }
+     
+      const skuCheck = await pool.query('SELECT * FROM variants WHERE sku = $1 AND deleted_at IS NULL', [v.sku]);
+      if (skuCheck.rows.length > 0) return res.status(409).json({ message: `SKU ${v.sku} already exists.` });
+      const attrComboCheck = await pool.query(
+        'SELECT * FROM variants WHERE product_id = $1 AND attributes = $2 AND deleted_at IS NULL',
+        [product_id, JSON.stringify(v.attributes)]
+      );
+      if (attrComboCheck.rows.length > 0) return res.status(409).json({ message: 'Variant with this attribute combination already exists.' });
+     
+      const result = await pool.query(
+        'INSERT INTO variants (product_id, attributes, cost_price, selling_price, quantity, threshold, sku, image_url, expiry_date, barcode, custom_price) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
+        [product_id, JSON.stringify(v.attributes), v.cost_price, v.selling_price, v.quantity || 0, v.threshold || 0, v.sku, v.image_url || null, v.expiry_date || null, v.barcode || null, v.custom_price || null]
+      );
+      inserted.push(result.rows[0]);
+    }
+    return res.status(201).json({ message: 'Batch variants created.', variants: inserted });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
   }
 };
 
@@ -156,8 +219,8 @@ exports.updateVariant = async (req, res) => {
 exports.deleteVariant = async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM variants WHERE id = $1', [id]);
-    return res.status(200).json({ message: 'Variant deleted.' });
+    await pool.query('UPDATE variants SET deleted_at = NOW() WHERE id = $1', [id]);
+    return res.status(200).json({ message: 'Variant soft-deleted.' });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });

@@ -7,6 +7,52 @@ const variantController = require('../controllers/variantController');
 
 /**
  * @swagger
+ * /api/variants/batch:
+ *   post:
+ *     summary: Batch create variants for a product
+ *     tags: [Variant]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               product_id:
+ *                 type: integer
+ *               variants:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     sku:
+ *                       type: string
+ *                     cost_price:
+ *                       type: number
+ *                     selling_price:
+ *                       type: number
+ *                     attributes:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                     barcode:
+ *                       type: string
+ *                     custom_price:
+ *                       type: number
+ *                     image_url:
+ *                       type: string
+ *                     expiry_date:
+ *                       type: string
+ *                       format: date
+ *     responses:
+ *       201:
+ *         description: Batch variants created
+ */
+
+/**
+ * @swagger
  * /api/products/{id}/variants/generate:
  *   post:
  *     summary: Auto-generate variants from selected attributes
@@ -275,8 +321,61 @@ const variantController = require('../controllers/variantController');
  *       200:
  *         description: Count of variants in stock
  */
+
+/**
+ * @swagger
+ * /api/variants/generate-names:
+ *   post:
+ *     summary: Generate all possible variant names from product and attributes
+ *     tags: [Variant]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               product_name:
+ *                 type: string
+ *                 example: "T-Shirt"
+ *               attributes:
+ *                 type: array
+ *                 description: Array of attribute objects (optional)
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     name:
+ *                       type: string
+ *                       example: "Color"
+ *                     values:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       example: ["Red", "Blue"]
+ *               separator:
+ *                 type: string
+ *                 description: "Optional separator for variant names (default: ' - ')"
+ *                 example: " / "
+ *     responses:
+ *       200:
+ *         description: List of generated variant names
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 variant_names:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   example: ["T-Shirt - Red - S", "T-Shirt - Blue - M"]
+ */
 router.get('/count-in-stock', require('../middlewares/authMiddleware').authenticateToken, require('../controllers/variantController').countVariantsInStock);
 router.post('/products/:id/variants/generate', authenticateToken, upload.single('image'), variantController.generateVariants);
+router.post('/generate-names', require('../middlewares/authMiddleware').authenticateToken, variantController.generateVariantNames);
+router.post('/batch', require('../middlewares/authMiddleware').authenticateToken, variantController.createVariantsBatch);
 router.get('/products/:id/variants', authenticateToken, variantController.listVariants);
 router.get('/variants/product/:productId/variants/:variantId',authenticateToken,variantController.getVariantByProduct);
 router.get('/variants/:id', authenticateToken, variantController.getVariantById);
