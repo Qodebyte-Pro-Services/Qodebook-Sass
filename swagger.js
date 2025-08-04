@@ -11,7 +11,7 @@ const options = {
     },
     servers: [
       {
-         url: 'http://qodebook-sass.onrender.com',
+        url: 'http://qodebook-sass.onrender.com',
       },
     ],
     components: {
@@ -20,6 +20,42 @@ const options = {
           type: 'http',
           scheme: 'bearer',
           bearerFormat: 'JWT',
+        },
+      },
+      schemas: {
+        User: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'integer',
+            },
+            first_name: {
+              type: 'string',
+            },
+            last_name: {
+              type: 'string',
+            },
+            email: {
+              type: 'string',
+            },
+            phone: {
+              type: 'string',
+            },
+            is_verified: {
+              type: 'boolean',
+            },
+            is_social_media: {
+              type: 'boolean',
+            },
+            created_at: {
+              type: 'string',
+              format: 'date-time',
+            },
+            updated_at: {
+              type: 'string',
+              format: 'date-time',
+            },
+          },
         },
       },
     },
