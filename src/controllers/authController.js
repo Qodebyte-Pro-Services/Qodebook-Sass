@@ -40,6 +40,12 @@ exports.verifyOtp = async (req, res) => {
       const token = jwt.sign({ user_id: user.id, email: user.email, is_social_media: user.is_social_media }, process.env.JWT_SECRET, { expiresIn: '7d' });
       return res.status(200).json({ message: 'OTP verified. Login successful.', token });
     }
+
+   if (purpose === 'reset') {
+      const resetToken = jwt.sign({ user_id: user.id, email: user.email, purpose: 'reset' }, process.env.JWT_SECRET,{ expiresIn: '10m' });
+      return res.status(200).json({ message: 'OTP verified. Proceed to reset password.', token: resetToken });
+    }
+
     return res.status(200).json({ message: 'OTP verified.' });
   } catch (err) {
     console.error(err);
@@ -200,25 +206,36 @@ exports.forgotPassword = async (req, res) => {
 
 exports.resetPassword = async (req, res) => {
   try {
-    const { email, otp, new_password } = req.body;
-    if (!email || !otp || !new_password) return res.status(400).json({ message: 'Email, OTP, and new password are required.' });
-    const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    if (userResult.rows.length === 0) return res.status(400).json({ message: 'Invalid email or OTP.' });
-    const user = userResult.rows[0];
-    const otpResult = await pool.query(
-      'SELECT * FROM user_otps WHERE user_id = $1 AND otp_code = $2 AND purpose = $3 AND used = false AND expires_at > NOW()',
-      [user.id, otp, 'reset']
-    );
-    if (otpResult.rows.length === 0) return res.status(400).json({ message: 'Invalid or expired OTP.' });
-    const hashedPassword = await bcrypt.hash(new_password, 10);
-    await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, user.id]);
-    await pool.query('UPDATE user_otps SET used = true WHERE id = $1', [otpResult.rows[0].id]);
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'Unauthorized. Missing or invalid token.' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    let payload;
+    try {
+      payload = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ message: 'Invalid or expired token.' });
+    }
+
+    if (payload.purpose !== 'reset') {
+      return res.status(401).json({ message: 'Invalid reset token.' });
+    }
+
+    const { newPassword } = req.body;
+    if (!newPassword) return res.status(400).json({ message: 'New password is required.' });
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, payload.user_id]);
+
     return res.status(200).json({ message: 'Password reset successful.' });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+
 
 
 exports.resendOtp = async (req, res) => {

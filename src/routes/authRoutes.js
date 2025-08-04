@@ -5,6 +5,9 @@ const express = require('express');
 const router = express.Router();
 const { validateSignup, validateLogin } = require('../middlewares/validateInput');
 const authController = require('../controllers/authController');
+const auditLog = require('../middlewares/auditLogMiddleware');
+const rateLimitMiddleware = require('../middlewares/rateLimitMiddleware');
+
 // configureFacebookStrategy();
 
 /**
@@ -173,7 +176,7 @@ router.post('/login', validateLogin, authController.login);
  *       404:
  *         description: User not found
  */
-router.post('/verify-otp', authController.verifyOtp);
+router.post('/verify-otp', auditLog('OTP_VERIFY', 'User submitted OTP'), authController.verifyOtp);
 
 
 /**
@@ -195,15 +198,17 @@ router.post('/verify-otp', authController.verifyOtp);
  *       200:
  *         description: Password reset email sent
  */
-router.post('/forgot-password', authController.forgotPassword);
+router.post('/forgot-password', rateLimitMiddleware, auditLog('OTP_REQUEST', 'Forgot password initiated'), authController.forgotPassword);
 
 
 /**
  * @swagger
  * /api/auth/reset-password:
  *   post:
- *     summary: Reset password
+ *     summary: Reset password (requires token from OTP verification)
  *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []  # <- Indicates Authorization: Bearer token is required
  *     requestBody:
  *       required: true
  *       content:
@@ -211,19 +216,19 @@ router.post('/forgot-password', authController.forgotPassword);
  *           schema:
  *             type: object
  *             properties:
- *               email:
- *                 type: string
- *               otp:
- *                 type: string
  *               newPassword:
  *                 type: string
+ *                 example: StrongPass123!
  *     responses:
  *       200:
  *         description: Password reset successful
  *       400:
- *         description: Invalid OTP or email
+ *         description: Missing new password
+ *       401:
+ *         description: Invalid or expired token
  */
-router.post('/reset-password', authController.resetPassword);
+
+router.post('/reset-password', auditLog('RESET_PASSWORD', 'Password reset after OTP'), authController.resetPassword);
 
 
 /**
@@ -244,23 +249,50 @@ router.post('/logout', authController.logout);
  * /api/auth/me:
  *   get:
  *     summary: Get user profile
+ *     description: Requires a valid JWT token. `user_id` is extracted from the token.
  *     tags: [Auth]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: User profile
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     first_name:
+ *                       type: string
+ *                     last_name:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     phone:
+ *                       type: string
+ *                     is_verified:
+ *                       type: boolean
+ *                     is_social_media:
+ *                       type: boolean
+ *                     created_at:
+ *                       type: string
+ *                     updated_at:
+ *                       type: string
  *       401:
- *         description: Unauthorized
+ *         description: Unauthorized - missing or invalid token
  */
 router.get('/me', require('../middlewares/authMiddleware').authenticateToken, authController.getProfile);
-
 
 /**
  * @swagger
  * /api/auth/me:
  *   put:
  *     summary: Update user profile
+ *     description: Requires a valid JWT token. `user_id` is extracted from the token.
  *     tags: [Auth]
  *     security:
  *       - bearerAuth: []
@@ -271,15 +303,26 @@ router.get('/me', require('../middlewares/authMiddleware').authenticateToken, au
  *           schema:
  *             type: object
  *             properties:
- *               name:
+ *               first_name:
  *                 type: string
- *               password:
+ *               last_name:
+ *                 type: string
+ *               phone:
  *                 type: string
  *     responses:
  *       200:
  *         description: Profile updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
  *       401:
- *         description: Unauthorized
+ *         description: Unauthorized - missing or invalid token
  */
 router.put('/me', require('../middlewares/authMiddleware').authenticateToken, authController.updateProfile);
 
