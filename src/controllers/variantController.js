@@ -216,6 +216,24 @@ exports.updateVariant = async (req, res) => {
   }
 };
 
+exports.updateBarcode = async (req, res) => {
+  const { id } = req.params;
+  const { barcode } = req.body;
+
+  if (!barcode) return res.status(400).json({ message: 'Barcode is required.' });
+
+  try {
+    const result = await pool.query(
+      'UPDATE variants SET barcode = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+      [barcode, id]
+    );
+    return res.status(200).json({ message: 'Barcode updated.', variant: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to update barcode.' });
+  }
+};
+
 exports.deleteVariant = async (req, res) => {
   try {
     const { id } = req.params;

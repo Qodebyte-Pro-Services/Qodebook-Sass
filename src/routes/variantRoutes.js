@@ -372,6 +372,50 @@ const variantController = require('../controllers/variantController');
  *                     type: string
  *                   example: ["T-Shirt - Red - S", "T-Shirt - Blue - M"]
  */
+/**
+ * @swagger
+ * /api/variants/{id}/barcode:
+ *   patch:
+ *     summary: Update the barcode of a specific variant
+ *     tags: [Variant]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Variant ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               barcode:
+ *                 type: string
+ *             required:
+ *               - barcode
+ *     responses:
+ *       200:
+ *         description: Barcode successfully updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 variant:
+ *                   $ref: '#/components/schemas/Variant'
+ *       400:
+ *         description: Barcode is missing from request
+ *       500:
+ *         description: Server error
+ */
+router.patch('/variants/:id/barcode', authenticateToken, variantController.updateBarcode);
 router.get('/count-in-stock', require('../middlewares/authMiddleware').authenticateToken, require('../controllers/variantController').countVariantsInStock);
 router.post('/products/:id/variants/generate', authenticateToken, upload.single('image'), variantController.generateVariants);
 router.post('/generate-names', require('../middlewares/authMiddleware').authenticateToken, variantController.generateVariantNames);
