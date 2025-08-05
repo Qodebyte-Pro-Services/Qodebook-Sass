@@ -10,11 +10,13 @@
   "author": "Qodebyte",
   "license": "MIT",
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "bull": "^4.16.5",
     "bwip-js": "^4.7.0",
     "cloudinary": "^2.7.0",
     "cors": "^2.8.5",
+    "crypto": "^1.0.1",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "express-rate-limit": "^8.0.1",

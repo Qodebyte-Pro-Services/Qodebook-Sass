@@ -90,6 +90,48 @@ router.post('/', authenticateToken, upload.single('image'), productController.cr
 /**
  * @swagger
  * /api/products:
+ *   post:
+ *     summary: Create product
+ *     tags: [Product]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               business_id:
+ *                 type: string
+ *               category_id:
+ *                 type: string
+ *               name:
+ *                 type: string
+ *               brand:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               base_sku:
+ *                 type: string
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *               taxable:
+ *                 type: boolean
+ *               threshold:
+ *                 type: integer
+ *     responses:
+ *       201:
+ *         description: Product created
+ *       409:
+ *         description: Product name already exists
+ */
+router.post('/products/full', authenticateToken, upload.single('image'), productController.createProductWithVariants);
+
+/**
+ * @swagger
+ * /api/products:
  *   get:
  *     summary: List all products
  *     tags: [Product]

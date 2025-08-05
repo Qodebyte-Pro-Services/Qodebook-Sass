@@ -1,20 +1,431 @@
 
 const pool = require('../config/db');
+const AuditService = require('../services/auditService');
+const StockNotificationService = require('../services/stockNotificationService');
+
+
+
+exports.transferStock = async (req, res) => {
+  try {
+    const { 
+      variant_id, 
+      from_branch_id, 
+      to_branch_id, 
+      quantity, 
+      reason, 
+      expected_delivery_date,
+      transfer_notes 
+    } = req.body;
+
+    if (!variant_id || !from_branch_id || !to_branch_id || !quantity || !reason) {
+      return res.status(400).json({ 
+        message: 'variant_id, from_branch_id, to_branch_id, quantity, and reason are required.' 
+      });
+    }
+
+    if (from_branch_id === to_branch_id) {
+      return res.status(400).json({ message: 'Source and destination branches cannot be the same.' });
+    }
+
+ 
+    const sourceVariant = await pool.query(
+      'SELECT * FROM variants WHERE id = $1 AND branch_id = $2',
+      [variant_id, from_branch_id]
+    );
+
+    if (sourceVariant.rows.length === 0) {
+      return res.status(404).json({ message: 'Variant not found in source branch.' });
+    }
+
+    if (sourceVariant.rows[0].quantity < quantity) {
+      return res.status(400).json({ message: 'Insufficient stock in source branch.' });
+    }
+
+  
+    const transferResult = await pool.query(`
+      INSERT INTO stock_transfers (
+        variant_id, from_branch_id, to_branch_id, quantity, 
+        reason, expected_delivery_date, transfer_notes, status, 
+        initiated_by, business_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9) 
+      RETURNING *
+    `, [
+      variant_id, from_branch_id, to_branch_id, quantity, 
+      reason, expected_delivery_date, transfer_notes, 
+      req.user?.staff_id || req.user?.id, req.user?.business_id
+    ]);
+
+    const transfer = transferResult.rows[0];
+
+ 
+    await pool.query(`
+      INSERT INTO inventory_logs (
+        variant_id, type, quantity, note, branch_id, 
+        related_transfer_id, business_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [
+      variant_id, 'transfer_out', -quantity, 
+      `Transfer to branch ${to_branch_id}: ${reason}`, 
+      from_branch_id, transfer.id, req.user?.business_id
+    ]);
+
+
+    await AuditService.logStockAction('transfer_initiated', variant_id, req.user?.business_id, req.user, {
+      transfer_id: transfer.id,
+      from_branch: from_branch_id,
+      to_branch: to_branch_id,
+      quantity,
+      reason
+    }, req);
+
+ 
+    await StockNotificationService.createTransferNotification(transfer.id, req.user?.business_id);
+
+    return res.status(201).json({ 
+      message: 'Stock transfer initiated.', 
+      transfer,
+      remaining_stock: sourceVariant.rows[0].quantity - quantity
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+
+exports.completeTransfer = async (req, res) => {
+  try {
+    const { transfer_id } = req.params;
+    const { actual_quantity, received_notes } = req.body;
+
+    const transferResult = await pool.query(`
+      SELECT * FROM stock_transfers 
+      WHERE id = $1 AND business_id = $2 AND status = 'pending'
+    `, [transfer_id, req.user?.business_id]);
+
+    if (transferResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Transfer not found or already completed.' });
+    }
+
+    const transfer = transferResult.rows[0];
+    const quantity = actual_quantity || transfer.quantity;
+
+
+    let destVariant = await pool.query(
+      'SELECT * FROM variants WHERE product_id = (SELECT product_id FROM variants WHERE id = $1) AND branch_id = $2',
+      [transfer.variant_id, transfer.to_branch_id]
+    );
+
+    if (destVariant.rows.length === 0) {
+    
+      const sourceVariant = await pool.query('SELECT * FROM variants WHERE id = $1', [transfer.variant_id]);
+      const source = sourceVariant.rows[0];
+      
+      destVariant = await pool.query(`
+        INSERT INTO variants (
+          product_id, branch_id, sku, price, cost_price, 
+          quantity, threshold, business_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
+      `, [
+        source.product_id, transfer.to_branch_id, source.sku, 
+        source.price, source.cost_price, 0, source.threshold, req.user?.business_id
+      ]);
+    }
+
+    const destVariantId = destVariant.rows[0].id;
+
+   
+    await pool.query(
+      'UPDATE variants SET quantity = quantity - $1 WHERE id = $2',
+      [quantity, transfer.variant_id]
+    );
+
+    await pool.query(
+      'UPDATE variants SET quantity = quantity + $1 WHERE id = $2',
+      [quantity, destVariantId]
+    );
+
+  
+    await pool.query(`
+      UPDATE stock_transfers SET 
+        status = 'completed', 
+        actual_quantity = $1, 
+        received_notes = $2,
+        completed_at = NOW(),
+        completed_by = $3
+      WHERE id = $4
+    `, [quantity, received_notes, req.user?.staff_id || req.user?.id, transfer_id]);
+
+   
+    await pool.query(`
+      INSERT INTO inventory_logs (
+        variant_id, type, quantity, note, branch_id, 
+        related_transfer_id, business_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [
+      destVariantId, 'transfer_in', quantity, 
+      `Transfer from branch ${transfer.from_branch_id}: ${transfer.reason}`, 
+      transfer.to_branch_id, transfer_id, req.user?.business_id
+    ]);
+
+
+    await AuditService.logStockAction('transfer_completed', destVariantId, req.user?.business_id, req.user, {
+      transfer_id: transfer.id,
+      from_branch: transfer.from_branch_id,
+      to_branch: transfer.to_branch_id,
+      quantity,
+      received_notes
+    }, req);
+
+    return res.status(200).json({ 
+      message: 'Stock transfer completed successfully.',
+      transfer_id,
+      quantity_transferred: quantity
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+exports.getPendingTransfers = async (req, res) => {
+  try {
+    const { branch_id } = req.query;
+    let query = `
+      SELECT st.*, 
+             v.sku, v.name as variant_name,
+             p.name as product_name,
+             fb.name as from_branch_name,
+             tb.name as to_branch_name,
+             s.full_name as initiated_by_name
+      FROM stock_transfers st
+      JOIN variants v ON st.variant_id = v.id
+      JOIN products p ON v.product_id = p.id
+      JOIN branches fb ON st.from_branch_id = fb.id
+      JOIN branches tb ON st.to_branch_id = tb.id
+      LEFT JOIN staff s ON st.initiated_by = s.staff_id
+      WHERE st.business_id = $1 AND st.status = 'pending'
+    `;
+    let params = [req.user?.business_id];
+
+    if (branch_id) {
+      query += ' AND (st.from_branch_id = $2 OR st.to_branch_id = $2)';
+      params.push(branch_id);
+    }
+
+    query += ' ORDER BY st.created_at DESC';
+
+    const result = await pool.query(query, params);
+    return res.status(200).json({ transfers: result.rows });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
 
 
 exports.adjustStock = async (req, res) => {
   try {
-    const { variant_id, new_quantity, reason, type } = req.body;
+    const { 
+      variant_id, 
+      new_quantity, 
+      reason, 
+      type, 
+      adjustment_category,
+      reference_number,
+      notes 
+    } = req.body;
+
     if (!variant_id || typeof new_quantity !== 'number' || !reason || !type) {
-      return res.status(400).json({ message: 'variant_id, new_quantity, type, and reason are required.' });
+      return res.status(400).json({ 
+        message: 'variant_id, new_quantity, type, and reason are required.' 
+      });
     }
- 
+
     const variantRes = await pool.query('SELECT * FROM variants WHERE id = $1', [variant_id]);
-    if (variantRes.rows.length === 0) return res.status(404).json({ message: 'Variant not found.' });
+    if (variantRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Variant not found.' });
+    }
+
     const old_quantity = variantRes.rows[0].quantity;
+    const quantity_change = new_quantity - old_quantity;
+
+
     await pool.query('UPDATE variants SET quantity = $1 WHERE id = $2', [new_quantity, variant_id]);
-    await pool.query('INSERT INTO inventory_logs (variant_id, type, quantity, note) VALUES ($1, $2, $3, $4)', [variant_id, type, new_quantity - old_quantity, reason]);
-    return res.status(200).json({ message: 'Stock adjusted.', old_quantity, new_quantity });
+
+    
+    await pool.query(`
+      INSERT INTO inventory_logs (
+        variant_id, type, quantity, note, adjustment_category, 
+        reference_number, business_id, branch_id, adjusted_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `, [
+      variant_id, type, quantity_change, notes || reason, 
+      adjustment_category, reference_number, req.user?.business_id,
+      variantRes.rows[0].branch_id, req.user?.staff_id || req.user?.id
+    ]);
+
+   
+    await StockNotificationService.checkLowStock(variant_id, req.user?.business_id);
+    await StockNotificationService.checkOutOfStock(variant_id, req.user?.business_id);
+
+
+    await AuditService.logStockAction('adjustment', variant_id, req.user?.business_id, req.user, {
+      old_quantity,
+      new_quantity,
+      quantity_change,
+      reason,
+      type,
+      adjustment_category,
+      reference_number
+    }, req);
+
+    return res.status(200).json({ 
+      message: 'Stock adjusted successfully.', 
+      old_quantity, 
+      new_quantity,
+      quantity_change
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+exports.getStockHistory = async (req, res) => {
+  try {
+    const { 
+      variant_id, 
+      branch_id, 
+      type, 
+      start_date, 
+      end_date,
+      limit = 50,
+      offset = 0 
+    } = req.query;
+
+    let query = `
+      SELECT il.*, 
+             v.sku, v.name as variant_name,
+             p.name as product_name,
+             b.name as branch_name,
+             s.full_name as adjusted_by_name
+      FROM inventory_logs il
+      JOIN variants v ON il.variant_id = v.id
+      JOIN products p ON v.product_id = p.id
+      LEFT JOIN branches b ON il.branch_id = b.id
+      LEFT JOIN staff s ON il.adjusted_by = s.staff_id
+      WHERE il.business_id = $1
+    `;
+    let params = [req.user?.business_id];
+    let paramCount = 1;
+
+    if (variant_id) {
+      paramCount++;
+      query += ` AND il.variant_id = $${paramCount}`;
+      params.push(variant_id);
+    }
+
+    if (branch_id) {
+      paramCount++;
+      query += ` AND il.branch_id = $${paramCount}`;
+      params.push(branch_id);
+    }
+
+    if (type) {
+      paramCount++;
+      query += ` AND il.type = $${paramCount}`;
+      params.push(type);
+    }
+
+    if (start_date) {
+      paramCount++;
+      query += ` AND il.created_at >= $${paramCount}`;
+      params.push(start_date);
+    }
+
+    if (end_date) {
+      paramCount++;
+      query += ` AND il.created_at <= $${paramCount}`;
+      params.push(end_date);
+    }
+
+    query += ` ORDER BY il.created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
+    params.push(parseInt(limit), parseInt(offset));
+
+    const logs = await pool.query(query, params);
+    return res.status(200).json({ 
+      history: logs.rows,
+      pagination: {
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        total: logs.rows.length
+      }
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+
+exports.getStockAnalytics = async (req, res) => {
+  try {
+    const { business_id } = req.user;
+    const { period = '30' } = req.query;
+
+   
+    const movementsResult = await pool.query(`
+      SELECT COUNT(*) as total_movements,
+             COUNT(CASE WHEN type = 'restock' THEN 1 END) as restocks,
+             COUNT(CASE WHEN type = 'sale' THEN 1 END) as sales,
+             COUNT(CASE WHEN type = 'adjustment' THEN 1 END) as adjustments,
+             COUNT(CASE WHEN type = 'transfer_in' OR type = 'transfer_out' THEN 1 END) as transfers
+      FROM inventory_logs 
+      WHERE business_id = $1 AND created_at >= NOW() - INTERVAL '${period} days'
+    `, [business_id]);
+
+
+    const topMovingResult = await pool.query(`
+      SELECT v.id, v.sku, v.name, p.name as product_name,
+             SUM(CASE WHEN il.type = 'sale' THEN ABS(il.quantity) ELSE 0 END) as total_sold,
+             SUM(CASE WHEN il.type = 'restock' THEN il.quantity ELSE 0 END) as total_restocked
+      FROM inventory_logs il
+      JOIN variants v ON il.variant_id = v.id
+      JOIN products p ON v.product_id = p.id
+      WHERE il.business_id = $1 AND il.created_at >= NOW() - INTERVAL '${period} days'
+      GROUP BY v.id, v.sku, v.name, p.name
+      ORDER BY total_sold DESC
+      LIMIT 10
+    `, [business_id]);
+
+
+    const branchStockResult = await pool.query(`
+      SELECT b.name as branch_name,
+             COUNT(v.id) as total_variants,
+             SUM(v.quantity) as total_stock,
+             COUNT(CASE WHEN v.quantity <= v.threshold THEN 1 END) as low_stock_items
+      FROM variants v
+      JOIN branches b ON v.branch_id = b.id
+      WHERE v.business_id = $1
+      GROUP BY b.id, b.name
+      ORDER BY total_stock DESC
+    `, [business_id]);
+
+    return res.status(200).json({
+      analytics: {
+        period_days: parseInt(period),
+        movements: movementsResult.rows[0],
+        top_moving_products: topMovingResult.rows,
+        branch_distribution: branchStockResult.rows
+      }
+    });
+
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
@@ -148,6 +559,45 @@ exports.getSlowMoving = async (req, res) => {
   try {
     const result = await pool.query("SELECT variant_id, SUM(quantity) as total_sold FROM inventory_logs WHERE type = 'sale' AND created_at > NOW() - INTERVAL '30 days' GROUP BY variant_id ORDER BY total_sold ASC LIMIT 20");
     return res.status(200).json({ slow_moving: result.rows });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+
+exports.getNotifications = async (req, res) => {
+  try {
+    const { limit = 50 } = req.query;
+    const notifications = await StockNotificationService.getUnreadNotifications(
+      req.user?.business_id, 
+      parseInt(limit)
+    );
+
+    return res.status(200).json({ notifications });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+exports.markNotificationAsRead = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user_id = req.user?.staff_id || req.user?.id;
+
+    await StockNotificationService.markAsRead(id, user_id);
+    return res.status(200).json({ message: 'Notification marked as read.' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+exports.getNotificationStats = async (req, res) => {
+  try {
+    const stats = await StockNotificationService.getNotificationStats(req.user?.business_id);
+    return res.status(200).json({ stats });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });

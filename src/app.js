@@ -33,6 +33,7 @@ const serviceCategoryRoutes = require('./routes/serviceCategoryRoutes');
 const supplierRoutes = require('./routes/supplierRoutes');
 const serviceStaffAssignmentRoutes = require('./routes/serviceStaffAssignmentRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
+const auditRoutes = require('./routes/auditRoutes');
 
 
 const setupSwagger = require('../swagger');
@@ -77,6 +78,7 @@ app.use('/api/stock', stockRoutes);
 app.use('/api/service-categories', serviceCategoryRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/service-staff-assignments', serviceStaffAssignmentRoutes);
+app.use('/api/audit', auditRoutes);
 
 app.use('/api/categories', categoryRoutes);
 

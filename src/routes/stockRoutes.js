@@ -228,4 +228,169 @@ router.get('/status/fast-moving', authenticateToken, stockController.getFastMovi
  */
 router.get('/status/slow-moving', authenticateToken, stockController.getSlowMoving);
 
+/**
+ * @swagger
+ * /api/stock/transfer:
+ *   post:
+ *     summary: Transfer stock between branches
+ *     tags: [Stock]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               variant_id:
+ *                 type: integer
+ *               from_branch_id:
+ *                 type: integer
+ *               to_branch_id:
+ *                 type: integer
+ *               quantity:
+ *                 type: integer
+ *               reason:
+ *                 type: string
+ *               expected_delivery_date:
+ *                 type: string
+ *                 format: date
+ *               transfer_notes:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Stock transfer initiated
+ */
+router.post('/transfer', authenticateToken, stockController.transferStock);
+
+/**
+ * @swagger
+ * /api/stock/transfer/{transfer_id}/complete:
+ *   post:
+ *     summary: Complete a pending stock transfer
+ *     tags: [Stock]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: transfer_id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: Transfer ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               actual_quantity:
+ *                 type: integer
+ *               received_notes:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Stock transfer completed
+ */
+router.post('/transfer/:transfer_id/complete', authenticateToken, stockController.completeTransfer);
+
+/**
+ * @swagger
+ * /api/stock/transfers/pending:
+ *   get:
+ *     summary: Get pending stock transfers
+ *     tags: [Stock]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: integer
+ *         description: Filter by branch (optional)
+ *     responses:
+ *       200:
+ *         description: Pending transfers
+ */
+router.get('/transfers/pending', authenticateToken, stockController.getPendingTransfers);
+
+/**
+ * @swagger
+ * /api/stock/analytics:
+ *   get:
+ *     summary: Get stock movement analytics
+ *     tags: [Stock]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: integer
+ *           default: 30
+ *         description: Analysis period in days
+ *     responses:
+ *       200:
+ *         description: Stock analytics
+ */
+router.get('/analytics', authenticateToken, stockController.getStockAnalytics);
+
+/**
+ * @swagger
+ * /api/stock/notifications:
+ *   get:
+ *     summary: Get unread stock notifications
+ *     tags: [Stock]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Number of notifications to return
+ *     responses:
+ *       200:
+ *         description: Unread notifications
+ */
+router.get('/notifications', authenticateToken, stockController.getNotifications);
+
+/**
+ * @swagger
+ * /api/stock/notifications/{id}/read:
+ *   post:
+ *     summary: Mark notification as read
+ *     tags: [Stock]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: Notification ID
+ *     responses:
+ *       200:
+ *         description: Notification marked as read
+ */
+router.post('/notifications/:id/read', authenticateToken, stockController.markNotificationAsRead);
+
+/**
+ * @swagger
+ * /api/stock/notifications/stats:
+ *   get:
+ *     summary: Get notification statistics
+ *     tags: [Stock]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Notification statistics
+ */
+router.get('/notifications/stats', authenticateToken, stockController.getNotificationStats);
+
 module.exports = router;

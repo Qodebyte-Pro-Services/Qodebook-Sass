@@ -539,8 +539,248 @@ router.delete('/:id', authenticateToken, staffController.deleteStaff);
  */
 router.get('/business/:id', authenticateToken, staffController.getStaffByBusiness);
 
+// Staff Authentication Routes
+/**
+ * @swagger
+ * /api/staff/login:
+ *   post:
+ *     summary: Staff login
+ *     tags: [StaffAuth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *               - business_id
+ *             properties:
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *               business_id:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *       401:
+ *         description: Invalid credentials
+ */
+router.post('/login', staffController.staffLogin);
 
+/**
+ * @swagger
+ * /api/staff/password/change:
+ *   post:
+ *     summary: Request password change
+ *     tags: [StaffAuth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - staff_id
+ *               - new_password
+ *               - current_password
+ *             properties:
+ *               staff_id:
+ *                 type: string
+ *               new_password:
+ *                 type: string
+ *               current_password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Password change request submitted or completed
+ */
+router.post('/password/change', authenticateToken, staffController.requestPasswordChange);
 
+// Business Staff Settings Routes
+/**
+ * @swagger
+ * /api/staff/settings/{business_id}:
+ *   get:
+ *     summary: Get business staff settings
+ *     tags: [StaffSettings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: business_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Business staff settings
+ */
+router.get('/settings/:business_id', authenticateToken, staffController.getBusinessStaffSettings);
+
+/**
+ * @swagger
+ * /api/staff/settings/{business_id}:
+ *   put:
+ *     summary: Update business staff settings
+ *     tags: [StaffSettings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: business_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               branch_id:
+ *                 type: integer
+ *               password_delivery_method:
+ *                 type: string
+ *                 enum: [owner, staff]
+ *               password_change_policy:
+ *                 type: string
+ *                 enum: [request, self]
+ *               require_otp_for_login:
+ *                 type: boolean
+ *               otp_delivery_method:
+ *                 type: string
+ *                 enum: [owner, staff]
+ *               session_timeout_minutes:
+ *                 type: integer
+ *               max_login_attempts:
+ *                 type: integer
+ *               lockout_duration_minutes:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Settings updated successfully
+ */
+router.put('/settings/:business_id', authenticateToken, staffController.updateBusinessStaffSettings);
+
+// Staff Login History Routes
+/**
+ * @swagger
+ * /api/staff/logins/{business_id}:
+ *   get:
+ *     summary: Get staff login history
+ *     tags: [StaffLogs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: business_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: staff_id
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *     responses:
+ *       200:
+ *         description: Staff login history
+ */
+router.get('/logins/:business_id', authenticateToken, staffController.getStaffLoginHistory);
+
+// Password Change Request Management Routes
+/**
+ * @swagger
+ * /api/staff/password/approve/{request_id}:
+ *   post:
+ *     summary: Approve password change request
+ *     tags: [StaffAuth]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: request_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - staff_id
+ *               - new_password
+ *             properties:
+ *               staff_id:
+ *                 type: string
+ *               new_password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Password change request approved
+ */
+router.post('/password/approve/:request_id', authenticateToken, staffController.approvePasswordChangeRequest);
+
+/**
+ * @swagger
+ * /api/staff/password/reject/{request_id}:
+ *   post:
+ *     summary: Reject password change request
+ *     tags: [StaffAuth]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: request_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               rejection_reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Password change request rejected
+ */
+router.post('/password/reject/:request_id', authenticateToken, staffController.rejectPasswordChangeRequest);
 
 
 module.exports = router;
