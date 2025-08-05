@@ -119,7 +119,7 @@ exports.signup = async (req, res) => {
       } catch (e) {
         console.error('Failed to send OTP email:', e);
       }
-      return res.status(201).json({ message: 'User registered. Please verify OTP sent to your email/phone.', user_id: user.id });
+      return res.status(201).json({ message: 'User registered. Please verify OTP sent to your email/phone.', user_id: user.id , user_email: user.email });
     }
 
 
@@ -157,7 +157,7 @@ exports.login = async (req, res) => {
 
    
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); 
     await pool.query(
       `INSERT INTO user_otps (user_id, otp_code, purpose, expires_at, used) VALUES ($1, $2, $3, $4, $5)`,
       [user.id, otpCode, 'login', expiresAt, false]
@@ -168,7 +168,7 @@ exports.login = async (req, res) => {
     } catch (e) {
       console.error('Failed to send OTP email:', e);
     }
-    return res.status(200).json({ message: 'OTP sent for login verification.', user_id: user.id });
+    return res.status(200).json({ message: 'OTP sent for login verification.', user_id: user.id, user_email: user.email });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
@@ -196,7 +196,7 @@ exports.forgotPassword = async (req, res) => {
     } catch (e) {
       console.error('Failed to send OTP email:', e);
     }
-    return res.status(200).json({ message: 'If the email exists, an OTP has been sent.' });
+    return res.status(200).json({ message: 'If the email exists, an OTP has been sent.', user_email: email });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });

@@ -12,7 +12,7 @@ logs/
 # Database files
 *.sql
 
-#*swagger.js
+*swagger.js
 *relax-4b278-firebase-adminsdk-bsd9c-8e4b0a309c.json
 
 # Word documents
