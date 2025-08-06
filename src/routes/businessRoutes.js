@@ -22,7 +22,7 @@ const { BUSINESS_PERMISSIONS } = require('../constants/permissions');
 const { validateBusiness } = require('../middlewares/validateInput');
 const upload = require('../middlewares/upload');
 const businessController = require('../controllers/businessController');
-
+const { authenticateToken } = require('../middlewares/authMiddleware');
 
 
 
@@ -61,7 +61,7 @@ const businessController = require('../controllers/businessController');
  *       409:
  *         description: Business name or phone already exists
  */
-router.post('/create', requireAuthOnly, upload.single('logo'), validateBusiness, businessController.createBusiness);
+router.post('/create', authenticateToken, upload.single('logo'), validateBusiness, businessController.createBusiness);
 
 
 /**
