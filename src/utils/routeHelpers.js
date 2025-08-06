@@ -11,6 +11,10 @@ const requirePermission = (permission) => [
   permissionMiddleware(permission)
 ];
 
+const requirePermissionOnly = (permission) => [
+  authenticateToken,
+  permissionMiddleware(permission)
+];
 
 const requireAuth = () => [
   authenticateToken,
@@ -24,6 +28,7 @@ const requireAuthOnly = () => [
 
 module.exports = {
   requirePermission,
+  requirePermissionOnly,
   requireAuth,
   requireAuthOnly
 };
