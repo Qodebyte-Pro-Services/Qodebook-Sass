@@ -76,7 +76,7 @@ router.post('/create', ...requireAuthOnly(), upload.single('logo'), validateBusi
  *       200:
  *         description: List of businesses
  */
-router.get('/', ...requirePermission(), businessController.listBusinesses);
+router.get('/', ...requireAuthOnly(), businessController.listBusinesses);
 
 
 /**
