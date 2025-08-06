@@ -34,7 +34,6 @@ module.exports = (requiredPermission) => async (req, res, next) => {
       return res.status(400).json({ message: 'Business context required for permission verification.' });
     }
 
-    // Check if the user owns this business
     const businessResult = await pool.query(
       'SELECT user_id FROM businesses WHERE id = $1',
       [businessId]

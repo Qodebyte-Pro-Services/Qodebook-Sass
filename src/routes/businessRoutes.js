@@ -17,7 +17,7 @@
  */
 const express = require('express');
 const router = express.Router();
-const { requirePermission, requirePermissionOnly, requireAuth } = require('../utils/routeHelpers');
+const { requirePermission, requirePermissionOnly, requireAuthOnly } = require('../utils/routeHelpers');
 const { BUSINESS_PERMISSIONS } = require('../constants/permissions');
 const { validateBusiness } = require('../middlewares/validateInput');
 const upload = require('../middlewares/upload');
@@ -61,7 +61,7 @@ const businessController = require('../controllers/businessController');
  *       409:
  *         description: Business name or phone already exists
  */
-router.post('/create', ...requirePermissionOnly(BUSINESS_PERMISSIONS.CREATE_BUSINESS), upload.single('logo'), validateBusiness, businessController.createBusiness);
+router.post('/create', requireAuthOnly, upload.single('logo'), validateBusiness, businessController.createBusiness);
 
 
 /**
