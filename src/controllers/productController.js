@@ -27,7 +27,7 @@ exports.countProductsInStock = async (req, res) => {
 
 exports.createProduct = async (req, res) => {
   try {
-    const { business_id, category_id, name, brand, description, base_sku, taxable, threshold } = req.body;
+    const { business_id, category_id, name, brand, description, base_sku, taxable, threshold, unit, hasVariation } = req.body;
   let image_url = null;
     if (req.file) {
       image_url = await uploadToCloudinary(req.file);
@@ -38,9 +38,13 @@ exports.createProduct = async (req, res) => {
     const check = await pool.query('SELECT * FROM products WHERE business_id = $1 AND LOWER(name) = LOWER($2)', [business_id, name]);
     if (check.rows.length > 0) return res.status(409).json({ message: 'Product name already exists.' });
     const result = await pool.query(
-      'INSERT INTO products (business_id, category_id, name, brand, description, base_sku, image_url, taxable, threshold) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
-      [business_id, category_id, name, brand, description, base_sku, image_url, taxable, threshold]
-    );
+  `INSERT INTO products 
+    (business_id, category_id, name, brand, description, base_sku, image_url, taxable, threshold, unit, "hasVariation") 
+   VALUES 
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+   RETURNING *`,
+  [business_id, category_id, name, brand, description, base_sku, image_url, taxable, threshold, unit, hasVariation || false]
+);
    
     const product = result.rows[0];
     if (!req.body.attributes || !Array.isArray(req.body.attributes) || req.body.attributes.length === 0) {
@@ -146,6 +150,8 @@ exports.updateProduct = async (req, res) => {
     if (taxable !== undefined) { setParts.push('taxable = $' + idx); values.push(taxable); idx++; }
     if (threshold !== undefined) { setParts.push('threshold = $' + idx); values.push(threshold); idx++; }
     if (category_id) { setParts.push('category_id = $' + idx); values.push(category_id); idx++; }
+    if (unit) { setParts.push('unit = $' + idx); values.push(unit); idx++; }
+    if (hasVariation !== undefined) { setParts.push('"hasVariation" = $' + idx); values.push(hasVariation); idx++; }
     setParts.push('updated_at = NOW()');
     if (setParts.length === 1) return res.status(400).json({ message: 'No fields to update.' });
     values.push(id);
@@ -233,17 +239,19 @@ exports.getProductsByBusiness = async (req, res) => {
 exports.createProductWithVariants = async (req, res) => {
   try {
     const {
-      business_id,
-      category_id,
-      name,
-      brand,
-      description,
-      base_sku,
-      taxable,
-      threshold,
-      attributes = [],
-      variants = [],   
-    } = req.body;
+  business_id,
+  category_id,
+  name,
+  brand,
+  description,
+  base_sku,
+  taxable,
+  threshold,
+  unit,
+  hasVariation,
+  attributes = [],
+  variants = [],
+} = req.body;
     let image_url = null;
     if (req.file) {
       image_url = await uploadToCloudinary(req.file);
@@ -260,9 +268,14 @@ exports.createProductWithVariants = async (req, res) => {
     }
   
     const result = await pool.query(
-      'INSERT INTO products (business_id, category_id, name, brand, description, base_sku, image_url, taxable, threshold) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
-      [business_id, category_id, name, brand, description, base_sku, image_url, taxable, threshold]
-    );
+  `INSERT INTO products 
+    (business_id, category_id, name, brand, description, base_sku, image_url, taxable, threshold, unit, "hasVariation") 
+   VALUES 
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+   RETURNING *`,
+  [business_id, category_id, name, brand, description, base_sku, image_url, taxable, threshold, unit, hasVariation || false]
+);
+
     const product = result.rows[0];
 
    

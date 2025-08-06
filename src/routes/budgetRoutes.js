@@ -31,7 +31,7 @@ const { FINANCIAL_PERMISSIONS } = require('../constants/permissions');
  *       200:
  *         description: Remaining budget
  */
-router.get('/:category_id/remaining', requireAuthOnly(), controller.remaining);
+router.get('/:category_id/remaining', ...requireAuthOnly(), controller.remaining);
 
 /**
  * @swagger
@@ -65,7 +65,7 @@ router.post('/', ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_BUDGET), cont
  *       200:
  *         description: List of budgets
  */
-router.get('/', requireAuthOnly(), controller.list);
+router.get('/', ...requireAuthOnly(), controller.list);
 
 /**
  * @swagger

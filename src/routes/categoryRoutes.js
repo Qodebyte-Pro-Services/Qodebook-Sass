@@ -53,7 +53,7 @@ router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_CATEGORY), cate
  *       200:
  *         description: List of categories
  */
-router.get('/', requireAuthOnly(), categoryController.listCategories);
+router.get('/', ...requireAuthOnly(), categoryController.listCategories);
 
 /**
  * @swagger
@@ -131,7 +131,7 @@ router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_CATEGORY),
  *       404:
  *         description: Category not found
  */
-router.get('/:id', requireAuthOnly(), categoryController.getCategory);
+router.get('/:id', ...requireAuthOnly(), categoryController.getCategory);
 
 /**
  * @swagger
@@ -152,6 +152,6 @@ router.get('/:id', requireAuthOnly(), categoryController.getCategory);
  *       200:
  *         description: List of categories for the business
  */
-router.get('/business/:business_id', requireAuthOnly(), categoryController.getCategoriesByBusiness);
+router.get('/business/:business_id', ...requireAuthOnly(), categoryController.getCategoriesByBusiness);
 
 module.exports = router;

@@ -109,7 +109,7 @@ router.post('/:id/reject', ...requirePermission(FINANCIAL_PERMISSIONS.REJECT_EXP
  *       200:
  *         description: List of expenses
  */
-router.get('/', requireAuthOnly(), controller.list);
+router.get('/', ...requireAuthOnly(), controller.list);
 
 /**
  * @swagger

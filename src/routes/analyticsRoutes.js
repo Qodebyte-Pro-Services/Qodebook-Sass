@@ -16,6 +16,6 @@ const auth = require('../middlewares/authMiddleware');
  *       200:
  *         description: Finance analytics overview data
  */
-router.get('/finance/overview', auth.authenticateToken, controller.overview);
+router.get('/overview', auth.authenticateToken, controller.overview);
 
 module.exports = router;

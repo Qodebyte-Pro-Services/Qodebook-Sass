@@ -286,7 +286,7 @@ router.post('/logout', authController.logout);
  *       401:
  *         description: Unauthorized - missing or invalid token
  */
-router.get('/me', requireAuthOnly(), authController.getProfile);
+router.get('/me', ...requireAuthOnly(), authController.getProfile);
 
 /**
  * @swagger
@@ -325,6 +325,6 @@ router.get('/me', requireAuthOnly(), authController.getProfile);
  *       401:
  *         description: Unauthorized - missing or invalid token
  */
-router.put('/me',  requireAuthOnly(), authController.updateProfile);
+router.put('/me',  ...requireAuthOnly(), authController.updateProfile);
 
 module.exports = router;

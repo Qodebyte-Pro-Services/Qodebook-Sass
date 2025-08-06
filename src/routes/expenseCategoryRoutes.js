@@ -38,7 +38,7 @@ router.post('/', ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_EXPENSE_CATEG
  *       200:
  *         description: List of expense categories
  */
-router.get('/', requireAuthOnly(), controller.list);
+router.get('/', ...requireAuthOnly(), controller.list);
 
 /**
  * @swagger

@@ -78,6 +78,10 @@ const productController = require('../controllers/productController');
  *                 type: boolean
  *               threshold:
  *                 type: integer
+ *               unit:
+ *                type: string
+ *               hasVariation:
+ *                  type: boolean
  *     responses:
  *       201:
  *         description: Product created
@@ -120,6 +124,10 @@ router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT), uploa
  *                 type: boolean
  *               threshold:
  *                 type: integer
+ *               unit:
+ *                type: string
+ *               hasVariation:
+ *                type: boolean
  *     responses:
  *       201:
  *         description: Product created
@@ -146,7 +154,7 @@ router.post('/products/full', ...requirePermission(
  *       200:
  *         description: List of products
  */
-router.get('/', requireAuthOnly(), productController.listProducts);
+router.get('/', ...requireAuthOnly(), productController.listProducts);
 
 /**
  * @swagger
@@ -169,7 +177,7 @@ router.get('/', requireAuthOnly(), productController.listProducts);
  *       404:
  *         description: Product not found
  */
-router.get('/:id', requireAuthOnly(), productController.getProduct);
+router.get('/:id', ...requireAuthOnly(), productController.getProduct);
 
 /**
  * @swagger
@@ -302,7 +310,7 @@ router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_PRODUCT), 
  *       200:
  *         description: List of products for the category
  */
-router.get('/category/:id', requireAuthOnly(), productController.getProductsByCategory);
+router.get('/category/:id', ...requireAuthOnly(), productController.getProductsByCategory);
 
 /**
  * @swagger
@@ -323,7 +331,7 @@ router.get('/category/:id', requireAuthOnly(), productController.getProductsByCa
  *       200:
  *         description: List of products for the business
  */
-router.get('/business/:id', requireAuthOnly(), productController.getProductsByBusiness);
+router.get('/business/:id', ...requireAuthOnly(), productController.getProductsByBusiness);
 
 /**
  * @swagger
@@ -348,6 +356,6 @@ router.get('/business/:id', requireAuthOnly(), productController.getProductsByBu
  *       200:
  *         description: Count of products in stock
  */
-router.get('/count-in-stock', requireAuthOnly(), productController.countProductsInStock);
+router.get('/count-in-stock', ...requireAuthOnly(), productController.countProductsInStock);
 
 module.exports = router;

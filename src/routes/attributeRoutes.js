@@ -86,7 +86,7 @@ router.post('/bulk', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_ATTRIBUTE_A
  *       200:
  *         description: List of attributes and values
  */
-router.get('/', requireAuthOnly(), attributeController.listAttributes);
+router.get('/', ...requireAuthOnly(), attributeController.listAttributes);
 
 /**
  * @swagger
@@ -141,7 +141,7 @@ router.post('/:id/values', ...requirePermission(PRODUCT_PERMISSIONS.MANAGE_ATTRI
  *       404:
  *         description: Attribute not found
  */
-router.get('/:id', requireAuthOnly(), attributeController.getAttribute);
+router.get('/:id', ...requireAuthOnly(), attributeController.getAttribute);
 
 /**
  * @swagger
@@ -191,7 +191,7 @@ router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_PRODUCT_AT
  *       404:
  *         description: Attribute value not found
  */
-router.get('/:id/values/:valueId', requireAuthOnly(), attributeController.getAttributeValue);
+router.get('/:id/values/:valueId', ...requireAuthOnly(), attributeController.getAttributeValue);
 
 /**
  * @swagger
@@ -239,7 +239,7 @@ router.delete('/:id/values/:valueId', ...requirePermission(PRODUCT_PERMISSIONS.D
  *       200:
  *         description: List of attributes for the business
  */
-router.get('/business/:business_id', requireAuthOnly(), async (req, res) => {
+router.get('/business/:business_id', ...requireAuthOnly(), async (req, res) => {
   try {
     const { business_id } = req.params;
     const result = await require('../controllers/attributeController').listAttributes({ query: { business_id } }, res);
