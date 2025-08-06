@@ -2,10 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const controller = require('../controllers/expenseController');
-const auth = require('../middlewares/authMiddleware');
 const upload = require('../middlewares/upload');
-const permission = require('../middlewares/permissionMiddleware');
-
+const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
+const { FINANCIAL_PERMISSIONS } = require('../constants/permissions');
 /**
  * @swagger
  * /api/expenses:
@@ -45,7 +44,7 @@ const permission = require('../middlewares/permissionMiddleware');
  *       500:
  *         description: Failed to create expense
  */
-router.post('/', auth.authenticateToken, upload.single('receipt'), controller.create);
+router.post('/', ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_EXPENSE), upload.single('receipt'), controller.create);
 /**
  * @swagger
  * /api/expenses/{id}/approve:
@@ -70,7 +69,7 @@ router.post('/', auth.authenticateToken, upload.single('receipt'), controller.cr
  *         description: Failed to approve expense
  */
 
-router.post('/:id/approve', auth.authenticateToken, permission('approve_expense'), controller.approve);
+router.post('/:id/approve', ...requirePermission(FINANCIAL_PERMISSIONS.APPROVE_EXPENSE), controller.approve);
 
 /**
  * @swagger
@@ -96,7 +95,7 @@ router.post('/:id/approve', auth.authenticateToken, permission('approve_expense'
  *         description: Failed to reject expense
  */
 
-router.post('/:id/reject', auth.authenticateToken, permission('approve_expense'), controller.reject);
+router.post('/:id/reject', ...requirePermission(FINANCIAL_PERMISSIONS.REJECT_EXPENSE), controller.reject);
 
 /**
  * @swagger
@@ -110,7 +109,7 @@ router.post('/:id/reject', auth.authenticateToken, permission('approve_expense')
  *       200:
  *         description: List of expenses
  */
-router.get('/', auth.authenticateToken, controller.list);
+router.get('/', requireAuthOnly(), controller.list);
 
 /**
  * @swagger
@@ -137,7 +136,7 @@ router.get('/', auth.authenticateToken, controller.list);
  *       200:
  *         description: Expense updated
  */
-router.put('/:id', auth.authenticateToken, controller.update);
+router.put('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.UPDATE_EXPENSE), controller.update);
 
 /**
  * @swagger
@@ -158,6 +157,37 @@ router.put('/:id', auth.authenticateToken, controller.update);
  *       200:
  *         description: Expense deleted
  */
-router.delete('/:id', auth.authenticateToken, controller.delete);
+router.delete('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.DELETE_EXPENSE), controller.delete);
+
+/**
+ * @swagger
+ * /api/expenses/staff-salary:
+ *   post:
+ *     summary: Record a staff salary payment as an expense
+ *     tags: [Expense]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [business_id, staff_id, amount, expense_date]
+ *             properties:
+ *               business_id: { type: string }
+ *               staff_id: { type: string }
+ *               amount: { type: number }
+ *               expense_date: { type: string, format: date }
+ *               description: { type: string }
+ *     responses:
+ *       201:
+ *         description: Staff salary expense recorded
+ */
+router.post(
+  '/staff-salary',
+  ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_STAFF_SALARY_EXPENSE),
+  controller.createStaffSalary
+);
 
 module.exports = router;

@@ -1,4 +1,3 @@
-// analyticsController.js
 const pool = require('../config/db');
 
 module.exports = {
@@ -6,7 +5,7 @@ module.exports = {
     try {
       const business_id = req.query.business_id || req.user?.business_id;
       const branch_id = req.query.branch_id;
-      // Helper for query param array
+     
       const params = [];
       let whereBusiness = '';
       let whereBusinessBranch = '';
@@ -19,7 +18,7 @@ module.exports = {
         whereBusinessBranch = (whereBusiness ? whereBusiness + ' AND ' : '') + 'branch_id = $' + params.length;
       }
       const whereClause = whereBusinessBranch || whereBusiness;
-      // 1. Sales by Category
+    
       const salesByCategoryResult = await pool.query(`
         SELECT c.name AS category, SUM(oi.total_price) AS total_sales
         FROM order_items oi
@@ -31,7 +30,7 @@ module.exports = {
         GROUP BY c.name
         ORDER BY total_sales DESC
       `, params);
-      // 2. Expense by Category
+     
       const expenseByCategoryResult = await pool.query(`
         SELECT ec.name AS category, SUM(e.amount) AS total_expense
         FROM expenses e
@@ -40,7 +39,7 @@ module.exports = {
         GROUP BY ec.name
         ORDER BY total_expense DESC
       `, params);
-      // 3. Budget by Category
+    
       const budgetByCategoryResult = await pool.query(`
         SELECT ec.name AS category, SUM(b.amount) AS total_budget
         FROM budgets b
@@ -49,7 +48,7 @@ module.exports = {
         GROUP BY ec.name
         ORDER BY total_budget DESC
       `, params);
-      // 4. Gross/Net Income
+     
       const grossIncomeResult = await pool.query(
         `SELECT SUM(total_amount) AS gross_income FROM orders WHERE status = 'completed'${whereClause ? ' AND ' + whereClause : ''}`,
         params
@@ -89,11 +88,15 @@ module.exports = {
       `, business_id ? [business_id] : []);
       const taxes = Number(taxesResult.rows[0]?.total_tax_rate || 0);
     
-      const staffSalaryResult = await pool.query(
-        `SELECT COALESCE(SUM(salary), 0) AS total_staff_salary_paid FROM staff WHERE payment_status = 'paid'${whereClause ? ' AND ' + whereClause : ''}`,
+    
+      const staffSalaryExpenseResult = await pool.query(
+        `SELECT COALESCE(SUM(e.amount), 0) AS total_staff_salary_paid
+         FROM expenses e
+         JOIN expense_categories ec ON e.category_id = ec.id
+         WHERE e.status = 'approved' AND (LOWER(ec.name) = 'salary' OR e.staff_id IS NOT NULL)${whereClause ? ' AND e.' + whereClause : ''}`,
         params
       );
-      const totalStaffSalaryPaid = Number(staffSalaryResult.rows[0]?.total_staff_salary_paid || 0);
+      const totalStaffSalaryPaid = Number(staffSalaryExpenseResult.rows[0]?.total_staff_salary_paid || 0);
 
   
       const productsCountResult = await pool.query(

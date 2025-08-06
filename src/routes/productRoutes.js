@@ -1,8 +1,7 @@
-
 const express = require('express');
 const router = express.Router();
-const { authenticateToken } = require('../middlewares/authMiddleware');
-// const { validateProduct } = require('../middlewares/validateInput');
+const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
+const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
 const upload = require('../middlewares/upload');
 const productController = require('../controllers/productController');
 
@@ -85,7 +84,7 @@ const productController = require('../controllers/productController');
  *       409:
  *         description: Product name already exists
  */
-router.post('/', authenticateToken, upload.single('image'), productController.createProduct);
+router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT), upload.single('image'), productController.createProduct);
 
 /**
  * @swagger
@@ -127,7 +126,13 @@ router.post('/', authenticateToken, upload.single('image'), productController.cr
  *       409:
  *         description: Product name already exists
  */
-router.post('/products/full', authenticateToken, upload.single('image'), productController.createProductWithVariants);
+router.post('/products/full', ...requirePermission( 
+     PRODUCT_PERMISSIONS.CREATE_PRODUCT,
+    PRODUCT_PERMISSIONS.CREATE_PRODUCT_VARIANTS
+),
+ upload.single('image'),
+  productController.createProductWithVariants
+);
 
 /**
  * @swagger
@@ -141,7 +146,7 @@ router.post('/products/full', authenticateToken, upload.single('image'), product
  *       200:
  *         description: List of products
  */
-router.get('/', authenticateToken, productController.listProducts);
+router.get('/', requireAuthOnly(), productController.listProducts);
 
 /**
  * @swagger
@@ -164,7 +169,7 @@ router.get('/', authenticateToken, productController.listProducts);
  *       404:
  *         description: Product not found
  */
-router.get('/:id', authenticateToken, productController.getProduct);
+router.get('/:id', requireAuthOnly(), productController.getProduct);
 
 /**
  * @swagger
@@ -255,7 +260,7 @@ router.get('/:id', authenticateToken, productController.getProduct);
  *       404:
  *         description: Product not found
  */
-router.put('/:id', authenticateToken, upload.single('image'), productController.updateProduct);
+router.put('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT), upload.single('image'), productController.updateProduct);
 
 /**
  * @swagger
@@ -276,7 +281,7 @@ router.put('/:id', authenticateToken, upload.single('image'), productController.
  *       200:
  *         description: Product deleted
  */
-router.delete('/:id', authenticateToken, productController.deleteProduct);
+router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_PRODUCT), productController.deleteProduct);
 
 /**
  * @swagger
@@ -297,7 +302,7 @@ router.delete('/:id', authenticateToken, productController.deleteProduct);
  *       200:
  *         description: List of products for the category
  */
-router.get('/category/:id', authenticateToken, productController.getProductsByCategory);
+router.get('/category/:id', requireAuthOnly(), productController.getProductsByCategory);
 
 /**
  * @swagger
@@ -318,7 +323,7 @@ router.get('/category/:id', authenticateToken, productController.getProductsByCa
  *       200:
  *         description: List of products for the business
  */
-router.get('/business/:id', authenticateToken, productController.getProductsByBusiness);
+router.get('/business/:id', requireAuthOnly(), productController.getProductsByBusiness);
 
 /**
  * @swagger
@@ -343,6 +348,6 @@ router.get('/business/:id', authenticateToken, productController.getProductsByBu
  *       200:
  *         description: Count of products in stock
  */
-router.get('/count-in-stock', require('../middlewares/authMiddleware').authenticateToken, require('../controllers/productController').countProductsInStock);
+router.get('/count-in-stock', requireAuthOnly(), productController.countProductsInStock);
 
 module.exports = router;

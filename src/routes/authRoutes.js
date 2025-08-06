@@ -5,6 +5,7 @@ const express = require('express');
 const router = express.Router();
 const { validateSignup, validateLogin } = require('../middlewares/validateInput');
 const authController = require('../controllers/authController');
+const {requireAuthOnly} = require('../utils/routeHelpers');
 const auditLog = require('../middlewares/auditLogMiddleware');
 const rateLimitMiddleware = require('../middlewares/rateLimitMiddleware');
 
@@ -285,7 +286,7 @@ router.post('/logout', authController.logout);
  *       401:
  *         description: Unauthorized - missing or invalid token
  */
-router.get('/me', require('../middlewares/authMiddleware').authenticateToken, authController.getProfile);
+router.get('/me', requireAuthOnly(), authController.getProfile);
 
 /**
  * @swagger
@@ -324,6 +325,6 @@ router.get('/me', require('../middlewares/authMiddleware').authenticateToken, au
  *       401:
  *         description: Unauthorized - missing or invalid token
  */
-router.put('/me', require('../middlewares/authMiddleware').authenticateToken, authController.updateProfile);
+router.put('/me',  requireAuthOnly(), authController.updateProfile);
 
 module.exports = router;

@@ -17,7 +17,7 @@
  *     - code: 400
  *       message: Business context required.
  */
-// Strict middleware: only allow business_id and branch_id from JWT (req.user)
+
 module.exports = (req, res, next) => {
   const businessId = req.user?.business_id;
   const branchId = req.user?.branch_id;

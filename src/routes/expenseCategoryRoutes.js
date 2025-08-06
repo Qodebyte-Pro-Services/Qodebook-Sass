@@ -3,6 +3,8 @@ const express = require('express');
 const router = express.Router();
 const controller = require('../controllers/expenseCategoryController');
 const auth = require('../middlewares/authMiddleware');
+const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
+const { FINANCIAL_PERMISSIONS } = require('../constants/permissions');
 
 /**
  * @swagger
@@ -22,7 +24,7 @@ const auth = require('../middlewares/authMiddleware');
  *       201:
  *         description: Expense category created
  */
-router.post('/', auth.authenticateToken, controller.create);
+router.post('/', ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_EXPENSE_CATEGORY), controller.create);
 
 /**
  * @swagger
@@ -36,7 +38,7 @@ router.post('/', auth.authenticateToken, controller.create);
  *       200:
  *         description: List of expense categories
  */
-router.get('/', auth.authenticateToken, controller.list);
+router.get('/', requireAuthOnly(), controller.list);
 
 /**
  * @swagger
@@ -63,7 +65,7 @@ router.get('/', auth.authenticateToken, controller.list);
  *       200:
  *         description: Expense category updated
  */
-router.put('/:id', auth.authenticateToken, controller.update);
+router.put('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.UPDATE_EXPENSE_CATEGORY), controller.update);
 
 /**
  * @swagger
@@ -84,6 +86,6 @@ router.put('/:id', auth.authenticateToken, controller.update);
  *       200:
  *         description: Expense category deleted
  */
-router.delete('/:id', auth.authenticateToken, controller.delete);
+router.delete('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.DELETE_EXPENSE_CATEGORY), controller.delete);
 
 module.exports = router;

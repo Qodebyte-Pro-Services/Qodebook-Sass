@@ -65,7 +65,7 @@ exports.createAttributesBulk = async (req, res) => {
     for (const attr of attributes) {
       const { name, values } = attr;
 
-      // Check if attribute already exists
+     
       const check = await pool.query(
         'SELECT * FROM attributes WHERE business_id = $1 AND LOWER(name) = LOWER($2)',
         [business_id, name]
@@ -76,7 +76,7 @@ exports.createAttributesBulk = async (req, res) => {
         continue;
       }
 
-      // Create attribute
+      
       const attributeRes = await pool.query(
         'INSERT INTO attributes (business_id, name) VALUES ($1, $2) RETURNING *',
         [business_id, name]

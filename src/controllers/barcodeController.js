@@ -1,4 +1,3 @@
-// barcodeController.js
 const bwipjs = require('bwip-js');
 const pool = require('../config/db');
 const uploadToCloudinary = require('../utils/uploadToCloudinary');

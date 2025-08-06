@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { authenticateToken } = require('../middlewares/authMiddleware');
+const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
+const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
 // const { validateCategory } = require('../middlewares/validateInput');
 const categoryController = require('../controllers/categoryController');
 
@@ -31,7 +32,7 @@ const categoryController = require('../controllers/categoryController');
  *       409:
  *         description: Category name already exists
  */
-router.post('/', authenticateToken, categoryController.createCategory);
+router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_CATEGORY), categoryController.createCategory);
 
 /**
  * @swagger
@@ -52,7 +53,7 @@ router.post('/', authenticateToken, categoryController.createCategory);
  *       200:
  *         description: List of categories
  */
-router.get('/', authenticateToken, categoryController.listCategories);
+router.get('/', requireAuthOnly(), categoryController.listCategories);
 
 /**
  * @swagger
@@ -86,7 +87,7 @@ router.get('/', authenticateToken, categoryController.listCategories);
  *       409:
  *         description: Category name already exists
  */
-router.put('/:id', authenticateToken, categoryController.updateCategory);
+router.put('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_CATEGORY), categoryController.updateCategory);
 
 /**
  * @swagger
@@ -107,7 +108,7 @@ router.put('/:id', authenticateToken, categoryController.updateCategory);
  *       200:
  *         description: Category deleted
  */
-router.delete('/:id', authenticateToken, categoryController.deleteCategory);
+router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_CATEGORY), categoryController.deleteCategory);
 
 /**
  * @swagger
@@ -130,7 +131,7 @@ router.delete('/:id', authenticateToken, categoryController.deleteCategory);
  *       404:
  *         description: Category not found
  */
-router.get('/:id', authenticateToken, categoryController.getCategory);
+router.get('/:id', requireAuthOnly(), categoryController.getCategory);
 
 /**
  * @swagger
@@ -151,6 +152,6 @@ router.get('/:id', authenticateToken, categoryController.getCategory);
  *       200:
  *         description: List of categories for the business
  */
-router.get('/business/:business_id', authenticateToken, categoryController.getCategoriesByBusiness);
+router.get('/business/:business_id', requireAuthOnly(), categoryController.getCategoriesByBusiness);
 
 module.exports = router;

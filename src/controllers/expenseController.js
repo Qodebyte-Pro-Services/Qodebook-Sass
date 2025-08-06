@@ -101,6 +101,38 @@ module.exports = {
       res.status(500).json({ message: 'Failed to reject expense.' });
     }
   },
+ 
+createStaffSalary: async (req, res) => {
+  try {
+    const { business_id, staff_id, amount, expense_date, description } = req.body;
+    if (!business_id || !staff_id || !amount || !expense_date) {
+      return res.status(400).json({ message: 'business_id, staff_id, amount, and expense_date are required.' });
+    }
+   
+    let categoryResult = await pool.query(
+      'SELECT id FROM expense_categories WHERE business_id = $1 AND LOWER(name) = $2',
+      [business_id, 'salary']
+    );
+    let category_id;
+    if (categoryResult.rows.length === 0) {
+      const insert = await pool.query(
+        'INSERT INTO expense_categories (business_id, name, description) VALUES ($1, $2, $3) RETURNING id',
+        [business_id, 'Salary', 'Staff salary payments']
+      );
+      category_id = insert.rows[0].id;
+    } else {
+      category_id = categoryResult.rows[0].id;
+    }
+    const result = await pool.query(
+      'INSERT INTO expenses (business_id, category_id, staff_id, amount, description, expense_date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [business_id, category_id, staff_id, amount, description || 'Salary payment', expense_date]
+    );
+    res.status(201).json({ expense: result.rows[0] });
+  } catch (err) {
+    console.error('Create staff salary expense error:', err);
+    res.status(500).json({ message: 'Failed to create staff salary expense.' });
+  }
+},
   update: async (req, res) => {
     try {
       const { id } = req.params;

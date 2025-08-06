@@ -2,11 +2,17 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middlewares/authMiddleware');
 const staffController = require('../controllers/staffController');
+const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
+const { STAFF_PERMISSIONS, BUSINESS_PERMISSIONS } = require('../constants/permissions');
+
 /**
  * @swagger
  * /api/staff/actions:
  *   post:
- *     summary: Create staff action
+ *     summary: Log a staff action (e.g., clock-in, clock-out, custom actions)
+ *     description: |
+ *       Records an action performed by a staff member, such as clock-in, clock-out, or any custom action.
+ *       Useful for attendance, task tracking, or custom workflows.
  *     tags: [StaffAction]
  *     security:
  *       - bearerAuth: []
@@ -16,11 +22,56 @@ const staffController = require('../controllers/staffController');
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [id, business_id, staff_id, action_type]
+ *             properties:
+ *               id:
+ *                 type: string
+ *                 description: Unique action ID (UUID or generated)
+ *                 example: "ACT123"
+ *               business_id:
+ *                 type: integer
+ *                 description: Business ID
+ *                 example: 1
+ *               staff_id:
+ *                 type: string
+ *                 description: Staff ID
+ *                 example: "STF001"
+ *               action_type:
+ *                 type: string
+ *                 description: Type of action (e.g., clock_in, clock_out, break, custom)
+ *                 example: "clock_in"
+ *               action_value:
+ *                 type: string
+ *                 description: Optional value for the action (e.g., location, notes)
+ *                 example: "Main Entrance"
+ *               reason:
+ *                 type: string
+ *                 description: Optional reason for the action
+ *                 example: "Late arrival"
+ *               performed_by:
+ *                 type: string
+ *                 description: ID of the user/staff who recorded the action
+ *                 example: "STF002"
+ *               performed_by_role:
+ *                 type: string
+ *                 description: Role of the person who performed the action
+ *                 example: "manager"
  *     responses:
  *       201:
- *         description: Staff action created
+ *         description: Staff action logged successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 staff_action:
+ *                   $ref: '#/components/schemas/StaffAction'
+ *       400:
+ *         description: Missing required fields
+ *       500:
+ *         description: Server error
  */
-router.post('/actions', authenticateToken, staffController.createStaffAction);
+router.post('/actions', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_ACTIONS), staffController.createStaffAction);
 /**
  * @swagger
  * /api/staff/actions:
@@ -77,14 +128,17 @@ router.post('/actions', authenticateToken, staffController.createStaffAction);
  *       200:
  *         description: Staff action deleted
  */
-router.get('/actions', authenticateToken, staffController.listStaffActions);
-router.put('/actions/:id', authenticateToken, staffController.updateStaffAction);
-router.delete('/actions/:id', authenticateToken, staffController.deleteStaffAction);
+router.get('/actions', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_ACTIONS), staffController.listStaffActions);
+router.put('/actions/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_ACTIONS), staffController.updateStaffAction);
+router.delete('/actions/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_ACTIONS), staffController.deleteStaffAction);
 /**
  * @swagger
  * /api/staff/docs:
  *   post:
- *     summary: Create staff doc
+ *     summary: Attach a document to a staff profile
+ *     description: |
+ *       Uploads or links a document (e.g., contract, certificate) to a staff member's profile.
+ *       Documents can be used for HR compliance, onboarding, or record-keeping.
  *     tags: [StaffDoc]
  *     security:
  *       - bearerAuth: []
@@ -94,11 +148,44 @@ router.delete('/actions/:id', authenticateToken, staffController.deleteStaffActi
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [id, business_id, staff_id, document_name, file]
+ *             properties:
+ *               id:
+ *                 type: string
+ *                 description: Unique document ID
+ *                 example: "DOC123"
+ *               business_id:
+ *                 type: integer
+ *                 description: Business ID
+ *                 example: 1
+ *               staff_id:
+ *                 type: string
+ *                 description: Staff ID
+ *                 example: "STF001"
+ *               document_name:
+ *                 type: string
+ *                 description: Name or type of the document
+ *                 example: "Employment Contract"
+ *               file:
+ *                 type: string
+ *                 description: File URL or base64-encoded content
+ *                 example: "https://files.example.com/docs/contract.pdf"
  *     responses:
  *       201:
- *         description: Staff doc created
+ *         description: Staff document attached successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 staff_doc:
+ *                   $ref: '#/components/schemas/StaffDoc'
+ *       400:
+ *         description: Missing required fields
+ *       500:
+ *         description: Server error
  */
-router.post('/docs', authenticateToken, staffController.createStaffDoc);
+router.post('/docs', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_DOCS), staffController.createStaffDoc);
 /**
  * @swagger
  * /api/staff/docs:
@@ -155,14 +242,17 @@ router.post('/docs', authenticateToken, staffController.createStaffDoc);
  *       200:
  *         description: Staff doc deleted
  */
-router.get('/docs', authenticateToken, staffController.listStaffDocs);
-router.put('/docs/:id', authenticateToken, staffController.updateStaffDoc);
-router.delete('/docs/:id', authenticateToken, staffController.deleteStaffDoc);
+router.get('/docs', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_DOCS), staffController.listStaffDocs);
+router.put('/docs/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_DOCS), staffController.updateStaffDoc);
+router.delete('/docs/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_DOCS), staffController.deleteStaffDoc);
 /**
  * @swagger
  * /api/staff/shifts:
  *   post:
- *     summary: Create staff shift
+ *     summary: Create a staff work shift
+ *     description: |
+ *       Assigns a work shift to a staff member, including working hours and days.
+ *       Useful for scheduling, attendance, and payroll.
  *     tags: [StaffShift]
  *     security:
  *       - bearerAuth: []
@@ -172,11 +262,48 @@ router.delete('/docs/:id', authenticateToken, staffController.deleteStaffDoc);
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [shift_id, staff_id, business_id, fullname]
+ *             properties:
+ *               shift_id:
+ *                 type: string
+ *                 description: Unique shift ID
+ *                 example: "SHIFT001"
+ *               staff_id:
+ *                 type: string
+ *                 description: Staff ID
+ *                 example: "STF001"
+ *               business_id:
+ *                 type: integer
+ *                 description: Business ID
+ *                 example: 1
+ *               fullname:
+ *                 type: string
+ *                 description: Staff full name
+ *                 example: "John Doe"
+ *               working_hours:
+ *                 type: string
+ *                 description: Working hours (e.g., 09:00-17:00)
+ *                 example: "09:00-17:00"
+ *               work_days:
+ *                 type: string
+ *                 description: Days of the week (e.g., Mon-Fri)
+ *                 example: "Mon-Fri"
  *     responses:
  *       201:
- *         description: Staff shift created
+ *         description: Staff shift created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 staff_shift:
+ *                   $ref: '#/components/schemas/StaffShift'
+ *       400:
+ *         description: Missing required fields
+ *       500:
+ *         description: Server error
  */
-router.post('/shifts', authenticateToken, staffController.createStaffShift);
+router.post('/shifts', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SHIFTS), staffController.createStaffShift);
 /**
  * @swagger
  * /api/staff/shifts:
@@ -233,14 +360,17 @@ router.post('/shifts', authenticateToken, staffController.createStaffShift);
  *       200:
  *         description: Staff shift deleted
  */
-router.get('/shifts', authenticateToken, staffController.listStaffShifts);
-router.put('/shifts/:id', authenticateToken, staffController.updateStaffShift);
-router.delete('/shifts/:id', authenticateToken, staffController.deleteStaffShift);
+router.get('/shifts', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_SHIFTS), staffController.listStaffShifts);
+router.put('/shifts/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SHIFTS), staffController.updateStaffShift);
+router.delete('/shifts/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SHIFTS), staffController.deleteStaffShift);
 /**
  * @swagger
  * /api/staff/subcharges:
  *   post:
- *     summary: Create staff subcharge
+ *     summary: Add a subcharge (deduction/bonus) to a staff member
+ *     description: |
+ *       Records a subcharge (e.g., penalty, bonus, deduction) for a staff member.
+ *       Useful for payroll adjustments, fines, or incentives.
  *     tags: [StaffSubcharge]
  *     security:
  *       - bearerAuth: []
@@ -250,11 +380,40 @@ router.delete('/shifts/:id', authenticateToken, staffController.deleteStaffShift
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [id, staff_id, sub_charge_amt]
+ *             properties:
+ *               id:
+ *                 type: string
+ *                 description: Unique subcharge ID
+ *                 example: "SUBC123"
+ *               staff_id:
+ *                 type: string
+ *                 description: Staff ID
+ *                 example: "STF001"
+ *               sub_charge_amt:
+ *                 type: number
+ *                 description: Amount of the subcharge (positive for bonus, negative for deduction)
+ *                 example: -5000
+ *               reason:
+ *                 type: string
+ *                 description: Reason for the subcharge
+ *                 example: "Late coming penalty"
  *     responses:
  *       201:
- *         description: Staff subcharge created
+ *         description: Staff subcharge recorded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 staff_subcharge:
+ *                   $ref: '#/components/schemas/StaffSubcharge'
+ *       400:
+ *         description: Missing required fields
+ *       500:
+ *         description: Server error
  */
-router.post('/subcharges', authenticateToken, staffController.createStaffSubcharge);
+router.post('/subcharges', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SUBCHARGE), staffController.createStaffSubcharge);
 /**
  * @swagger
  * /api/staff/subcharges:
@@ -311,14 +470,31 @@ router.post('/subcharges', authenticateToken, staffController.createStaffSubchar
  *       200:
  *         description: Staff subcharge deleted
  */
-router.get('/subcharges', authenticateToken, staffController.listStaffSubcharges);
-router.put('/subcharges/:id', authenticateToken, staffController.updateStaffSubcharge);
-router.delete('/subcharges/:id', authenticateToken, staffController.deleteStaffSubcharge);
+router.get('/subcharges', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_SUBCHARGE), staffController.listStaffSubcharges);
+router.put('/subcharges/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SUBCHARGE), staffController.updateStaffSubcharge);
+router.delete('/subcharges/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SUBCHARGE), staffController.deleteStaffSubcharge);
 /**
  * @swagger
  * /api/staff/roles:
  *   post:
- *     summary: Create staff role
+ *     summary: Create a new staff role with specific permissions
+ *     description: |
+ *       Creates a new role that can be assigned to staff members. Roles define what actions
+ *       staff can perform within the business. Only business owners can create roles.
+ *       
+ *       **Business Logic:**
+ *       - Validates business ownership
+ *       - Ensures role name is unique within the business
+ *       - Creates role with specified permissions
+ *       - Logs role creation for audit purposes
+ *       
+ *       **Common Permission Examples:**
+ *       - `view_products` - Can view product catalog
+ *       - `create_sales` - Can create sales transactions
+ *       - `manage_stock` - Can adjust inventory levels
+ *       - `view_reports` - Can access business reports
+ *       - `manage_staff` - Can manage other staff members
+ *       - `manage_settings` - Can modify business settings
  *     tags: [StaffRole]
  *     security:
  *       - bearerAuth: []
@@ -328,76 +504,252 @@ router.delete('/subcharges/:id', authenticateToken, staffController.deleteStaffS
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - business_id
+ *               - role_name
+ *               - permissions
+ *             properties:
+ *               business_id:
+ *                 type: integer
+ *                 description: ID of the business creating the role
+ *                 example: 1
+ *               role_name:
+ *                 type: string
+ *                 description: Name of the role (must be unique within business)
+ *                 example: "Sales Manager"
+ *               permissions:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of permission strings that define what this role can do
+ *                 example: ["view_products", "create_sales", "view_reports", "manage_stock"]
+ *               description:
+ *                 type: string
+ *                 description: Optional description of the role's purpose
+ *                 example: "Manages sales operations and inventory"
+ *           examples:
+ *             sales_manager:
+ *               summary: Sales Manager Role
+ *               value:
+ *                 business_id: 1
+ *                 role_name: "Sales Manager"
+ *                 permissions: ["view_products", "create_sales", "view_reports", "manage_stock"]
+ *                 description: "Manages sales operations and inventory"
+ *             cashier:
+ *               summary: Cashier Role
+ *               value:
+ *                 business_id: 1
+ *                 role_name: "Cashier"
+ *                 permissions: ["view_products", "create_sales"]
+ *                 description: "Handles customer transactions"
  *     responses:
  *       201:
- *         description: Staff role created
+ *         description: Role created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Role created successfully"
+ *                 role:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 2
+ *                     role_name:
+ *                       type: string
+ *                       example: "Sales Manager"
+ *                     permissions:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       example: ["view_products", "create_sales", "view_reports", "manage_stock"]
+ *                     business_id:
+ *                       type: integer
+ *                       example: 1
+ *                     created_at:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2024-01-15T10:30:00Z"
+ *       400:
+ *         description: Invalid request data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Role name is required"
+ *       409:
+ *         description: Role name already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Role name already exists for this business"
+ *       403:
+ *         description: Unauthorized - only business owners can create roles
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Only business owners can create roles"
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Server error"
  */
-router.post('/roles', authenticateToken, staffController.createRole);
+router.post('/roles', ...requirePermission(STAFF_PERMISSIONS.MANAGE_ROLES), staffController.createRole);
 /**
  * @swagger
  * /api/staff/roles:
  *   get:
- *     summary: List staff roles
+ *     summary: List all staff roles for a business
+ *     description: |
+ *       Retrieves all staff roles defined for the business, including their permissions.
  *     tags: [StaffRole]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: List of staff roles
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 roles:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/StaffRole'
+ *       500:
+ *         description: Server error
  */
-router.get('/roles', authenticateToken, staffController.listRoles);
+router.get('/roles', ...requirePermission(STAFF_PERMISSIONS.VIEW_ROLES), staffController.listRoles);
 /**
  * @swagger
  * /api/staff/roles/{id}:
  *   put:
- *     summary: Update staff role
+ *     summary: Update a staff role's name or permissions
+ *     description: |
+ *       Updates the name or permissions of a staff role.
+ *       If permissions are changed, all staff assigned to this role will have their permissions updated.
  *     tags: [StaffRole]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
+ *         required: true
  *         schema:
  *           type: string
- *         required: true
- *         description: Staff role ID
+ *         description: Role ID
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             properties:
+ *               role_name:
+ *                 type: string
+ *                 description: New name for the role
+ *                 example: "Supervisor"
+ *               permissions:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Updated permissions
+ *                 example: ["view_products", "manage_stock"]
  *     responses:
  *       200:
- *         description: Staff role updated
+ *         description: Staff role updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 role:
+ *                   $ref: '#/components/schemas/StaffRole'
+ *       400:
+ *         description: No fields to update
+ *       404:
+ *         description: Role not found
+ *       500:
+ *         description: Server error
  */
-router.put('/roles/:id', authenticateToken, staffController.updateRole);
+router.put('/roles/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_ROLES), staffController.updateRole);
 /**
  * @swagger
  * /api/staff/roles/{id}:
  *   delete:
- *     summary: Delete staff role
+ *     summary: Delete a staff role
+ *     description: |
+ *       Deletes a staff role. If staff are assigned to this role, deletion may fail or require reassignment (business logic dependent).
  *     tags: [StaffRole]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
+ *         required: true
  *         schema:
  *           type: string
- *         required: true
- *         description: Staff role ID
+ *         description: Role ID
  *     responses:
  *       200:
- *         description: Staff role deleted
+ *         description: Staff role deleted successfully
+ *       404:
+ *         description: Role not found
+ *       409:
+ *         description: Cannot delete role while staff are assigned (if enforced)
+ *       500:
+ *         description: Server error
  */
-router.delete('/roles/:id', authenticateToken, staffController.deleteRole);
+router.delete('/roles/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_ROLES), staffController.deleteRole);
 
 /**
  * @swagger
  * /api/staff/create:
  *   post:
- *     summary: Add staff to branch
+ *     summary: Create a new staff member with automatic password generation
+ *     description: |
+ *       Creates a new staff member and assigns them to a specific branch. The system automatically
+ *       generates a password based on business settings and sends it to either the owner or staff member.
+ *       
+ *       **Business Logic:**
+ *       - Generates unique staff ID
+ *       - Creates password using business name + random numbers
+ *       - Hashes password securely with bcrypt
+ *       - Checks business staff settings for password delivery method
+ *       - Sends password via email (to owner or staff based on settings)
+ *       - Logs password creation for audit
+ *       - Assigns staff to specified branch and role
+ *       
+ *       **Password Delivery Methods:**
+ *       - `owner`: Password sent to business owner who shares with staff
+ *       - `staff`: Password sent directly to staff member's email
+ *       
+ *       **Staff Status Options:**
+ *       - `on_job`: Active staff member
+ *       - `suspended`: Temporarily suspended
+ *       - `terminated`: Permanently terminated
  *     tags: [Staff]
  *     security:
  *       - bearerAuth: []
@@ -407,33 +759,172 @@ router.delete('/roles/:id', authenticateToken, staffController.deleteRole);
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - business_id
+ *               - branch_id
+ *               - full_name
+ *               - contact_no
+ *               - email
+ *               - role_id
  *             properties:
- *               staff_id:
- *                 type: string
  *               business_id:
  *                 type: integer
+ *                 description: ID of the business the staff will work for
+ *                 example: 1
  *               branch_id:
  *                 type: integer
+ *                 description: ID of the branch where staff will be assigned
+ *                 example: 1
  *               full_name:
  *                 type: string
+ *                 description: Full name of the staff member
+ *                 example: "John Doe"
  *               contact_no:
  *                 type: string
+ *                 description: Contact phone number
+ *                 example: "+1234567890"
  *               email:
  *                 type: string
+ *                 format: email
+ *                 description: Email address (used for login and notifications)
+ *                 example: "john.doe@business.com"
+ *               role_id:
+ *                 type: integer
+ *                 description: ID of the role to assign (defines permissions)
+ *                 example: 2
  *               gender:
  *                 type: string
  *                 enum: [male, female, other]
+ *                 description: Gender identification
+ *                 example: "male"
  *               staff_status:
  *                 type: string
  *                 enum: [on_job, suspended, terminated]
+ *                 description: Current employment status
+ *                 default: "on_job"
+ *                 example: "on_job"
  *               payment_status:
  *                 type: string
  *                 enum: [paid, un_paid, paid_half]
+ *                 description: Payment status for payroll purposes
+ *                 default: "un_paid"
+ *                 example: "un_paid"
+ *               address:
+ *                 type: string
+ *                 description: Staff member's address
+ *                 example: "123 Main St, City, State"
+ *               emergency_contact:
+ *                 type: string
+ *                 description: Emergency contact information
+ *                 example: "Jane Doe - +1987654321"
+ *           examples:
+ *             new_cashier:
+ *               summary: Create a new cashier
+ *               value:
+ *                 business_id: 1
+ *                 branch_id: 1
+ *                 full_name: "John Doe"
+ *                 contact_no: "+1234567890"
+ *                 email: "john.doe@business.com"
+ *                 role_id: 2
+ *                 gender: "male"
+ *                 address: "123 Main St, City, State"
+ *             new_manager:
+ *               summary: Create a new manager
+ *               value:
+ *                 business_id: 1
+ *                 branch_id: 1
+ *                 full_name: "Jane Smith"
+ *                 contact_no: "+1987654321"
+ *                 email: "jane.smith@business.com"
+ *                 role_id: 3
+ *                 gender: "female"
+ *                 staff_status: "on_job"
  *     responses:
  *       201:
- *         description: Staff created
+ *         description: Staff created successfully with password generated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Staff created successfully. Password sent to owner."
+ *                 staff:
+ *                   type: object
+ *                   properties:
+ *                     staff_id:
+ *                       type: string
+ *                       example: "STF001"
+ *                     full_name:
+ *                       type: string
+ *                       example: "John Doe"
+ *                     email:
+ *                       type: string
+ *                       example: "john.doe@business.com"
+ *                     business_id:
+ *                       type: integer
+ *                       example: 1
+ *                     branch_id:
+ *                       type: integer
+ *                       example: 1
+ *                     role_id:
+ *                       type: integer
+ *                       example: 2
+ *                     staff_status:
+ *                       type: string
+ *                       example: "on_job"
+ *                     created_at:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2024-01-15T10:30:00Z"
+ *                 password:
+ *                   type: string
+ *                   description: Generated password (only returned if delivery method is 'owner')
+ *                   example: "MyBusiness123"
+ *       400:
+ *         description: Invalid request data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Required fields missing"
+ *       409:
+ *         description: Staff email already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Staff with this email already exists"
+ *       404:
+ *         description: Business, branch, or role not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Business not found"
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Server error"
  */
-router.post('/create', authenticateToken, staffController.createStaff);
+router.post('/create', ...requirePermission(STAFF_PERMISSIONS.CREATE_STAFF), staffController.createStaff);
 
 /**
  * @swagger
@@ -447,7 +938,7 @@ router.post('/create', authenticateToken, staffController.createStaff);
  *       200:
  *         description: List of staff
  */
-router.get('/', authenticateToken, staffController.listStaff);
+router.get('/', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF), staffController.listStaff);
 
 /**
  * @swagger
@@ -468,7 +959,7 @@ router.get('/', authenticateToken, staffController.listStaff);
  *       200:
  *         description: Staff details
  */
-router.get('/:id', authenticateToken, staffController.getStaff);
+router.get('/:id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF), staffController.getStaff);
 
 /**
  * @swagger
@@ -495,7 +986,7 @@ router.get('/:id', authenticateToken, staffController.getStaff);
  *       200:
  *         description: Staff updated
  */
-router.put('/:id', authenticateToken, staffController.updateStaff);
+router.put('/:id', ...requirePermission(STAFF_PERMISSIONS.UPDATE_STAFF), staffController.updateStaff);
 
 /**
  * @swagger
@@ -516,7 +1007,7 @@ router.put('/:id', authenticateToken, staffController.updateStaff);
  *       200:
  *         description: Staff deleted
  */
-router.delete('/:id', authenticateToken, staffController.deleteStaff);
+router.delete('/:id', ...requirePermission(STAFF_PERMISSIONS.DELETE_STAFF), staffController.deleteStaff);
 
 /**
  * @swagger
@@ -537,14 +1028,26 @@ router.delete('/:id', authenticateToken, staffController.deleteStaff);
  *       200:
  *         description: List of staff for business
  */
-router.get('/business/:id', authenticateToken, staffController.getStaffByBusiness);
+router.get('/business/:id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF), staffController.getStaffByBusiness);
 
 // Staff Authentication Routes
 /**
  * @swagger
  * /api/staff/login:
  *   post:
- *     summary: Staff login
+ *     summary: Staff login with business-specific authentication
+ *     description: |
+ *       Allows staff members to log into the system using their email, password, and business ID.
+ *       This endpoint validates staff credentials against the specific business they belong to.
+ *       Successful login returns a JWT token with staff permissions and business context.
+ *       
+ *       **Business Logic:**
+ *       - Validates staff exists for the specified business
+ *       - Checks if staff account is active (not suspended/terminated)
+ *       - Verifies password using bcrypt
+ *       - Generates JWT with staff details and permissions
+ *       - Logs login attempt (success/failure) for audit purposes
+ *       - Returns staff profile with role permissions
  *     tags: [StaffAuth]
  *     requestBody:
  *       required: true
@@ -559,15 +1062,98 @@ router.get('/business/:id', authenticateToken, staffController.getStaffByBusines
  *             properties:
  *               email:
  *                 type: string
+ *                 format: email
+ *                 description: Staff email address (must be registered for the business)
+ *                 example: "john.doe@business.com"
  *               password:
  *                 type: string
+ *                 description: Staff password (generated during staff creation)
+ *                 example: "MyBusiness123"
  *               business_id:
  *                 type: integer
+ *                 description: ID of the business the staff belongs to
+ *                 example: 1
+ *           examples:
+ *             valid_login:
+ *               summary: Valid staff login
+ *               value:
+ *                 email: "john.doe@business.com"
+ *                 password: "MyBusiness123"
+ *                 business_id: 1
  *     responses:
  *       200:
- *         description: Login successful
+ *         description: Login successful - returns JWT token and staff profile
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Login successful"
+ *                 token:
+ *                   type: string
+ *                   description: JWT token for authenticated requests
+ *                   example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *                 staff:
+ *                   type: object
+ *                   properties:
+ *                     staff_id:
+ *                       type: string
+ *                       example: "STF001"
+ *                     full_name:
+ *                       type: string
+ *                       example: "John Doe"
+ *                     email:
+ *                       type: string
+ *                       example: "john.doe@business.com"
+ *                     business_id:
+ *                       type: integer
+ *                       example: 1
+ *                     branch_id:
+ *                       type: integer
+ *                       example: 1
+ *                     role_id:
+ *                       type: integer
+ *                       example: 2
+ *                     permissions:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       example: ["view_products", "create_sales", "view_reports"]
+ *                     staff_status:
+ *                       type: string
+ *                       example: "on_job"
  *       401:
- *         description: Invalid credentials
+ *         description: Authentication failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid credentials or staff not found"
+ *       403:
+ *         description: Staff account suspended or terminated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Staff account is suspended"
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Server error"
  */
 router.post('/login', staffController.staffLogin);
 
@@ -575,7 +1161,21 @@ router.post('/login', staffController.staffLogin);
  * @swagger
  * /api/staff/password/change:
  *   post:
- *     summary: Request password change
+ *     summary: Request or perform password change based on business policy
+ *     description: |
+ *       Allows staff to change their password according to the business's password change policy.
+ *       The behavior depends on the business settings:
+ *       
+ *       **Policy: 'request'** - Staff requests password change, owner must approve
+ *       **Policy: 'self'** - Staff can change password directly
+ *       
+ *       **Business Logic:**
+ *       - Validates current password
+ *       - Checks business password change policy
+ *       - If 'request' policy: Creates pending request, notifies owner
+ *       - If 'self' policy: Updates password immediately, notifies staff
+ *       - Logs password change attempt for audit
+ *       - Sends email notifications based on policy
  *     tags: [StaffAuth]
  *     security:
  *       - bearerAuth: []
@@ -592,22 +1192,94 @@ router.post('/login', staffController.staffLogin);
  *             properties:
  *               staff_id:
  *                 type: string
+ *                 description: Staff ID requesting password change
+ *                 example: "STF001"
  *               new_password:
  *                 type: string
+ *                 description: New password (minimum 8 characters recommended)
+ *                 example: "NewSecurePass123"
  *               current_password:
  *                 type: string
+ *                 description: Current password for verification
+ *                 example: "OldPassword123"
+ *           examples:
+ *             request_change:
+ *               summary: Request password change
+ *               value:
+ *                 staff_id: "STF001"
+ *                 new_password: "NewSecurePass123"
+ *                 current_password: "OldPassword123"
  *     responses:
  *       200:
- *         description: Password change request submitted or completed
+ *         description: Password change processed according to policy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Password change request submitted. Awaiting owner approval."
+ *                 request_id:
+ *                   type: integer
+ *                   description: ID of the password change request (if policy is 'request')
+ *                   example: 123
+ *                 policy:
+ *                   type: string
+ *                   description: The policy that was applied
+ *                   example: "request"
+ *       400:
+ *         description: Invalid request or current password incorrect
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Current password is incorrect"
+ *       404:
+ *         description: Staff not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Staff not found"
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Server error"
  */
-router.post('/password/change', authenticateToken, staffController.requestPasswordChange);
+router.post('/password/change', ...requirePermission(STAFF_PERMISSIONS.CHANGE_PASSWORD), staffController.requestPasswordChange);
 
 // Business Staff Settings Routes
 /**
  * @swagger
  * /api/staff/settings/{business_id}:
  *   get:
- *     summary: Get business staff settings
+ *     summary: Retrieve business staff authentication and security settings
+ *     description: |
+ *       Gets the current staff authentication and security settings for a business.
+ *       These settings control how staff passwords are delivered, password change policies,
+ *       login security measures, and session management.
+ *       
+ *       **Settings Include:**
+ *       - Password delivery method (owner vs staff)
+ *       - Password change policy (request approval vs self-service)
+ *       - OTP requirements for login
+ *       - Session timeout settings
+ *       - Login attempt limits and lockout policies
+ *       
+ *       **Access Control:** Only business owners can view these settings
  *     tags: [StaffSettings]
  *     security:
  *       - bearerAuth: []
@@ -617,15 +1289,108 @@ router.post('/password/change', authenticateToken, staffController.requestPasswo
  *         required: true
  *         schema:
  *           type: integer
+ *         description: ID of the business to get settings for
+ *         example: 1
  *       - in: query
  *         name: branch_id
  *         schema:
  *           type: integer
+ *         description: Optional branch ID for branch-specific settings
+ *         example: 1
  *     responses:
  *       200:
- *         description: Business staff settings
+ *         description: Business staff settings retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Settings retrieved successfully"
+ *                 settings:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     business_id:
+ *                       type: integer
+ *                       example: 1
+ *                     branch_id:
+ *                       type: integer
+ *                       example: 1
+ *                     password_delivery_method:
+ *                       type: string
+ *                       enum: [owner, staff]
+ *                       description: How staff passwords are delivered during creation
+ *                       example: "owner"
+ *                     password_change_policy:
+ *                       type: string
+ *                       enum: [request, self]
+ *                       description: Whether staff can change passwords directly or need approval
+ *                       example: "request"
+ *                     require_otp_for_login:
+ *                       type: boolean
+ *                       description: Whether OTP is required for staff login
+ *                       example: false
+ *                     otp_delivery_method:
+ *                       type: string
+ *                       enum: [owner, staff]
+ *                       description: How OTP is delivered when required
+ *                       example: "owner"
+ *                     session_timeout_minutes:
+ *                       type: integer
+ *                       description: Session timeout in minutes
+ *                       example: 480
+ *                     max_login_attempts:
+ *                       type: integer
+ *                       description: Maximum failed login attempts before lockout
+ *                       example: 5
+ *                     lockout_duration_minutes:
+ *                       type: integer
+ *                       description: Lockout duration in minutes after max attempts
+ *                       example: 30
+ *                     created_at:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2024-01-15T10:30:00Z"
+ *                     updated_at:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2024-01-15T10:30:00Z"
+ *       403:
+ *         description: Unauthorized - only business owners can view settings
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Only business owners can view staff settings"
+ *       404:
+ *         description: Business or settings not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Business not found"
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Server error"
  */
-router.get('/settings/:business_id', authenticateToken, staffController.getBusinessStaffSettings);
+router.get('/settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.VIEW_SETTINGS), staffController.getBusinessStaffSettings);
 
 /**
  * @swagger
@@ -671,14 +1436,32 @@ router.get('/settings/:business_id', authenticateToken, staffController.getBusin
  *       200:
  *         description: Settings updated successfully
  */
-router.put('/settings/:business_id', authenticateToken, staffController.updateBusinessStaffSettings);
+router.put('/settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_BUSINESS_SETTINGS), staffController.updateBusinessStaffSettings);
 
 // Staff Login History Routes
 /**
  * @swagger
  * /api/staff/logins/{business_id}:
  *   get:
- *     summary: Get staff login history
+ *     summary: Retrieve comprehensive staff login audit trail
+ *     description: |
+ *       Gets a detailed audit trail of all staff login attempts for a business.
+ *       This includes successful logins, failed attempts, IP addresses, user agents,
+ *       and timestamps for security monitoring and compliance.
+ *       
+ *       **Audit Information Includes:**
+ *       - Login success/failure status
+ *       - Staff member details
+ *       - IP address and user agent
+ *       - Timestamp of login attempt
+ *       - Branch location (if applicable)
+ *       
+ *       **Filtering Options:**
+ *       - Filter by specific staff member
+ *       - Filter by date range
+ *       - Pagination support
+ *       
+ *       **Access Control:** Only business owners can view login history
  *     tags: [StaffLogs]
  *     security:
  *       - bearerAuth: []
@@ -688,35 +1471,166 @@ router.put('/settings/:business_id', authenticateToken, staffController.updateBu
  *         required: true
  *         schema:
  *           type: integer
+ *         description: ID of the business to get login history for
+ *         example: 1
  *       - in: query
  *         name: staff_id
  *         schema:
  *           type: string
+ *         description: Filter by specific staff member ID
+ *         example: "STF001"
  *       - in: query
  *         name: start_date
  *         schema:
  *           type: string
  *           format: date
+ *         description: Start date for filtering (YYYY-MM-DD)
+ *         example: "2024-01-01"
  *       - in: query
  *         name: end_date
  *         schema:
  *           type: string
  *           format: date
+ *         description: End date for filtering (YYYY-MM-DD)
+ *         example: "2024-01-31"
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [success, failed]
+ *         description: Filter by login status
+ *         example: "success"
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
  *           default: 50
+ *         description: Number of records to return (max 100)
+ *         example: 25
  *       - in: query
  *         name: offset
  *         schema:
  *           type: integer
  *           default: 0
+ *         description: Number of records to skip for pagination
+ *         example: 0
  *     responses:
  *       200:
- *         description: Staff login history
+ *         description: Staff login history retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Login history retrieved successfully"
+ *                 logins:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         example: 1
+ *                       staff_id:
+ *                         type: string
+ *                         example: "STF001"
+ *                       staff_name:
+ *                         type: string
+ *                         example: "John Doe"
+ *                       business_id:
+ *                         type: integer
+ *                         example: 1
+ *                       branch_id:
+ *                         type: integer
+ *                         example: 1
+ *                       branch_name:
+ *                         type: string
+ *                         example: "Main Branch"
+ *                       login_status:
+ *                         type: string
+ *                         enum: [success, failed]
+ *                         example: "success"
+ *                       ip_address:
+ *                         type: string
+ *                         example: "192.168.1.100"
+ *                       user_agent:
+ *                         type: string
+ *                         example: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+ *                       login_attempt_time:
+ *                         type: string
+ *                         format: date-time
+ *                         example: "2024-01-15T10:30:00Z"
+ *                       failure_reason:
+ *                         type: string
+ *                         description: Reason for failed login (if applicable)
+ *                         example: "Invalid password"
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     total_records:
+ *                       type: integer
+ *                       example: 150
+ *                     total_pages:
+ *                       type: integer
+ *                       example: 6
+ *                     current_page:
+ *                       type: integer
+ *                       example: 1
+ *                     limit:
+ *                       type: integer
+ *                       example: 25
+ *                     offset:
+ *                       type: integer
+ *                       example: 0
+ *                 summary:
+ *                   type: object
+ *                   properties:
+ *                     total_logins:
+ *                       type: integer
+ *                       example: 150
+ *                     successful_logins:
+ *                       type: integer
+ *                       example: 145
+ *                     failed_logins:
+ *                       type: integer
+ *                       example: 5
+ *                     unique_staff:
+ *                       type: integer
+ *                       example: 8
+ *       403:
+ *         description: Unauthorized - only business owners can view login history
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Only business owners can view login history"
+ *       404:
+ *         description: Business not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Business not found"
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Server error"
  */
-router.get('/logins/:business_id', authenticateToken, staffController.getStaffLoginHistory);
+router.get('/logins/:business_id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_LOGINS), staffController.getStaffLoginHistory);
 
 // Password Change Request Management Routes
 /**
@@ -751,7 +1665,7 @@ router.get('/logins/:business_id', authenticateToken, staffController.getStaffLo
  *       200:
  *         description: Password change request approved
  */
-router.post('/password/approve/:request_id', authenticateToken, staffController.approvePasswordChangeRequest);
+router.post('/password/approve/:request_id', ...requirePermission(STAFF_PERMISSIONS.APPROVE_PASSWORD_CHANGE), staffController.approvePasswordChangeRequest);
 
 /**
  * @swagger
@@ -780,7 +1694,7 @@ router.post('/password/approve/:request_id', authenticateToken, staffController.
  *       200:
  *         description: Password change request rejected
  */
-router.post('/password/reject/:request_id', authenticateToken, staffController.rejectPasswordChangeRequest);
+router.post('/password/reject/:request_id', ...requirePermission(STAFF_PERMISSIONS.REJECT_PASSWORD_CHANGE), staffController.rejectPasswordChangeRequest);
 
 
 module.exports = router;

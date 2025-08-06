@@ -3,7 +3,8 @@
 const express = require('express');
 const router = express.Router();
 const controller = require('../controllers/budgetController');
-const auth = require('../middlewares/authMiddleware');
+const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
+const { FINANCIAL_PERMISSIONS } = require('../constants/permissions');
 
 /**
  * @swagger
@@ -30,7 +31,7 @@ const auth = require('../middlewares/authMiddleware');
  *       200:
  *         description: Remaining budget
  */
-router.get('/:category_id/remaining', auth.authenticateToken, controller.remaining);
+router.get('/:category_id/remaining', requireAuthOnly(), controller.remaining);
 
 /**
  * @swagger
@@ -50,7 +51,7 @@ router.get('/:category_id/remaining', auth.authenticateToken, controller.remaini
  *       201:
  *         description: Budget created
  */
-router.post('/', auth.authenticateToken, controller.create);
+router.post('/', ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_BUDGET), controller.create);
 
 /**
  * @swagger
@@ -64,7 +65,7 @@ router.post('/', auth.authenticateToken, controller.create);
  *       200:
  *         description: List of budgets
  */
-router.get('/', auth.authenticateToken, controller.list);
+router.get('/', requireAuthOnly(), controller.list);
 
 /**
  * @swagger
@@ -91,7 +92,58 @@ router.get('/', auth.authenticateToken, controller.list);
  *       200:
  *         description: Budget updated
  */
-router.put('/:id', auth.authenticateToken, controller.update);
+router.put('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.UPDATE_BUDGET), controller.update);
+
+/**
+ * @swagger
+ * /api/budgets/{id}/approve:
+ *   post:
+ *     summary: Approve a budget (requires approve_budget permission)
+ *     tags: [Budget]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Budget ID
+ *     responses:
+ *       200:
+ *         description: Budget approved
+ */
+router.put('/:id/approve', ...requirePermission(FINANCIAL_PERMISSIONS.APPROVE_BUDGET), controller.approve);
+
+/**
+ * @swagger
+ * /api/budgets/{id}/reject:
+ *   post:
+ *     summary: Reject a budget (requires reject_budget permission)
+ *     tags: [Budget]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Budget ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Budget rejected
+ */
+router.put('/:id/reject', ...requirePermission(FINANCIAL_PERMISSIONS.REJECT_BUDGET), controller.reject);
 
 /**
  * @swagger
@@ -112,6 +164,6 @@ router.put('/:id', auth.authenticateToken, controller.update);
  *       200:
  *         description: Budget deleted
  */
-router.delete('/:id', auth.authenticateToken, controller.delete);
+router.delete('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.DELETE_BUDGET), controller.delete);
 
 module.exports = router;

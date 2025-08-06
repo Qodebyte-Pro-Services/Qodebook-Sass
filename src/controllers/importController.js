@@ -27,12 +27,12 @@ module.exports = {
         status = 'failed';
         summary = 'Unsupported file type.';
       }
-      // Save import history
+     
       await pool.query(
         'INSERT INTO import_history (user_id, file_name, status, summary) VALUES ($1, $2, $3, $4)',
         [user_id, req.file.originalname, status, summary]
       );
-      // Optionally, process data for bulk import here
+   
       res.json({ message: status === 'success' ? 'Import started' : summary, summary, rows: data.length });
     } catch (err) {
       console.error('Import upload error:', err);
@@ -41,7 +41,7 @@ module.exports = {
   },
   template: async (req, res) => {
     try {
-      // Serve a static template file (CSV or Excel)
+      
       const templatePath = path.join(__dirname, '../templates/import_template.csv');
       if (fs.existsSync(templatePath)) {
         res.download(templatePath, 'import_template.csv');

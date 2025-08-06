@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { authenticateToken } = require('../middlewares/authMiddleware');
+const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
+const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
 // const { validateAttribute, validateAttributeValue } = require('../middlewares/validateInput');
 const attributeController = require('../controllers/attributeController');
 
@@ -29,7 +30,7 @@ const attributeController = require('../controllers/attributeController');
  *       409:
  *         description: Attribute name already exists
  */
-router.post('/', authenticateToken, attributeController.createAttribute);
+router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT_ATTRIBUTES), attributeController.createAttribute);
 
 
 /**
@@ -64,7 +65,7 @@ router.post('/', authenticateToken, attributeController.createAttribute);
  *        201:
  *          description: Attributes created or skipped if they already exist
  */
-router.post('/bulk', authenticateToken, attributeController.createAttributesBulk);
+router.post('/bulk', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_ATTRIBUTE_AND_VALUES), attributeController.createAttributesBulk);
 
 /**
  * @swagger
@@ -85,7 +86,7 @@ router.post('/bulk', authenticateToken, attributeController.createAttributesBulk
  *       200:
  *         description: List of attributes and values
  */
-router.get('/', authenticateToken, attributeController.listAttributes);
+router.get('/', requireAuthOnly(), attributeController.listAttributes);
 
 /**
  * @swagger
@@ -117,7 +118,7 @@ router.get('/', authenticateToken, attributeController.listAttributes);
  *       409:
  *         description: Attribute value already exists
  */
-router.post('/:id/values', authenticateToken, attributeController.addAttributeValue);
+router.post('/:id/values', ...requirePermission(PRODUCT_PERMISSIONS.MANAGE_ATTRIBUTES), attributeController.addAttributeValue);
 
 /**
  * @swagger
@@ -140,7 +141,7 @@ router.post('/:id/values', authenticateToken, attributeController.addAttributeVa
  *       404:
  *         description: Attribute not found
  */
-router.get('/:id', authenticateToken, attributeController.getAttribute);
+router.get('/:id', requireAuthOnly(), attributeController.getAttribute);
 
 /**
  * @swagger
@@ -161,7 +162,7 @@ router.get('/:id', authenticateToken, attributeController.getAttribute);
  *       200:
  *         description: Attribute deleted
  */
-router.delete('/:id', authenticateToken, attributeController.deleteAttribute);
+router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_PRODUCT_ATTRIBUTES), attributeController.deleteAttribute);
 
 /**
  * @swagger
@@ -190,7 +191,7 @@ router.delete('/:id', authenticateToken, attributeController.deleteAttribute);
  *       404:
  *         description: Attribute value not found
  */
-router.get('/:id/values/:valueId', authenticateToken, attributeController.getAttributeValue);
+router.get('/:id/values/:valueId', requireAuthOnly(), attributeController.getAttributeValue);
 
 /**
  * @swagger
@@ -217,7 +218,7 @@ router.get('/:id/values/:valueId', authenticateToken, attributeController.getAtt
  *       200:
  *         description: Attribute value deleted
  */
-router.delete('/:id/values/:valueId', authenticateToken, attributeController.deleteAttributeValue);
+router.delete('/:id/values/:valueId', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_ATTRIBUTE_VALUES), attributeController.deleteAttributeValue);
 
 /**
  * @swagger
@@ -238,7 +239,7 @@ router.delete('/:id/values/:valueId', authenticateToken, attributeController.del
  *       200:
  *         description: List of attributes for the business
  */
-router.get('/business/:business_id', authenticateToken, async (req, res) => {
+router.get('/business/:business_id', requireAuthOnly(), async (req, res) => {
   try {
     const { business_id } = req.params;
     const result = await require('../controllers/attributeController').listAttributes({ query: { business_id } }, res);

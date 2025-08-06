@@ -16,7 +16,8 @@
  */
 const express = require('express');
 const router = express.Router();
-const { authenticateToken } = require('../middlewares/authMiddleware');
+const { requirePermission, requireAuth } = require('../utils/routeHelpers');
+const { BUSINESS_PERMISSIONS } = require('../constants/permissions');
 const { validateBranch, validateBranchUpdate } = require('../middlewares/validateInput');
 const branchController = require('../controllers/branchController');
 
@@ -50,7 +51,7 @@ const branchController = require('../controllers/branchController');
  *       409:
  *         description: Branch name or phone already exists
  */
-router.post('/create', authenticateToken, validateBranch, branchController.createBranch);
+router.post('/create', ...requirePermission(BUSINESS_PERMISSIONS.CREATE_BRANCH), validateBranch, branchController.createBranch);
 
 
 /**
@@ -65,7 +66,7 @@ router.post('/create', authenticateToken, validateBranch, branchController.creat
  *       200:
  *         description: List of branches
  */
-router.get('/', authenticateToken, branchController.listBranches);
+router.get('/', ...requirePermission(), branchController.listBranches);
 
 
 /**
@@ -89,7 +90,7 @@ router.get('/', authenticateToken, branchController.listBranches);
  *       404:
  *         description: Branch not found
  */
-router.get('/:id', authenticateToken, branchController.getBranch);
+router.get('/:id', ...requirePermission(), branchController.getBranch);
 
 
 /**
@@ -128,7 +129,7 @@ router.get('/:id', authenticateToken, branchController.getBranch);
  *       409:
  *         description: Branch name or phone already exists
  */
-router.put('/:id', authenticateToken, validateBranchUpdate, branchController.updateBranch);
+router.put('/:id', ...requirePermission(BUSINESS_PERMISSIONS.UPDATE_BRANCH), validateBranchUpdate, branchController.updateBranch);
 
 
 /**
@@ -152,7 +153,7 @@ router.put('/:id', authenticateToken, validateBranchUpdate, branchController.upd
  *       404:
  *         description: Branch not found
  */
-router.delete('/:id', authenticateToken, branchController.deleteBranch);
+router.delete('/:id', ...requirePermission(BUSINESS_PERMISSIONS.DELETE_BRANCH), branchController.deleteBranch);
 
 
 /**
@@ -176,7 +177,7 @@ router.delete('/:id', authenticateToken, branchController.deleteBranch);
  *       404:
  *         description: Business not found
  */
-router.get('/business/:businessId', authenticateToken, branchController.listBranchesByBusiness);
+router.get('/business/:businessId', ...requirePermission(), branchController.listBranchesByBusiness);
 
 
 /**
@@ -206,6 +207,6 @@ router.get('/business/:businessId', authenticateToken, branchController.listBran
  *       404:
  *         description: Branch not found
  */
-router.get('/business/:businessId/:id', authenticateToken, branchController.getBranchByBusiness);
+router.get('/business/:businessId/:id', ...requirePermission(), branchController.getBranchByBusiness);
 
 module.exports = router;

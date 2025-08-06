@@ -17,7 +17,8 @@
  */
 const express = require('express');
 const router = express.Router();
-const { authenticateToken } = require('../middlewares/authMiddleware');
+const { requirePermission, requireAuth } = require('../utils/routeHelpers');
+const { BUSINESS_PERMISSIONS } = require('../constants/permissions');
 const { validateBusiness } = require('../middlewares/validateInput');
 const upload = require('../middlewares/upload');
 const businessController = require('../controllers/businessController');
@@ -60,7 +61,7 @@ const businessController = require('../controllers/businessController');
  *       409:
  *         description: Business name or phone already exists
  */
-router.post('/create', authenticateToken, upload.single('logo'), validateBusiness, businessController.createBusiness);
+router.post('/create', ...requirePermission(BUSINESS_PERMISSIONS.CREATE_BUSINESS), upload.single('logo'), validateBusiness, businessController.createBusiness);
 
 
 /**
@@ -75,7 +76,7 @@ router.post('/create', authenticateToken, upload.single('logo'), validateBusines
  *       200:
  *         description: List of businesses
  */
-router.get('/', authenticateToken, businessController.listBusinesses);
+router.get('/', ...requirePermission(), businessController.listBusinesses);
 
 
 /**
@@ -99,7 +100,7 @@ router.get('/', authenticateToken, businessController.listBusinesses);
  *       404:
  *         description: Business not found
  */
-router.get('/:id', authenticateToken, businessController.getBusiness);
+router.get('/:id', ...requirePermission(), businessController.getBusiness);
 
 
 /**
@@ -146,7 +147,7 @@ router.get('/:id', authenticateToken, businessController.getBusiness);
  *       409:
  *         description: Business name or phone already exists
  */
-router.put('/:id', authenticateToken, upload.single('logo'), validateBusiness, businessController.updateBusiness);
+router.put('/:id', ...requirePermission(BUSINESS_PERMISSIONS.UPDATE_BUSINESS), upload.single('logo'), validateBusiness, businessController.updateBusiness);
 
 
 /**
@@ -170,6 +171,6 @@ router.put('/:id', authenticateToken, upload.single('logo'), validateBusiness, b
  *       404:
  *         description: Business not found
  */
-router.delete('/:id', authenticateToken, businessController.deleteBusiness);
+router.delete('/:id', ...requirePermission(BUSINESS_PERMISSIONS.DELETE_BUSINESS), businessController.deleteBusiness);
 
 module.exports = router;

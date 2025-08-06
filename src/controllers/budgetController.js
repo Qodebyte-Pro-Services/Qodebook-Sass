@@ -1,13 +1,13 @@
 const pool = require('../config/db');
 module.exports = {
-  // Create a budget with spillover logic
+ 
   create: async (req, res) => {
     try {
       const { business_id, category_id, amount, period, start_date, end_date } = req.body;
       if (!business_id || !category_id || !amount || !period || !start_date || !end_date) {
         return res.status(400).json({ message: 'All fields are required.' });
       }
-      // Calculate spillover: sum of all previous budgets - sum of all approved expenses
+    
       const prevBudgetsResult = await pool.query(
         'SELECT SUM(amount) AS total_budget FROM budgets WHERE business_id = $1 AND category_id = $2 AND end_date < $3',
         [business_id, category_id, start_date]
@@ -19,7 +19,7 @@ module.exports = {
       );
       const prevExpense = Number(prevExpensesResult.rows[0]?.total_expense || 0);
       const spillover = Math.max(prevBudget - prevExpense, 0);
-      // Add spillover to new budget
+     
       const totalBudget = Number(amount) + spillover;
       const result = await pool.query(
         'INSERT INTO budgets (business_id, category_id, amount, period, start_date, end_date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
@@ -31,7 +31,53 @@ module.exports = {
       res.status(500).json({ message: 'Failed to create budget.' });
     }
   },
-  // Get remaining budget for a category (including spillover)
+
+  approve: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await pool.query(
+        `UPDATE budgets 
+         SET status = 'approved', rejection_reason = NULL 
+         WHERE id = $1 AND status = 'pending' 
+         RETURNING *`,
+        [id]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Pending budget not found or already processed.' });
+      }
+      res.json({ message: 'Budget approved.', budget: result.rows[0] });
+    } catch (err) {
+      console.error('Approve budget error:', err);
+      res.status(500).json({ message: 'Failed to approve budget.' });
+    }
+  },
+
+  reject: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+      if (!reason) {
+        return res.status(400).json({ message: 'Rejection reason is required.' });
+      }
+      const result = await pool.query(
+        `UPDATE budgets 
+         SET status = 'rejected', rejection_reason = $2 
+         WHERE id = $1 AND status = 'pending' 
+         RETURNING *`,
+        [id, reason]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Pending budget not found or already processed.' });
+      }
+      res.json({ message: 'Budget rejected.', budget: result.rows[0] });
+    } catch (err) {
+      console.error('Reject budget error:', err);
+      res.status(500).json({ message: 'Failed to reject budget.' });
+    }
+  },
+  
+  
+
   remaining: async (req, res) => {
     try {
       const { category_id } = req.params;
@@ -39,13 +85,13 @@ module.exports = {
       if (!business_id) {
         return res.status(400).json({ message: 'business_id is required' });
       }
-      // Sum all budgets for this business/category
+  
       const budgetsResult = await pool.query(
         'SELECT SUM(amount) AS total_budget FROM budgets WHERE business_id = $1 AND category_id = $2',
         [business_id, category_id]
       );
       const totalBudget = Number(budgetsResult.rows[0]?.total_budget || 0);
-      // Sum all approved expenses for this business/category
+    
       const expensesResult = await pool.query(
         "SELECT SUM(amount) AS total_expense FROM expenses WHERE business_id = $1 AND category_id = $2 AND status = 'approved'",
         [business_id, category_id]
@@ -60,11 +106,25 @@ module.exports = {
   },
   list: async (req, res) => {
     try {
-      const business_id = req.query.business_id;
-      const result = await pool.query(
-        business_id ? 'SELECT * FROM budgets WHERE business_id = $1 ORDER BY created_at DESC' : 'SELECT * FROM budgets ORDER BY created_at DESC',
-        business_id ? [business_id] : []
-      );
+      const { business_id, status } = req.query;
+      const filters = [];
+const params = [];
+
+if (business_id) {
+  filters.push('business_id = $' + (params.length + 1));
+  params.push(business_id);
+}
+
+if (status) {
+  filters.push('status = $' + (params.length + 1));
+  params.push(status);
+}
+
+const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+const result = await pool.query(
+  `SELECT * FROM budgets ${whereClause} ORDER BY created_at DESC`,
+  params
+);
       res.json({ budgets: result.rows });
     } catch (err) {
       console.error('List budgets error:', err);
