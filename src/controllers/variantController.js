@@ -25,27 +25,41 @@ exports.countVariantsInStock = async (req, res) => {
 };
 
 exports.generateVariantNames = (req, res) => {
-  const { product_name, attributes, separator } = req.body;
-  if (!product_name) return res.status(400).json({ message: 'product_name is required.' });
+  const { product_name, attributes, separator, base_sku } = req.body;
 
- 
-  if (!attributes || !Array.isArray(attributes) || attributes.length === 0) {
-    return res.json({ variant_names: [product_name] });
+  if (!product_name) {
+    return res.status(400).json({ message: 'product_name is required.' });
   }
 
- 
+  if (!attributes || !Array.isArray(attributes) || attributes.length === 0) {
+    const name = product_name;
+    const sku = (base_sku || product_name).replace(/\s+/g, '').toUpperCase();
+    return res.json({ variants: [{ name, sku }] });
+  }
+
   const sep = typeof separator === 'string' ? separator : ' - ';
 
   
-  const combine = (arr) => arr.reduce(
-    (acc, curr) => acc.flatMap(a => curr.values.map(v => [...a, v])),
-    [[]]
-  );
+  const combine = (arr) =>
+    arr.reduce(
+      (acc, curr) => acc.flatMap(a => curr.values.map(v => [...a, v])),
+      [[]]
+    );
 
   const combos = combine(attributes);
-  const variant_names = combos.map(combo => [product_name, ...combo].join(sep));
-  return res.json({ variant_names });
+
+  const variants = combos.map(combo => {
+    const variantName = [product_name, ...combo].join(sep);
+    const skuParts = [base_sku || product_name, ...combo].map(p =>
+      p.replace(/\s+/g, '').toUpperCase()
+    );
+    const sku = skuParts.join('-');
+    return { name: variantName, sku };
+  });
+
+  return res.json({ variants });
 };
+
 
 exports.generateVariants = async (req, res) => {
   try {

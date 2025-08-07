@@ -1,10 +1,10 @@
-
-
 const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
 require('./config/env');
-
+const reviewRoutes = require('./routes/reviewRoutes');
+const wishlistRoutes = require('./routes/wishlistRoutes');
+const loyaltyRoutes = require('./routes/loyaltyRoutes');
 const authRoutes = require('./routes/authRoutes');
 const businessRoutes = require('./routes/businessRoutes');
 const cartRoutes = require('./routes/cartRoutes');
@@ -40,7 +40,7 @@ const serviceStaffAssignmentRoutes = require('./routes/serviceStaffAssignmentRou
 const categoryRoutes = require('./routes/categoryRoutes');
 const auditRoutes = require('./routes/auditRoutes');
 const shopRoutes = require('./routes/shopRoutes');
-
+const analyticsUnifiedRoutes = require('./routes/analyticsUnifiedRoutes');
 
 const setupSwagger = require('../swagger');
 const app = express();
@@ -53,6 +53,9 @@ app.use(morgan('dev'));
 
 setupSwagger(app);
 
+
+app.use('/api/shop/loyalty', loyaltyRoutes);
+app.use('/api/analytics-unified', analyticsUnifiedRoutes);
 app.use('/api/shop/cart', cartRoutes);
 app.use('/api/shop', customerAuthRoutes);
 app.use('/api/shop/checkout', checkoutRoutes);
@@ -74,7 +77,8 @@ app.use('/api/staff', staffRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/customers', customerRoutes);
-
+app.use('/api/shop/reviews', reviewRoutes);
+app.use('/api/shop/wishlist', wishlistRoutes);
 app.use('/api/taxes', taxRoutes);
 app.use('/api/discounts', discountRoutes);
 app.use('/api/coupons', couponRoutes);

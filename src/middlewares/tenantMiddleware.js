@@ -19,7 +19,6 @@
  */
 
 module.exports = (req, res, next) => {
-  // Read business and branch context from headers
   const businessId = req.header('x-business-id');
   const branchId = req.header('x-branch-id');
   if (!businessId) return res.status(400).json({ message: 'Business context required in x-business-id header.' });
