@@ -1,3 +1,5 @@
+
+
 const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
@@ -5,6 +7,8 @@ require('./config/env');
 
 const authRoutes = require('./routes/authRoutes');
 const businessRoutes = require('./routes/businessRoutes');
+const cartRoutes = require('./routes/cartRoutes');
+const customerAuthRoutes = require('./routes/customerAuthRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const expenseCategoryRoutes = require('./routes/expenseCategoryRoutes');
@@ -31,9 +35,11 @@ const variantRoutes = require('./routes/variantRoutes');
 const stockRoutes = require('./routes/stockRoutes');
 const serviceCategoryRoutes = require('./routes/serviceCategoryRoutes');
 const supplierRoutes = require('./routes/supplierRoutes');
+const checkoutRoutes = require('./routes/checkoutRoutes');
 const serviceStaffAssignmentRoutes = require('./routes/serviceStaffAssignmentRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const auditRoutes = require('./routes/auditRoutes');
+const shopRoutes = require('./routes/shopRoutes');
 
 
 const setupSwagger = require('../swagger');
@@ -47,7 +53,9 @@ app.use(morgan('dev'));
 
 setupSwagger(app);
 
-
+app.use('/api/shop/cart', cartRoutes);
+app.use('/api/shop', customerAuthRoutes);
+app.use('/api/shop/checkout', checkoutRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/business', businessRoutes);
 app.use('/api/subscription', subscriptionRoutes);
@@ -79,8 +87,8 @@ app.use('/api/service-categories', serviceCategoryRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/service-staff-assignments', serviceStaffAssignmentRoutes);
 app.use('/api/audit', auditRoutes);
-
 app.use('/api/categories', categoryRoutes);
+app.use('/api/shop', shopRoutes);
 
 app.get('/', (req, res) => {
   res.send('Qodebook SaaS API is running');

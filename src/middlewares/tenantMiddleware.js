@@ -19,9 +19,10 @@
  */
 
 module.exports = (req, res, next) => {
-  const businessId = req.user?.business_id;
-  const branchId = req.user?.branch_id;
-  if (!businessId) return res.status(400).json({ message: 'Business context required in JWT.' });
+  // Read business and branch context from headers
+  const businessId = req.header('x-business-id');
+  const branchId = req.header('x-branch-id');
+  if (!businessId) return res.status(400).json({ message: 'Business context required in x-business-id header.' });
   req.business_id = businessId;
   if (branchId) req.branch_id = branchId;
   next();

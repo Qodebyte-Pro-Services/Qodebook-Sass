@@ -164,3 +164,37 @@ Attribute Sets/Templates: Allow saving attribute sets for reuse across products.
 Variant Import/Export: Support CSV import/export for variants and stock.
 Stock Alerts: Add notification/email triggers for low/out-of-stock/expired items.
 Audit Logs: Track all changes to products, variants, and stock for compliance.
+
+. Customer Browsing (Public Product/Variant APIs)
+Add public GET endpoints for products and variants (no auth required, or customer JWT optional).
+/api/shop/products — list all products (with filters, pagination, search).
+/api/shop/products/:id — get product details (with variants).
+/api/shop/variants/:id — get variant details.
+2. Cart Management (Session or Authenticated)
+For guests: Store cart in frontend (localStorage) or use a session token.
+For logged-in customers: Store cart in DB (e.g., carts and cart_items tables) linked to customer_id.
+Endpoints:
+POST /api/shop/cart/add — add item to cart.
+POST /api/shop/cart/remove — remove item.
+GET /api/shop/cart — get current cart.
+3. Customer Authentication
+Add customer signup/login endpoints (separate from business user/staff).
+Use JWT for customer sessions.
+Table: customers (already exists).
+Endpoints:
+POST /api/shop/signup
+POST /api/shop/login
+GET /api/shop/me (profile, requires JWT)
+4. Checkout & Orders
+POST /api/shop/checkout — create order from cart, require customer JWT.
+Store shipping info, payment method, etc. in orders table (add columns as needed).
+Update order_items as you do for POS.
+5. Payment Integration
+Integrate with a payment gateway (Stripe, Paystack, etc.).
+On successful payment, mark order as completed or paid.
+6. Shipping
+Add shipping address fields to orders table.
+Optionally, add a shipping_methods table and endpoints.
+7. Maintain POS Flow
+Keep your current POS endpoints for staff/admins (authenticated, can create orders directly).
+E-commerce endpoints are separate, scoped for customers.

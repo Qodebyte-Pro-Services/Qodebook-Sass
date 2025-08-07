@@ -58,9 +58,12 @@ router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT_ATTRIBU
  *                    name:
  *                      type: string
  *                    values:
- *                      type: array
- *                    items:
- *                      type: string
+ *                      type: object
+ *                      properties:
+ *                        values1:
+ *                          type: string
+ *                        values2:
+ *                          type: string
  *      responses:
  *        201:
  *          description: Attributes created or skipped if they already exist
