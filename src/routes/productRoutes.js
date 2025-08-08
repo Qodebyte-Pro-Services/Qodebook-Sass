@@ -92,10 +92,17 @@ router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT), uploa
 
 /**
  * @swagger
- * /api/products:
+ * /products/full:
  *   post:
- *     summary: Create product
- *     tags: [Product]
+ *     summary: Create a new product with optional variants
+ *     description: >
+ *       Creates a product for a specific business and category.  
+ *       - Supports single product or multiple variants.  
+ *       - Variants can have their own price, quantity, threshold, image, and attributes.  
+ *       - Accepts either a product image upload via `multipart/form-data` or `image_url` in JSON.  
+ *       - Requires `CREATE_PRODUCT` and `CREATE_PRODUCT_VARIANTS` permissions.
+ *     tags:
+ *       - Products
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -105,35 +112,116 @@ router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT), uploa
  *           schema:
  *             type: object
  *             properties:
- *               business_id:
- *                 type: string
- *               category_id:
- *                 type: string
- *               name:
- *                 type: string
- *               brand:
- *                 type: string
- *               description:
- *                 type: string
- *               base_sku:
- *                 type: string
  *               image:
  *                 type: string
  *                 format: binary
+ *                 description: Product image file (optional)
+ *               business_id:
+ *                 type: integer
+ *                 example: 1
+ *               category_id:
+ *                 type: integer
+ *                 example: 5
+ *               name:
+ *                 type: string
+ *                 example: T-Shirt
+ *               brand:
+ *                 type: string
+ *                 example: MyBrand
+ *               description:
+ *                 type: string
+ *                 example: Soft cotton T-shirt in various colors and sizes
+ *               base_sku:
+ *                 type: string
+ *                 example: TSHIRT
  *               taxable:
  *                 type: boolean
+ *                 example: true
  *               threshold:
  *                 type: integer
+ *                 example: 10
  *               unit:
- *                type: string
+ *                 type: string
+ *                 example: piece
  *               hasVariation:
- *                type: boolean
+ *                 type: boolean
+ *                 example: true
+ *               image_url:
+ *                 type: string
+ *                 example: https://cdn.example.com/product.jpg
+ *               attributes:
+ *                 type: array
+ *                 description: Defines possible variation attributes
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     name:
+ *                       type: string
+ *                       example: Color
+ *                     values:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       example: ["Red", "Blue"]
+ *               variants:
+ *                 type: array
+ *                 description: List of variant objects. If empty, system auto-generates from attributes.
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     attributes:
+ *                       type: object
+ *                       example: { "Color": "Red", "Size": "M" }
+ *                     sku:
+ *                       type: string
+ *                       example: TSHIRT-RED-M
+ *                     cost_price:
+ *                       type: number
+ *                       format: float
+ *                       example: 1000
+ *                     selling_price:
+ *                       type: number
+ *                       format: float
+ *                       example: 2000
+ *                     quantity:
+ *                       type: integer
+ *                       example: 50
+ *                     threshold:
+ *                       type: integer
+ *                       example: 5
+ *                     barcode:
+ *                       type: string
+ *                       example: RED-M-123456
+ *                     image_url:
+ *                       type: string
+ *                       example: https://cdn.example.com/variants/red-m.jpg
  *     responses:
  *       201:
- *         description: Product created
+ *         description: Product with variants created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Product with variants created.
+ *                 product:
+ *                   type: object
+ *                   description: The created product object
+ *                 variants:
+ *                   type: array
+ *                   description: The created variants
+ *                   items:
+ *                     type: object
+ *       400:
+ *         description: Missing required fields or validation error
  *       409:
- *         description: Product name already exists
+ *         description: Product name or SKU already exists
+ *       500:
+ *         description: Server error
  */
+
 router.post('/products/full', ...requirePermission( 
      PRODUCT_PERMISSIONS.CREATE_PRODUCT,
     PRODUCT_PERMISSIONS.CREATE_PRODUCT_VARIANTS
