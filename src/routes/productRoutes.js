@@ -92,7 +92,7 @@ router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT), uploa
 
 /**
  * @swagger
- * /products/full:
+ * /api/products/full:
  *   post:
  *     summary: Create a new product with optional variants
  *     description: >
@@ -222,7 +222,7 @@ router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT), uploa
  *         description: Server error
  */
 
-router.post('/full', ...requirePermission( 
+router.post('/products/full', ...requirePermission( 
      PRODUCT_PERMISSIONS.CREATE_PRODUCT,
     PRODUCT_PERMISSIONS.CREATE_PRODUCT_VARIANTS
 ),
