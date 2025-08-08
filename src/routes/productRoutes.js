@@ -222,7 +222,7 @@ router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT), uploa
  *         description: Server error
  */
 
-router.post('/products/full', ...requirePermission( 
+router.post('/full', ...requirePermission( 
      PRODUCT_PERMISSIONS.CREATE_PRODUCT,
     PRODUCT_PERMISSIONS.CREATE_PRODUCT_VARIANTS
 ),
