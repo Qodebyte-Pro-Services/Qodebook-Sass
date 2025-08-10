@@ -417,14 +417,14 @@ const variantController = require('../controllers/variantController');
  */
 router.patch('/variants/:id/barcode', authenticateToken, variantController.updateBarcode);
 router.get('/count-in-stock', require('../middlewares/authMiddleware').authenticateToken, require('../controllers/variantController').countVariantsInStock);
-router.post('/products/:id/variants/generate', authenticateToken, upload.single('image'), variantController.generateVariants);
+router.post('/products/:id/variants/generate', authenticateToken,upload.array('images', 10),variantController.generateVariants);
 router.post('/generate-names', require('../middlewares/authMiddleware').authenticateToken, variantController.generateVariantNames);
 router.post('/batch', require('../middlewares/authMiddleware').authenticateToken, variantController.createVariantsBatch);
 router.get('/products/:id/variants', authenticateToken, variantController.listVariants);
 router.get('/variants/product/:productId/variants/:variantId',authenticateToken,variantController.getVariantByProduct);
 router.get('/variants/:id', authenticateToken, variantController.getVariantById);
 router.get('/business/variants', authenticateToken, variantController.getVariantsByBusiness);
-router.put('/variants/:id', authenticateToken, upload.single('image'), variantController.updateVariant);
+router.put('/variants/:id', authenticateToken, upload.array('images', 10),variantController.updateVariant);
 router.delete('/variants/:id', authenticateToken, variantController.deleteVariant);
 
 
