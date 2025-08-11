@@ -221,13 +221,22 @@ router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT), uploa
  *       500:
  *         description: Server error
  */
-
-router.post('/full',
+function buildUploadFields(maxVariants = 20) {
+  const fields = [
+    { name: 'product_images', maxCount: 5 }, // product-level images
+  ];
+  for (let i = 0; i < maxVariants; i++) {
+    fields.push({ name: `variant_${i}_images`, maxCount: 5 }); 
+  }
+  return fields;
+}
+router.post(
+  '/full',
   ...requirePermission(
     PRODUCT_PERMISSIONS.CREATE_PRODUCT,
     PRODUCT_PERMISSIONS.CREATE_PRODUCT_VARIANTS
   ),
-  upload.array('images', 10),
+  upload.fields(buildUploadFields(20)), 
   productController.createProductWithVariants
 );
 
