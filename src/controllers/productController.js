@@ -271,41 +271,37 @@ exports.createProductWithVariants = async (req, res) => {
       variants = []
     } = req.body;
 
-    
     const parsedVariants = typeof variants === 'string' ? JSON.parse(variants) : variants;
     const parsedAttributes = typeof attributes === 'string' ? JSON.parse(attributes) : attributes;
 
    
     let productImages = [];
-    if (req.files?.image_url) {
-      productImages = await uploadFilesToCloudinary(req.files.image_url);
+    if (req.files?.product_images) {
+      productImages = await uploadFilesToCloudinary(req.files.product_images);
     } else if (req.body.image_url) {
       productImages = Array.isArray(req.body.image_url) ? req.body.image_url : [req.body.image_url];
     }
     productImages = [...new Set(productImages)];
 
-    
     if (!business_id || !category_id || !name || !description || !brand) {
-      return res.status(400).json({
-        message: "business_id, category_id, description, brand and name are required."
-      });
+      return res.status(400).json({ message: "business_id, category_id, description, brand and name are required." });
     }
 
    
     const check = await pool.query(
-      "SELECT * FROM products WHERE business_id = $1 AND LOWER(name) = LOWER($2)",
+      "SELECT 1 FROM products WHERE business_id = $1 AND LOWER(name) = LOWER($2)",
       [business_id, name]
     );
     if (check.rows.length > 0) {
       return res.status(409).json({ message: "Product name already exists." });
     }
 
-   
+    
     const result = await pool.query(
       `INSERT INTO products 
         (business_id, category_id, name, brand, description, base_sku, image_url, taxable, threshold, unit, "hasVariation") 
        VALUES 
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+        ($1, $2, $3, $4, $5, $6, $7::text[], $8, $9, $10, $11) 
        RETURNING *`,
       [
         business_id,
@@ -323,20 +319,19 @@ exports.createProductWithVariants = async (req, res) => {
     );
     const product = result.rows[0];
 
-    
+   
     async function ensureAttributeAndValues(attr) {
       let attrRes = await pool.query(
         "SELECT * FROM attributes WHERE business_id = $1 AND LOWER(name) = LOWER($2)",
         [business_id, attr.name.toLowerCase()]
       );
+
       let attribute =
         attrRes.rows.length === 0
-          ? (
-              await pool.query(
-                "INSERT INTO attributes (business_id, name) VALUES ($1, $2) RETURNING *",
-                [business_id, attr.name]
-              )
-            ).rows[0]
+          ? (await pool.query(
+              "INSERT INTO attributes (business_id, name) VALUES ($1, $2) RETURNING *",
+              [business_id, attr.name]
+            )).rows[0]
           : attrRes.rows[0];
 
       let valueIds = [];
@@ -347,12 +342,10 @@ exports.createProductWithVariants = async (req, res) => {
         );
         let value =
           valRes.rows.length === 0
-            ? (
-                await pool.query(
-                  "INSERT INTO attribute_values (attribute_id, value) VALUES ($1, $2) RETURNING *",
-                  [attribute.id, val]
-                )
-              ).rows[0]
+            ? (await pool.query(
+                "INSERT INTO attribute_values (attribute_id, value) VALUES ($1, $2) RETURNING *",
+                [attribute.id, val]
+              )).rows[0]
             : valRes.rows[0];
 
         valueIds.push({
@@ -399,19 +392,18 @@ exports.createProductWithVariants = async (req, res) => {
       finalVariants = parsedVariants;
     }
 
+    
     let createdVariants = [];
 
-   
     for (let i = 0; i < finalVariants.length; i++) {
       const v = finalVariants[i];
 
-     
-      const skuCheck = await pool.query("SELECT * FROM variants WHERE sku = $1", [v.sku]);
+      const skuCheck = await pool.query("SELECT 1 FROM variants WHERE sku = $1", [v.sku]);
       if (skuCheck.rows.length > 0) {
         return res.status(409).json({ message: `SKU ${v.sku} already exists.` });
       }
 
-      
+     
       let attrArr = [];
       for (const [attrName, val] of Object.entries(v.attributes || {})) {
         const attr = attributeMatrix.find((a) => a.name === attrName);
@@ -428,8 +420,8 @@ exports.createProductWithVariants = async (req, res) => {
         }
       }
 
-     
-      const fileKey = `variants[${i}][image_url]`;
+    
+      const fileKey = `variant_${i}_images`;
       let variantImages = [];
       if (req.files?.[fileKey]) {
         variantImages = await uploadFilesToCloudinary(req.files[fileKey]);
@@ -444,16 +436,16 @@ exports.createProductWithVariants = async (req, res) => {
       const variantResult = await pool.query(
         `INSERT INTO variants 
         (product_id, attributes, cost_price, selling_price, quantity, threshold, sku, image_url, expiry_date, barcode) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+        VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7, $8::jsonb, $9, $10) RETURNING *`,
         [
           product.id,
-          attrArr,
+          JSON.stringify(attrArr),
           v.cost_price || 0,
           v.selling_price || 0,
           v.quantity || 0,
           threshold || 0,
           v.sku,
-          variantImages,
+          JSON.stringify(variantImages),
           null,
           v.barcode || null
         ]
@@ -472,5 +464,6 @@ exports.createProductWithVariants = async (req, res) => {
     return res.status(500).json({ message: "Server error.", details: err.message });
   }
 };
+
 
 
