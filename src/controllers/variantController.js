@@ -151,13 +151,17 @@ exports.generateVariants = async (req, res) => {
 exports.listVariants = async (req, res) => {
   try {
     const { id: product_id } = req.params;
-    const result = await pool.query('SELECT * FROM variants WHERE product_id = $1 AND deleted_at IS NULL', [product_id]);
+    const result = await pool.query(
+      'SELECT * FROM variants WHERE product_id = $1',
+      [product_id]
+    );
     return res.status(200).json({ variants: result.rows });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+
 
 exports.getVariantsByBusiness = async (req, res) => {
   const user_id = req.user.user_id;
