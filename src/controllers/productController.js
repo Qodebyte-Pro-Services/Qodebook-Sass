@@ -275,13 +275,15 @@ exports.createProductWithVariants = async (req, res) => {
     const parsedAttributes = typeof attributes === 'string' ? JSON.parse(attributes) : attributes;
 
    
-    let productImages = [];
-    if (req.files?.product_images) {
-      productImages = await uploadFilesToCloudinary(req.files.product_images);
-    } else if (req.body.image_url) {
-      productImages = Array.isArray(req.body.image_url) ? req.body.image_url : [req.body.image_url];
-    }
-    productImages = [...new Set(productImages)];
+    const productFiles = (req.files || []).filter(f => f.fieldname === 'image_url');
+let productImages = [];
+ if (productFiles.length > 0) {
+  productImages = await uploadFilesToCloudinary(productFiles);
+} else if (req.body.image_url) {
+  productImages = Array.isArray(req.body.image_url) ? req.body.image_url : [req.body.image_url];
+}
+
+productImages = [...new Set(productImages)];
 
     if (!business_id || !category_id || !name || !description || !brand) {
       return res.status(400).json({ message: "business_id, category_id, description, brand and name are required." });
@@ -421,16 +423,18 @@ exports.createProductWithVariants = async (req, res) => {
       }
 
     
-      const fileKey = `variant_${i}_images`;
-      let variantImages = [];
-      if (req.files?.[fileKey]) {
-        variantImages = await uploadFilesToCloudinary(req.files[fileKey]);
-      } else if (v.image_url) {
-        variantImages = Array.isArray(v.image_url) ? v.image_url : [v.image_url];
-      } else {
-        variantImages = productImages;
-      }
-      variantImages = [...new Set(variantImages)];
+const fileKey = `variants[${i}][image_url]`;
+const variantFiles = (req.files || []).filter(f => f.fieldname === fileKey);
+
+let variantImages = [];
+if (variantFiles.length > 0) {
+  variantImages = await uploadFilesToCloudinary(variantFiles);
+} else if (v.image_url) {
+  variantImages = Array.isArray(v.image_url) ? v.image_url : [v.image_url];
+} else {
+  variantImages = productImages;
+}
+variantImages = [...new Set(variantImages)];
 
       
       const variantResult = await pool.query(
