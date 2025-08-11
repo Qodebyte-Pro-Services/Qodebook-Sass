@@ -272,15 +272,14 @@ exports.createProductWithVariants = async (req, res) => {
     } = req.body;
 
   
-    let productImages = await uploadFilesToCloudinary(req.files || req.file);
-
-    if (!productImages.length && req.body.image_url) {
+    let productImages = [];
+    if (req.files?.product_images) {
+      productImages = await uploadFilesToCloudinary(req.files.product_images);
+    } else if (req.body.image_url) {
       productImages = Array.isArray(req.body.image_url)
         ? req.body.image_url
         : [req.body.image_url];
     }
-
-   
     productImages = [...new Set(productImages)];
 
     if (!business_id || !category_id || !name || !description || !brand) {
@@ -290,6 +289,7 @@ exports.createProductWithVariants = async (req, res) => {
       });
     }
 
+
     const check = await pool.query(
       "SELECT * FROM products WHERE business_id = $1 AND LOWER(name) = LOWER($2)",
       [business_id, name]
@@ -298,6 +298,7 @@ exports.createProductWithVariants = async (req, res) => {
       return res.status(409).json({ message: "Product name already exists." });
     }
 
+  
     const result = await pool.query(
       `INSERT INTO products 
         (business_id, category_id, name, brand, description, base_sku, image_url, taxable, threshold, unit, "hasVariation") 
@@ -321,7 +322,7 @@ exports.createProductWithVariants = async (req, res) => {
 
     const product = result.rows[0];
 
- 
+
     async function ensureAttributeAndValues(attr) {
       let attrRes = await pool.query(
         "SELECT * FROM attributes WHERE business_id = $1 AND LOWER(name) = LOWER($2)",
@@ -397,11 +398,14 @@ exports.createProductWithVariants = async (req, res) => {
         };
       });
     } else {
-      finalVariants = variants;
+      finalVariants = JSON.parse(variants);
     }
 
     let createdVariants = [];
-    for (const v of finalVariants) {
+    for (let i = 0; i < finalVariants.length; i++) {
+      const v = finalVariants[i];
+
+      
       const skuCheck = await pool.query(
         "SELECT * FROM variants WHERE sku = $1",
         [v.sku]
@@ -428,9 +432,12 @@ exports.createProductWithVariants = async (req, res) => {
         }
       }
 
+   
       let variantImages = [];
-      if (v.image_url && typeof v.image_url !== "string") {
-        variantImages = await uploadFilesToCloudinary(v.image_url);
+      if (req.files?.[`variant_${i}_images`]) {
+        variantImages = await uploadFilesToCloudinary(
+          req.files[`variant_${i}_images`]
+        );
       } else if (v.image_url) {
         variantImages = Array.isArray(v.image_url)
           ? v.image_url
@@ -438,10 +445,9 @@ exports.createProductWithVariants = async (req, res) => {
       } else {
         variantImages = productImages;
       }
-
-      
       variantImages = [...new Set(variantImages)];
 
+      
       const variantResult = await pool.query(
         'INSERT INTO variants (product_id, attributes, cost_price, selling_price, quantity, threshold, sku, image_url, expiry_date, barcode) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
         [
@@ -460,15 +466,13 @@ exports.createProductWithVariants = async (req, res) => {
       createdVariants.push(variantResult.rows[0]);
     }
 
-    return res
-      .status(201)
-      .json({
-        message: "Product with variants created.",
-        product,
-        variants: createdVariants
-      });
+    return res.status(201).json({
+      message: "Product with variants created.",
+      product,
+      variants: createdVariants
+    });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error." });
+    return res.status(500).json({ message: "Server error.", details: err.message });
   }
 };
