@@ -486,14 +486,33 @@ variantImages = [...new Set(variantImages)];
           v.barcode || null
         ]
       );
+      const variant = variantResult.rows[0];
       createdVariants.push(variantResult.rows[0]);
 
         if (variant.quantity > 0) {
-        await pool.query(
-          'INSERT INTO inventory_logs (variant_id, type, quantity, note) VALUES ($1, $2, $3, $4)',
-          [variant.id, 'restock', variant.quantity, 'Initial stock on variant creation']
-        );
+        inventoryLogs.push([
+          variant.id,
+          'restock',
+          variant.quantity,
+          'Initial stock on variant creation'
+        ]);
       }
+    }
+
+    if (inventoryLogs.length > 0) {
+      const valuesPlaceholders = inventoryLogs
+        .map(
+          (_, idx) =>
+            `($${idx * 4 + 1}, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4})`
+        )
+        .join(', ');
+
+      const flatValues = inventoryLogs.flat();
+
+      await pool.query(
+        `INSERT INTO inventory_logs (variant_id, type, quantity, note) VALUES ${valuesPlaceholders}`,
+        flatValues
+      );
     }
 
     return res.status(201).json({
