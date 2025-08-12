@@ -306,17 +306,17 @@ exports.createProductWithVariants = async (req, res) => {
     const parsedVariants = typeof variants === 'string' ? JSON.parse(variants) : variants;
     const parsedAttributes = typeof attributes === 'string' ? JSON.parse(attributes) : attributes;
 
-   
+    
     const productFiles = (req.files || []).filter(f => f.fieldname === 'image_url');
-let productImages = [];
- if (productFiles.length > 0) {
-  productImages = await uploadFilesToCloudinary(productFiles);
-} else if (req.body.image_url) {
-  productImages = Array.isArray(req.body.image_url) ? req.body.image_url : [req.body.image_url];
-}
+    let productImages = [];
+    if (productFiles.length > 0) {
+      productImages = await uploadFilesToCloudinary(productFiles);
+    } else if (req.body.image_url) {
+      productImages = Array.isArray(req.body.image_url) ? req.body.image_url : [req.body.image_url];
+    }
+    productImages = [...new Set(productImages)];
 
-productImages = [...new Set(productImages)];
-
+   
     if (!business_id || !category_id || !name || !description || !brand) {
       return res.status(400).json({ message: "business_id, category_id, description, brand and name are required." });
     }
@@ -330,7 +330,7 @@ productImages = [...new Set(productImages)];
       return res.status(409).json({ message: "Product name already exists." });
     }
 
-    
+   
     const result = await pool.query(
       `INSERT INTO products 
         (business_id, category_id, name, brand, description, base_sku, image_url, taxable, threshold, unit, "hasVariation") 
@@ -405,6 +405,7 @@ productImages = [...new Set(productImages)];
       );
     }
 
+   
     let finalVariants = [];
     if (!parsedVariants.length && attributeMatrix.length) {
       const combos = cartesian(attributeMatrix);
@@ -428,16 +429,18 @@ productImages = [...new Set(productImages)];
 
     
     let createdVariants = [];
+    let inventoryLogs = [];
 
     for (let i = 0; i < finalVariants.length; i++) {
       const v = finalVariants[i];
 
+    
       const skuCheck = await pool.query("SELECT 1 FROM variants WHERE sku = $1", [v.sku]);
       if (skuCheck.rows.length > 0) {
         return res.status(409).json({ message: `SKU ${v.sku} already exists.` });
       }
 
-     
+      
       let attrArr = [];
       for (const [attrName, val] of Object.entries(v.attributes || {})) {
         const attr = attributeMatrix.find((a) => a.name === attrName);
@@ -454,25 +457,25 @@ productImages = [...new Set(productImages)];
         }
       }
 
-    
-const fileKey = `variants[${i}][image_url]`;
-const variantFiles = (req.files || []).filter(f => f.fieldname === fileKey);
+     
+      const fileKey = `variants[${i}][image_url]`;
+      const variantFiles = (req.files || []).filter(f => f.fieldname === fileKey);
 
-let variantImages = [];
-if (variantFiles.length > 0) {
-  variantImages = await uploadFilesToCloudinary(variantFiles);
-} else if (v.image_url) {
-  variantImages = Array.isArray(v.image_url) ? v.image_url : [v.image_url];
-} else {
-  variantImages = productImages;
-}
-variantImages = [...new Set(variantImages)];
+      let variantImages = [];
+      if (variantFiles.length > 0) {
+        variantImages = await uploadFilesToCloudinary(variantFiles);
+      } else if (v.image_url) {
+        variantImages = Array.isArray(v.image_url) ? v.image_url : [v.image_url];
+      } else {
+        variantImages = productImages;
+      }
+      variantImages = [...new Set(variantImages)];
 
-      
+     
       const variantResult = await pool.query(
         `INSERT INTO variants 
-        (product_id, attributes, cost_price, selling_price, quantity, threshold, sku, image_url, expiry_date, barcode) 
-        VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7, $8::jsonb, $9, $10) RETURNING *`,
+          (product_id, attributes, cost_price, selling_price, quantity, threshold, sku, image_url, expiry_date, barcode) 
+         VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7, $8::jsonb, $9, $10) RETURNING *`,
         [
           product.id,
           JSON.stringify(attrArr),
@@ -486,10 +489,12 @@ variantImages = [...new Set(variantImages)];
           v.barcode || null
         ]
       );
-      const variant = variantResult.rows[0];
-      createdVariants.push(variantResult.rows[0]);
 
-        if (variant.quantity > 0) {
+      const variant = variantResult.rows[0];
+      createdVariants.push(variant);
+
+     
+      if (variant.quantity > 0) {
         inventoryLogs.push([
           variant.id,
           'restock',
@@ -499,6 +504,7 @@ variantImages = [...new Set(variantImages)];
       }
     }
 
+   
     if (inventoryLogs.length > 0) {
       const valuesPlaceholders = inventoryLogs
         .map(
@@ -526,6 +532,7 @@ variantImages = [...new Set(variantImages)];
     return res.status(500).json({ message: "Server error.", details: err.message });
   }
 };
+
 
 
 

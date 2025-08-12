@@ -74,19 +74,21 @@ exports.generateVariants = async (req, res) => {
     }
 
     const inserted = [];
+    const inventoryLogs = []; 
 
     for (let i = 0; i < variants.length; i++) {
       const v = variants[i];
 
+     
       const skuCheck = await pool.query('SELECT 1 FROM variants WHERE sku = $1', [v.sku]);
       if (skuCheck.rows.length > 0) {
         return res.status(409).json({ message: `SKU ${v.sku} already exists.` });
       }
 
-   
+      
       const attrComboCheck = await pool.query(
         'SELECT 1 FROM variants WHERE product_id = $1 AND attributes = $2',
-        [product_id, JSON.stringify(v.attributes)]
+        [product_id, JSON.stringify(v.attributes || {})]
       );
       if (attrComboCheck.rows.length > 0) {
         return res.status(409).json({ message: 'Variant with this attribute combination already exists.' });
@@ -104,12 +106,12 @@ exports.generateVariants = async (req, res) => {
       }
       variantImages = [...new Set(variantImages)];
 
-     
+      
       const result = await pool.query(
         `INSERT INTO variants 
           (product_id, attributes, cost_price, selling_price, quantity, threshold, sku, image_url, expiry_date, barcode, custom_price) 
          VALUES 
-          ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+          ($1, $2::jsonb, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11) 
          RETURNING *`,
         [
           product_id,
@@ -129,13 +131,32 @@ exports.generateVariants = async (req, res) => {
       const variant = result.rows[0];
       inserted.push(variant);
 
-    
+      
       if (variant.quantity > 0) {
-        await pool.query(
-          'INSERT INTO inventory_logs (variant_id, type, quantity, note) VALUES ($1, $2, $3, $4)',
-          [variant.id, 'restock', variant.quantity, 'Initial stock on variant creation']
-        );
+        inventoryLogs.push([
+          variant.id,
+          'restock',
+          variant.quantity,
+          'Initial stock on variant creation'
+        ]);
       }
+    }
+
+   
+    if (inventoryLogs.length > 0) {
+      const placeholders = inventoryLogs
+        .map(
+          (_, idx) =>
+            `($${idx * 4 + 1}, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4})`
+        )
+        .join(', ');
+
+      const flatValues = inventoryLogs.flat();
+
+      await pool.query(
+        `INSERT INTO inventory_logs (variant_id, type, quantity, note) VALUES ${placeholders}`,
+        flatValues
+      );
     }
 
     return res.status(201).json({ message: 'Variants generated.', variants: inserted });
@@ -144,6 +165,7 @@ exports.generateVariants = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+
 
 
 
