@@ -1,10 +1,10 @@
 
 const express = require('express');
 const router = express.Router();
-const { authenticateToken, isAdmin } = require('../middlewares/authMiddleware');
 const upload = require('../middlewares/upload');
 const variantController = require('../controllers/variantController');
-
+const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
+const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
 /**
  * @swagger
  * /api/variants/batch:
@@ -53,7 +53,7 @@ const variantController = require('../controllers/variantController');
 
 /**
  * @swagger
- * /api/products/{id}/variants/generate:
+ * /api/variants/products/{id}/variants/generate:
  *   post:
  *     summary: Auto-generate variants from selected attributes
  *     tags: [Variant]
@@ -99,7 +99,7 @@ const variantController = require('../controllers/variantController');
 
 /**
  * @swagger
- * /api/products/{id}/variants:
+ * /api/variants/products/{id}/variants:
  *   get:
  *     summary: List variants for a product
  *     tags: [Variant]
@@ -278,7 +278,7 @@ const variantController = require('../controllers/variantController');
 
 /**
  * @swagger
- * /api/business/variants:
+ * /api/variants/business/variants:
  *   get:
  *     summary: Get all variants under the authenticated user's business
  *     tags: [Variant]
@@ -415,17 +415,17 @@ const variantController = require('../controllers/variantController');
  *       500:
  *         description: Server error
  */
-router.patch('/variants/:id/barcode', authenticateToken, variantController.updateBarcode);
-router.get('/count-in-stock', require('../middlewares/authMiddleware').authenticateToken, require('../controllers/variantController').countVariantsInStock);
-router.post('/products/:id/variants/generate', authenticateToken,upload.array('images', 10),variantController.generateVariants);
-router.post('/generate-names', require('../middlewares/authMiddleware').authenticateToken, variantController.generateVariantNames);
-router.post('/batch', require('../middlewares/authMiddleware').authenticateToken, variantController.createVariantsBatch);
-router.get('/products/:id/variants', authenticateToken, variantController.listVariants);
-router.get('/variants/product/:productId/variants/:variantId',authenticateToken,variantController.getVariantByProduct);
-router.get('/variants/:id', authenticateToken, variantController.getVariantById);
-router.get('/business/variants', authenticateToken, variantController.getVariantsByBusiness);
-router.put('/variants/:id', authenticateToken, upload.array('images', 10),variantController.updateVariant);
-router.delete('/variants/:id', authenticateToken, variantController.deleteVariant);
+router.patch('/:id/barcode', ...requirePermission(PRODUCT_PERMISSIONS.MANAGE_VARIANTS), variantController.updateBarcode);
+router.get('/count-in-stock', ...requirePermission(PRODUCT_PERMISSIONS.MANAGE_VARIANTS), variantController.countVariantsInStock);
+router.post('/products/:id/variants/generate', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT_VARIANTS),upload.any(),variantController.generateVariants);
+router.post('/generate-names', ...requirePermission(PRODUCT_PERMISSIONS.MANAGE_VARIANTS), variantController.generateVariantNames);
+router.post('/batch', ...requirePermission(PRODUCT_PERMISSIONS.MANAGE_VARIANTS), variantController.createVariantsBatch);
+router.get('/products/:id/variants', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT_VARIANTS), variantController.listVariants);
+router.get('/product/:productId/variants/:variantId',...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT_VARIANTS),variantController.getVariantByProduct);
+router.get('/:id', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT_VARIANTS), variantController.getVariantById);
+router.get('/business/variants', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT_VARIANTS), variantController.getVariantsByBusiness);
+router.put('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT_VARIANTS), upload.any(),variantController.updateVariant);
+router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_PRODUCT_VARIANTS), variantController.deleteVariant);
 
 
 module.exports = router;

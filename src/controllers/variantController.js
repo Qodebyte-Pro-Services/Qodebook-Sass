@@ -65,7 +65,9 @@ exports.generateVariantNames = (req, res) => {
 exports.generateVariants = async (req, res) => {
   try {
     const { id: product_id } = req.params;
-    const { variants } = req.body;
+    const variants = typeof req.body.variants === 'string' 
+      ? JSON.parse(req.body.variants) 
+      : req.body.variants;
 
     if (!variants || !Array.isArray(variants) || variants.length === 0) {
       return res.status(400).json({ message: 'Variants array required.' });
@@ -73,38 +75,35 @@ exports.generateVariants = async (req, res) => {
 
     const inserted = [];
 
-    for (const v of variants) {
-     
-      const skuCheck = await pool.query('SELECT * FROM variants WHERE sku = $1', [v.sku]);
+    for (let i = 0; i < variants.length; i++) {
+      const v = variants[i];
+
+      const skuCheck = await pool.query('SELECT 1 FROM variants WHERE sku = $1', [v.sku]);
       if (skuCheck.rows.length > 0) {
         return res.status(409).json({ message: `SKU ${v.sku} already exists.` });
       }
 
-      
+   
       const attrComboCheck = await pool.query(
-        'SELECT * FROM variants WHERE product_id = $1 AND attributes = $2',
+        'SELECT 1 FROM variants WHERE product_id = $1 AND attributes = $2',
         [product_id, JSON.stringify(v.attributes)]
       );
       if (attrComboCheck.rows.length > 0) {
         return res.status(409).json({ message: 'Variant with this attribute combination already exists.' });
       }
 
-    
-      let variantImages = [];
-
       
-      if (req.files?.length || req.file) {
-        variantImages = await uploadFilesToCloudinary(req.files || req.file);
+      const fileKey = `variants[${i}][image_url]`;
+      const variantFiles = (req.files || []).filter(f => f.fieldname === fileKey);
+
+      let variantImages = [];
+      if (variantFiles.length > 0) {
+        variantImages = await uploadFilesToCloudinary(variantFiles);
+      } else if (v.image_url) {
+        variantImages = Array.isArray(v.image_url) ? v.image_url : [v.image_url];
       }
-
-     
-      if (v.image_url) {
-        const urls = Array.isArray(v.image_url) ? v.image_url : [v.image_url];
-        variantImages = variantImages.concat(urls);
-      }
-
-
       variantImages = [...new Set(variantImages)];
+
      
       const result = await pool.query(
         `INSERT INTO variants 
@@ -120,7 +119,7 @@ exports.generateVariants = async (req, res) => {
           v.quantity || 0,
           v.threshold || 0,
           v.sku,
-          variantImages,
+          JSON.stringify(variantImages),
           v.expiry_date || null,
           v.barcode || null,
           v.custom_price || null
@@ -130,7 +129,7 @@ exports.generateVariants = async (req, res) => {
       const variant = result.rows[0];
       inserted.push(variant);
 
-      
+    
       if (variant.quantity > 0) {
         await pool.query(
           'INSERT INTO inventory_logs (variant_id, type, quantity, note) VALUES ($1, $2, $3, $4)',
@@ -145,6 +144,7 @@ exports.generateVariants = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+
 
 
 
@@ -242,86 +242,70 @@ exports.createVariantsBatch = async (req, res) => {
 exports.updateVariant = async (req, res) => {
   try {
     const { id } = req.params;
-    const {
-      attributes,
-      cost_price,
-      selling_price,
-      quantity,
-      threshold,
-      sku,
-      image_url,
-      expiry_date,
-      barcode
-    } = req.body;
 
+    
+    const currentRes = await pool.query('SELECT * FROM variants WHERE id = $1', [id]);
+    if (currentRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Variant not found.' });
+    }
+    let existingImages = currentRes.rows[0].image_url || [];
+
+   
+    const uploadedFiles = (req.files || []).filter(f => f.fieldname === 'image_url');
+    let uploadedImages = [];
+    if (uploadedFiles.length > 0) {
+      uploadedImages = await uploadFilesToCloudinary(uploadedFiles);
+    }
+
+    
+    const removeImages = req.body.remove_images
+      ? Array.isArray(req.body.remove_images)
+        ? req.body.remove_images
+        : [req.body.remove_images]
+      : [];
+
+    existingImages = existingImages.filter(img => !removeImages.includes(img));
+
+   
+    let finalImages = [...existingImages, ...uploadedImages];
+
+   
+    if (req.body.replace_images === 'true') {
+      finalImages = uploadedImages;
+    }
+
+    finalImages = [...new Set(finalImages)];
+
+   
     let setParts = [];
     let values = [];
     let idx = 1;
 
-    if (attributes) {
-      setParts.push(`attributes = $${idx}`);
-      values.push(JSON.stringify(attributes));
-      idx++;
-    }
-    if (cost_price !== undefined) {
-      setParts.push(`cost_price = $${idx}`);
-      values.push(cost_price);
-      idx++;
-    }
-    if (selling_price !== undefined) {
-      setParts.push(`selling_price = $${idx}`);
-      values.push(selling_price);
-      idx++;
-    }
-    if (quantity !== undefined) {
-      setParts.push(`quantity = $${idx}`);
-      values.push(quantity);
-      idx++;
-    }
-    if (threshold !== undefined) {
-      setParts.push(`threshold = $${idx}`);
-      values.push(threshold);
-      idx++;
-    }
-    if (sku) {
-      setParts.push(`sku = $${idx}`);
-      values.push(sku);
-      idx++;
-    }
-    if (barcode) {
-      setParts.push(`barcode = $${idx}`);
-      values.push(barcode);
-      idx++;
+    const updatableFields = [
+      'attributes', 'cost_price', 'selling_price', 'quantity', 'threshold', 
+      'sku', 'barcode', 'expiry_date', 'custom_price'
+    ];
+
+    for (const field of updatableFields) {
+      if (req.body[field] !== undefined) {
+        setParts.push(`${field} = $${idx}`);
+        values.push(field === 'attributes' ? JSON.stringify(req.body[field]) : req.body[field]);
+        idx++;
+      }
     }
 
-    let finalImages = [];
-    if (req.files?.length || req.file) {
-      finalImages = await uploadFilesToCloudinary(req.files || req.file);
-    }
-    if (image_url) {
-      const urls = Array.isArray(image_url) ? image_url : [image_url];
-      finalImages = finalImages.concat(urls);
-    }
-    if (finalImages.length > 0) {
+   
+    if (uploadedImages.length > 0 || removeImages.length > 0 || req.body.replace_images === 'true') {
       setParts.push(`image_url = $${idx}`);
       values.push(finalImages);
       idx++;
     }
 
-    if (expiry_date) {
-      setParts.push(`expiry_date = $${idx}`);
-      values.push(expiry_date);
-      idx++;
-    }
-
-    setParts.push(`updated_at = NOW()`);
-
-    if (setParts.length === 1) {
-      return res.status(400).json({ message: 'No fields to update.' });
-    }
+    setParts.push('updated_at = NOW()');
 
     values.push(id);
     const query = `UPDATE variants SET ${setParts.join(', ')} WHERE id = $${idx} RETURNING *`;
+
     const result = await pool.query(query, values);
 
     return res.status(200).json({ message: 'Variant updated.', variant: result.rows[0] });
@@ -330,6 +314,7 @@ exports.updateVariant = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+
 
 
 

@@ -40,13 +40,15 @@ exports.createProduct = async (req, res) => {
       hasVariation
     } = req.body;
 
-    let productImages = await uploadFilesToCloudinary(req.files || req.file);
+const productFiles = (req.files || []).filter(f => f.fieldname === 'image_url');
+let productImages = [];
+ if (productFiles.length > 0) {
+  productImages = await uploadFilesToCloudinary(productFiles);
+} else if (req.body.image_url) {
+  productImages = Array.isArray(req.body.image_url) ? req.body.image_url : [req.body.image_url];
+}
 
-    if (!productImages.length && req.body.image_url) {
-      productImages = Array.isArray(req.body.image_url) ? req.body.image_url : [req.body.image_url];
-    }
-
-    productImages = [...new Set(productImages)];
+productImages = [...new Set(productImages)];
 
     if (!business_id || !category_id || !name) {
       return res.status(400).json({ message: 'business_id, category_id, and name are required.' });
@@ -144,17 +146,46 @@ exports.updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
 
-    let productImages = await uploadFilesToCloudinary(req.files || req.file);
-
-    if (!productImages.length && req.body.image_url) {
-      productImages = Array.isArray(req.body.image_url) ? req.body.image_url : [req.body.image_url];
-    }
-
-    const currentProduct = await pool.query('SELECT * FROM products WHERE id = $1', [id]);
-    if (currentProduct.rows.length === 0) {
+   
+    const currentProductRes = await pool.query(
+      'SELECT * FROM products WHERE id = $1',
+      [id]
+    );
+    if (currentProductRes.rows.length === 0) {
       return res.status(404).json({ message: 'Product not found.' });
     }
+    const currentProduct = currentProductRes.rows[0];
+    let existingImages = currentProduct.image_url || [];
 
+    
+    const uploadedFiles = (req.files || []).filter(f => f.fieldname === 'image_url');
+    let uploadedImages = [];
+    if (uploadedFiles.length > 0) {
+      uploadedImages = await uploadFilesToCloudinary(uploadedFiles);
+    }
+
+    
+    const removeImages = req.body.remove_images
+      ? Array.isArray(req.body.remove_images)
+        ? req.body.remove_images
+        : [req.body.remove_images]
+      : [];
+
+    
+    existingImages = existingImages.filter(img => !removeImages.includes(img));
+
+    
+    let finalImages = [...existingImages, ...uploadedImages];
+
+   
+    if (req.body.replace_images === 'true') {
+      finalImages = uploadedImages;
+    }
+
+   
+    finalImages = [...new Set(finalImages)];
+
+   
     let setParts = [];
     let values = [];
     let idx = 1;
@@ -172,12 +203,12 @@ exports.updateProduct = async (req, res) => {
       }
     }
 
-    if (productImages.length) {
-      setParts.push(`image_url = $${idx}`);
-      values.push(productImages);
-      idx++;
-    }
+   
+    setParts.push(`image_url = $${idx}`);
+    values.push(finalImages);
+    idx++;
 
+    
     setParts.push('updated_at = NOW()');
 
     if (setParts.length === 1) {
@@ -194,9 +225,10 @@ exports.updateProduct = async (req, res) => {
     return res.status(200).json({ message: 'Product updated.', product: updatedProduct });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(500).json({ message: 'Server error.', details: err.message });
   }
 };
+
 
 exports.deleteProduct = async (req, res) => {
   try {
@@ -455,6 +487,13 @@ variantImages = [...new Set(variantImages)];
         ]
       );
       createdVariants.push(variantResult.rows[0]);
+
+        if (variant.quantity > 0) {
+        await pool.query(
+          'INSERT INTO inventory_logs (variant_id, type, quantity, note) VALUES ($1, $2, $3, $4)',
+          [variant.id, 'restock', variant.quantity, 'Initial stock on variant creation']
+        );
+      }
     }
 
     return res.status(201).json({

@@ -88,7 +88,7 @@ const productController = require('../controllers/productController');
  *       409:
  *         description: Product name already exists
  */
-router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT), upload.array('images', 10), productController.createProduct);
+router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT), upload.any(), productController.createProduct);
 
 /**
  * @swagger
@@ -357,7 +357,7 @@ router.get('/:id', ...requireAuthOnly(), productController.getProduct);
  *       404:
  *         description: Product not found
  */
-router.put('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT), upload.array('images', 10), productController.updateProduct);
+router.put('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT), upload.any(), productController.updateProduct);
 
 /**
  * @swagger
