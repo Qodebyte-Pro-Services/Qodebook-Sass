@@ -239,6 +239,13 @@ router.post(
  *     tags: [Product]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: Filter by business
  *     responses:
  *       200:
  *         description: List of products
