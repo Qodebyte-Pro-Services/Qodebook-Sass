@@ -243,7 +243,7 @@ router.post(
  *       200:
  *         description: List of products
  */
-router.get('/', ...requireAuthOnly(), productController.listProducts);
+router.get('/', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT), productController.listProducts);
 
 /**
  * @swagger
@@ -266,7 +266,7 @@ router.get('/', ...requireAuthOnly(), productController.listProducts);
  *       404:
  *         description: Product not found
  */
-router.get('/:id', ...requireAuthOnly(), productController.getProduct);
+router.get('/:id', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT), productController.getProduct);
 
 /**
  * @swagger
