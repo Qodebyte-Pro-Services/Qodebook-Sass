@@ -92,6 +92,49 @@ productImages = [...new Set(productImages)];
   }
 };
 
+exports.listProducts = async (req, res) => {
+  try {
+    const business_id = req.query.business_id;
+    const attributeFilters = Array.isArray(req.query.attribute)
+      ? req.query.attribute
+      : req.query.attribute
+        ? [req.query.attribute]
+        : [];
+
+    let query = 'SELECT DISTINCT p.*, c.name as category_name FROM products p JOIN categories c ON p.category_id = c.id';
+    let params = [];
+    let joins = '';
+    let wheres = [];
+    let idx = 1;
+
+    if (attributeFilters.length > 0) {
+      joins += ' JOIN variants v ON v.product_id = p.id';
+      for (const filter of attributeFilters) {
+        const [attrName, attrValue] = filter.split(':');
+        if (attrName && attrValue) {
+          wheres.push(`EXISTS (SELECT 1 FROM jsonb_array_elements(v.attributes) elem WHERE elem->>'name' = $${idx} AND elem->>'value' = $${idx + 1})`);
+          params.push(attrName, attrValue);
+          idx += 2;
+        }
+      }
+    }
+
+    if (business_id) {
+      wheres.push(`p.business_id = $${idx}`);
+      params.push(business_id);
+      idx++;
+    }
+
+    if (joins) query += joins;
+    if (wheres.length > 0) query += ' WHERE ' + wheres.join(' AND ');
+
+    const result = await pool.query(query, params);
+    return res.status(200).json({ products: result.rows });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
 
 
 exports.getProduct = async (req, res) => {

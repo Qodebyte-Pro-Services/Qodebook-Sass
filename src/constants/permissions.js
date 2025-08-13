@@ -2,6 +2,7 @@
 const PRODUCT_PERMISSIONS = {
   CREATE_PRODUCT: 'create_product',
   VIEW_PRODUCT: 'view_product',
+  VIEW_PRODUCTS: 'view_products',
   UPDATE_PRODUCT: 'update_product',
   DELETE_PRODUCT: 'delete_product',
   MANAGE_VARIANTS: 'manage_variants',

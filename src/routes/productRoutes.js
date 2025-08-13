@@ -243,7 +243,7 @@ router.post(
  *       200:
  *         description: List of products
  */
-router.get('/', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT), productController.listProducts);
+router.get('/', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCTS), productController.listProducts);
 
 /**
  * @swagger
