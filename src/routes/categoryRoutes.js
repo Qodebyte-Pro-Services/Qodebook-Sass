@@ -53,7 +53,7 @@ router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_CATEGORY), cate
  *       200:
  *         description: List of categories
  */
-router.get('/', ...requireAuthOnly(), categoryController.listCategories);
+router.get('/', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT_CATEGORIES), categoryController.listCategories);
 
 /**
  * @swagger

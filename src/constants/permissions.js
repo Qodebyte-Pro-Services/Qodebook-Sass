@@ -95,6 +95,21 @@ const CUSTOMER_PERMISSIONS = {
 };
 
 
+const REPORTS_ANALYTICS_PERMISSIONS = {
+  VIEW_SALES_OVERVIEW: 'view_sales_overview',
+  VIEW_INVENTORY_OVERVIEW: 'view_inventory_overview',
+  VIEW_CUSTOMER_OVERVIEW: 'view_customer_overview',
+  VIEW_FINANCIAL_OVERVIEW: 'view_financial_overview',
+  VIEW_STAFF_OVERVIEW: 'view_staff_overview',
+  VIEW_APPOINTMENT_OVERVIEW: 'view_appointment_overview',
+  VIEW_PRODUCT_OVERVIEW: 'view_product_overview',
+  VIEW_ORDER_OVERVIEW: 'view_order_overview',
+  VIEW_ANALYTICS: 'view_analytics',
+  VIEW_VARIANTS_OVERVIEW: 'view_variants_overview',
+  VIEW_STOCK_OVERVIEW: 'view_stock_overview',
+  VIEW_STOCK_MOVEMENT: 'view_stock_movement',
+}
+
 const FINANCIAL_PERMISSIONS = {
   CREATE_EXPENSE_CATEGORY: 'create_expense_category',
   VIEW_EXPENSE_CATEGORY: 'view_expense_category',
@@ -180,7 +195,8 @@ const ALL_PERMISSIONS = {
   ...FINANCIAL_PERMISSIONS,
   ...BUSINESS_PERMISSIONS,
   ...SERVICE_PERMISSIONS,
-  ...IMPORT_EXPORT_PERMISSIONS
+  ...IMPORT_EXPORT_PERMISSIONS,
+  ...REPORTS_ANALYTICS_PERMISSIONS
 };
 
 module.exports = {
@@ -195,5 +211,6 @@ module.exports = {
   BUSINESS_PERMISSIONS,
   SERVICE_PERMISSIONS,
   IMPORT_EXPORT_PERMISSIONS,
+  REPORTS_ANALYTICS_PERMISSIONS,
   ALL_PERMISSIONS
 };
