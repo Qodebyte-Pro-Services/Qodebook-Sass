@@ -6,6 +6,399 @@ const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
 const { REPORTS_ANALYTICS_PERMISSIONS, FINANCIAL_PERMISSIONS} = require('../constants/permissions');
 
 
+
+/**
+ * @swagger
+ * /api/finance/customer-analytics:
+ *   get:
+ *     summary: Get customer analytics (acquisition, retention, segmentation, lifetime value, activity)
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         description: Business ID to filter
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         description: Branch ID to filter
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *         description: Period to group by
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom end date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Customer analytics data
+ */
+router.get('/customer-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_CUSTOMER_OVERVIEW), controller.customerAnalytics);
+
+/**
+ * @swagger
+ * /api/finance/supplier-analytics:
+ *   get:
+ *     summary: Get supplier analytics (performance, delivery times, cost trends)
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         description: Business ID to filter
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         description: Branch ID to filter
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *         description: Period to group by
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom end date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Supplier analytics data
+ */
+router.get('/supplier-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_SUPPLIER_OVERVIEW), controller.supplierAnalytics);
+
+/**
+ * @swagger
+ * /api/finance/expense-analytics:
+ *   get:
+ *     summary: Get expense analytics (trends, categories, anomalies)
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         description: Business ID to filter
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         description: Branch ID to filter
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *         description: Period to group by
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom end date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Expense analytics data
+ */
+router.get('/expense-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_EXPENSE_OVERVIEW), controller.expenseAnalytics);
+
+/**
+ * @swagger
+ * /api/finance/service-analytics:
+ *   get:
+ *     summary: Get service analytics (usage, revenue, staff performance)
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         description: Business ID to filter
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         description: Branch ID to filter
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *         description: Period to group by
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom end date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Service analytics data
+ */
+router.get('/service-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_SERVICE_OVERVIEW), controller.serviceAnalytics);
+
+/**
+ * @swagger
+ * /api/finance/inventory-analytics:
+ *   get:
+ *     summary: Get inventory turnover and aging analytics
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         description: Business ID to filter
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         description: Branch ID to filter
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *         description: Period to group by
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom end date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Inventory analytics data
+ */
+router.get('/inventory-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_INVENTORY_OVERVIEW), controller.inventoryAnalytics);
+
+/**
+ * @swagger
+ * /api/finance/discount-analytics:
+ *   get:
+ *     summary: Get discount and coupon analytics (effectiveness, redemption, sales uplift)
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         description: Business ID to filter
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         description: Branch ID to filter
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *         description: Period to group by
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom end date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Discount analytics data
+ */
+router.get('/discount-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_DISCOUNT_OVERVIEW), controller.discountAnalytics);
+
+/**
+ * @swagger
+ * /api/finance/audit-log-analytics:
+ *   get:
+ *     summary: Get audit log analytics (user actions, security events)
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         description: Business ID to filter
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         description: Branch ID to filter
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *         description: Period to group by
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom end date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Audit log analytics data
+ */
+router.get('/audit-log-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_AUDIT_LOG_OVERVIEW), controller.auditLogAnalytics);
+
+/**
+ * @swagger
+ * /api/finance/appointment-analytics:
+ *   get:
+ *     summary: Get appointment analytics (bookings, cancellations, no-shows, revenue)
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         description: Business ID to filter
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         description: Branch ID to filter
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *         description: Period to group by
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom end date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Appointment analytics data
+ */
+router.get('/appointment-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_APPOINTMENT_OVERVIEW), controller.appointmentAnalytics);
+
+/**
+ * @swagger
+ * /api/finance/loyalty-analytics:
+ *   get:
+ *     summary: Get loyalty and rewards analytics (points accrual, redemption, engagement)
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         description: Business ID to filter
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         description: Branch ID to filter
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *         description: Period to group by
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom end date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Loyalty analytics data
+ */
+router.get('/loyalty-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_LOYALTY_OVERVIEW), controller.loyaltyAnalytics);
+
+/**
+ * @swagger
+ * /api/finance/realtime-analytics:
+ *   get:
+ *     summary: Get real-time analytics (latest sales, stock, staff activity)
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Real-time analytics data
+ */
+router.get('/realtime-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_REALTIME_OVERVIEW), controller.realtimeAnalytics);
+
 /**
  * @swagger
  * /api/finance/overview:

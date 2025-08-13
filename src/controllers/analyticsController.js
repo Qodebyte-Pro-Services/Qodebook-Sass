@@ -622,4 +622,483 @@ const pool = require('../config/db');
       res.status(500).json({ error: 'Failed to generate sales report', details: err.message });
     }
   };
+  exports.customerAnalytics = async (req, res) => {
+  try {
+    const { business_id, branch_id, period = 'month', start_date, end_date } = req.query;
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+    if (business_id) { wheres.push(`c.business_id = $${idx}`); params.push(business_id); idx++; }
+    if (branch_id) { wheres.push(`c.branch_id = $${idx}`); params.push(branch_id); idx++; }
+    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+    let dateWhere = '';
+    if (start_date && end_date) dateWhere = ` AND c.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    
+    const topCustomersResult = await pool.query(
+      `SELECT c.id, c.name, COUNT(o.id) AS orders, COALESCE(SUM(o.total_amount),0) AS total_spent
+       FROM customers c
+       LEFT JOIN orders o ON c.id = o.customer_id AND o.status = 'completed'
+       ${whereClause}
+       GROUP BY c.id, c.name
+       ORDER BY total_spent DESC
+       LIMIT 10`,
+      params
+    );
+   
+    const repeatRateResult = await pool.query(
+      `SELECT COUNT(DISTINCT c.id) AS repeat_customers
+       FROM customers c
+       JOIN orders o ON c.id = o.customer_id AND o.status = 'completed'
+       ${whereClause} AND (
+         SELECT COUNT(*) FROM orders oo WHERE oo.customer_id = c.id AND oo.status = 'completed'
+       ) > 1`,
+      params
+    );
+  
+    const newReturningResult = await pool.query(
+      `SELECT
+         SUM(CASE WHEN c.created_at >= CURRENT_DATE - INTERVAL '30 days' THEN 1 ELSE 0 END) AS new_customers,
+         SUM(CASE WHEN c.created_at < CURRENT_DATE - INTERVAL '30 days' THEN 1 ELSE 0 END) AS returning_customers
+       FROM customers c
+       ${whereClause}`,
+      params
+    );
+   
+    const churnResult = await pool.query(
+      `SELECT COUNT(*) AS churned_customers
+       FROM customers c
+       WHERE NOT EXISTS (
+         SELECT 1 FROM orders o WHERE o.customer_id = c.id AND o.status = 'completed' AND o.created_at >= CURRENT_DATE - INTERVAL '90 days'
+       )${wheres.length > 0 ? ' AND ' + wheres.join(' AND ') : ''}`,
+      params
+    );
+    res.json({
+      topCustomers: topCustomersResult.rows,
+      repeatPurchaseRate: Number(repeatRateResult.rows[0]?.repeat_customers || 0),
+      newCustomers: Number(newReturningResult.rows[0]?.new_customers || 0),
+      returningCustomers: Number(newReturningResult.rows[0]?.returning_customers || 0),
+      churnedCustomers: Number(churnResult.rows[0]?.churned_customers || 0)
+    });
+  } catch (err) {
+    console.error('Customer analytics error:', err);
+    res.status(500).json({ message: 'Failed to fetch customer analytics.' });
+  }
+};
 
+
+exports.supplierAnalytics = async (req, res) => {
+  try {
+    const { business_id, branch_id, period = 'month', start_date, end_date } = req.query;
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+    if (business_id) { wheres.push(`s.business_id = $${idx}`); params.push(business_id); idx++; }
+    if (branch_id) { wheres.push(`s.branch_id = $${idx}`); params.push(branch_id); idx++; }
+    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+    let dateWhere = '';
+    if (start_date && end_date) dateWhere = ` AND se.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+  
+    const topSuppliersResult = await pool.query(
+      `SELECT s.id, s.name, COUNT(se.id) AS deliveries, COALESCE(SUM(se.total_cost),0) AS total_supplied
+       FROM suppliers s
+       LEFT JOIN supply_entries se ON s.id = se.supplier_id
+       ${whereClause}
+       GROUP BY s.id, s.name
+       ORDER BY total_supplied DESC
+       LIMIT 10`,
+      params
+    );
+
+    const delayedDeliveriesResult = await pool.query(
+      `SELECT COUNT(*) AS delayed_deliveries
+       FROM supply_entries se
+       WHERE se.delivery_status = 'delayed'${wheres.length > 0 ? ' AND ' + wheres.join(' AND ') : ''}${dateWhere}`,
+      params
+    );
+    
+    const costPerSupplierResult = await pool.query(
+      `SELECT s.id, s.name, COALESCE(SUM(se.total_cost),0) AS total_cost
+       FROM suppliers s
+       LEFT JOIN supply_entries se ON s.id = se.supplier_id
+       ${whereClause}
+       GROUP BY s.id, s.name
+       ORDER BY total_cost DESC`,
+      params
+    );
+  
+    const reliabilityResult = await pool.query(
+      `SELECT s.id, s.name, COALESCE(SUM(CASE WHEN se.delivery_status = 'on_time' THEN 1 ELSE 0 END),0) AS on_time_deliveries
+       FROM suppliers s
+       LEFT JOIN supply_entries se ON s.id = se.supplier_id
+       ${whereClause}
+       GROUP BY s.id, s.name
+       ORDER BY on_time_deliveries DESC`,
+      params
+    );
+    res.json({
+      topSuppliers: topSuppliersResult.rows,
+      delayedDeliveries: Number(delayedDeliveriesResult.rows[0]?.delayed_deliveries || 0),
+      costPerSupplier: costPerSupplierResult.rows,
+      supplierReliability: reliabilityResult.rows
+    });
+  } catch (err) {
+    console.error('Supplier analytics error:', err);
+    res.status(500).json({ message: 'Failed to fetch supplier analytics.' });
+  }
+};
+
+
+exports.expenseAnalytics = async (req, res) => {
+  try {
+    const { business_id, branch_id, period = 'month', start_date, end_date } = req.query;
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+    if (business_id) { wheres.push(`e.business_id = $${idx}`); params.push(business_id); idx++; }
+    if (branch_id) { wheres.push(`e.branch_id = $${idx}`); params.push(branch_id); idx++; }
+    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+    let dateWhere = '';
+    if (start_date && end_date) dateWhere = ` AND e.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    
+    const monthlyTrendsResult = await pool.query(
+      `SELECT DATE_TRUNC('month', e.created_at) AS month, SUM(e.amount) AS total_expense
+       FROM expenses e
+       ${whereClause}${dateWhere}
+       GROUP BY month
+       ORDER BY month DESC`,
+      params
+    );
+    
+    const topCategoriesResult = await pool.query(
+      `SELECT ec.name AS category, SUM(e.amount) AS total_expense
+       FROM expenses e
+       JOIN expense_categories ec ON e.category_id = ec.id
+       ${whereClause}${dateWhere}
+       GROUP BY ec.name
+       ORDER BY total_expense DESC
+       LIMIT 5`,
+      params
+    );
+   
+    const anomalyResult = await pool.query(
+      `SELECT e.id, e.amount, ec.name AS category, e.created_at
+       FROM expenses e
+       JOIN expense_categories ec ON e.category_id = ec.id
+       ${whereClause}${dateWhere}
+       AND e.amount > 2 * (SELECT AVG(amount) FROM expenses WHERE status = 'approved')`,
+      params
+    );
+    res.json({
+      monthlyTrends: monthlyTrendsResult.rows,
+      topCategories: topCategoriesResult.rows,
+      anomalies: anomalyResult.rows
+    });
+  } catch (err) {
+    console.error('Expense analytics error:', err);
+    res.status(500).json({ message: 'Failed to fetch expense analytics.' });
+  }
+};
+
+
+exports.serviceAnalytics = async (req, res) => {
+  try {
+    const { business_id, branch_id, period = 'month', start_date, end_date } = req.query;
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+    if (business_id) { wheres.push(`s.business_id = $${idx}`); params.push(business_id); idx++; }
+    if (branch_id) { wheres.push(`s.branch_id = $${idx}`); params.push(branch_id); idx++; }
+    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+    let dateWhere = '';
+    if (start_date && end_date) dateWhere = ` AND a.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    
+    const usageResult = await pool.query(
+      `SELECT s.id, s.name, COUNT(a.id) AS usage_count, SUM(s.price) AS total_revenue
+       FROM services s
+       LEFT JOIN appointments a ON s.id = a.service_id
+       ${whereClause}${dateWhere}
+       GROUP BY s.id, s.name
+       ORDER BY usage_count DESC`,
+      params
+    );
+   
+    const staffPerfResult = await pool.query(
+      `SELECT s.id AS service_id, s.name AS service_name, a.staff_id, COUNT(a.id) AS appointments, SUM(s.price) AS revenue
+       FROM services s
+       LEFT JOIN appointments a ON s.id = a.service_id
+       ${whereClause}${dateWhere}
+       GROUP BY s.id, s.name, a.staff_id
+       ORDER BY revenue DESC`,
+      params
+    );
+    res.json({
+      serviceUsage: usageResult.rows,
+      staffPerformance: staffPerfResult.rows
+    });
+  } catch (err) {
+    console.error('Service analytics error:', err);
+    res.status(500).json({ message: 'Failed to fetch service analytics.' });
+  }
+};
+
+
+exports.inventoryAnalytics = async (req, res) => {
+  try {
+    const { business_id, branch_id, period = 'month', start_date, end_date } = req.query;
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+    if (business_id) { wheres.push(`p.business_id = $${idx}`); params.push(business_id); idx++; }
+    if (branch_id) { wheres.push(`p.branch_id = $${idx}`); params.push(branch_id); idx++; }
+    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+   
+    const turnoverResult = await pool.query(
+      `SELECT p.id, p.name, COALESCE(SUM(oi.quantity),0) AS units_sold, COALESCE(SUM(v.quantity),0) AS current_stock,
+        CASE WHEN SUM(v.quantity) > 0 THEN SUM(oi.quantity)::float / SUM(v.quantity) ELSE 0 END AS turnover_ratio
+       FROM products p
+       LEFT JOIN variants v ON p.id = v.product_id
+       LEFT JOIN order_items oi ON v.id = oi.variant_id
+       ${whereClause}
+       GROUP BY p.id, p.name
+       ORDER BY turnover_ratio DESC`,
+      params
+    );
+   
+    const agingResult = await pool.query(
+      `SELECT v.id, p.name AS product, v.quantity, v.created_at
+       FROM variants v
+       JOIN products p ON v.product_id = p.id
+       ${whereClause}
+       WHERE v.quantity > 0 AND v.created_at < CURRENT_DATE - INTERVAL '180 days'`,
+      params
+    );
+   
+    const deadStockResult = await pool.query(
+      `SELECT v.id, p.name AS product, v.quantity
+       FROM variants v
+       JOIN products p ON v.product_id = p.id
+       ${whereClause}
+       WHERE v.quantity > 0 AND v.quantity = v.initial_quantity`,
+      params
+    );
+    res.json({
+      turnover: turnoverResult.rows,
+      agingStock: agingResult.rows,
+      deadStock: deadStockResult.rows
+    });
+  } catch (err) {
+    console.error('Inventory analytics error:', err);
+    res.status(500).json({ message: 'Failed to fetch inventory analytics.' });
+  }
+};
+
+
+exports.discountAnalytics = async (req, res) => {
+  try {
+    const { business_id, branch_id, period = 'month', start_date, end_date } = req.query;
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+    if (business_id) { wheres.push(`d.business_id = $${idx}`); params.push(business_id); idx++; }
+    if (branch_id) { wheres.push(`d.branch_id = $${idx}`); params.push(branch_id); idx++; }
+    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+   
+    const topDiscountsResult = await pool.query(
+      `SELECT d.code, COUNT(*) AS usage_count, SUM(d.amount) AS total_discount
+       FROM discounts d
+       ${whereClause}
+       GROUP BY d.code
+       ORDER BY usage_count DESC
+       LIMIT 10`,
+      params
+    );
+ 
+    const upliftResult = await pool.query(
+      `SELECT d.code, SUM(o.total_amount) AS sales_uplift
+       FROM discounts d
+       JOIN orders o ON d.code = o.discount_code
+       ${whereClause}
+       GROUP BY d.code
+       ORDER BY sales_uplift DESC`,
+      params
+    );
+   
+    const redemptionResult = await pool.query(
+      `SELECT d.code, COUNT(*) AS redemptions, DATE_TRUNC('month', o.created_at) AS month
+       FROM discounts d
+       JOIN orders o ON d.code = o.discount_code
+       ${whereClause}
+       GROUP BY d.code, month
+       ORDER BY month DESC, redemptions DESC`,
+      params
+    );
+    res.json({
+      topDiscounts: topDiscountsResult.rows,
+      salesUplift: upliftResult.rows,
+      redemptionTrends: redemptionResult.rows
+    });
+  } catch (err) {
+    console.error('Discount analytics error:', err);
+    res.status(500).json({ message: 'Failed to fetch discount analytics.' });
+  }
+};
+
+
+exports.auditLogAnalytics = async (req, res) => {
+  try {
+    const { business_id, branch_id, period = 'month', start_date, end_date } = req.query;
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+    if (business_id) { wheres.push(`a.business_id = $${idx}`); params.push(business_id); idx++; }
+    if (branch_id) { wheres.push(`a.branch_id = $${idx}`); params.push(branch_id); idx++; }
+    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+  
+    const activeUsersResult = await pool.query(
+      `SELECT a.user_id, COUNT(*) AS actions
+       FROM audit_logs a
+       ${whereClause}
+       GROUP BY a.user_id
+       ORDER BY actions DESC
+       LIMIT 10`,
+      params
+    );
+    
+    const frequentActionsResult = await pool.query(
+      `SELECT a.action, COUNT(*) AS count
+       FROM audit_logs a
+       ${whereClause}
+       GROUP BY a.action
+       ORDER BY count DESC
+       LIMIT 10`,
+      params
+    );
+   
+    const suspiciousResult = await pool.query(
+      `SELECT a.id, a.user_id, a.action, a.created_at
+       FROM audit_logs a
+       ${whereClause}
+       WHERE a.action IN ('failed_login', 'permission_error')
+       ORDER BY a.created_at DESC
+       LIMIT 20`,
+      params
+    );
+    res.json({
+      activeUsers: activeUsersResult.rows,
+      frequentActions: frequentActionsResult.rows,
+      suspiciousActivities: suspiciousResult.rows
+    });
+  } catch (err) {
+    console.error('Audit log analytics error:', err);
+    res.status(500).json({ message: 'Failed to fetch audit log analytics.' });
+  }
+};
+
+
+exports.appointmentAnalytics = async (req, res) => {
+  try {
+    const { business_id, branch_id, period = 'month', start_date, end_date } = req.query;
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+    if (business_id) { wheres.push(`a.business_id = $${idx}`); params.push(business_id); idx++; }
+    if (branch_id) { wheres.push(`a.branch_id = $${idx}`); params.push(branch_id); idx++; }
+    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+    
+    const bookingsResult = await pool.query(
+      `SELECT COUNT(*) AS total_bookings, SUM(s.price) AS total_revenue
+       FROM appointments a
+       JOIN services s ON a.service_id = s.id
+       ${whereClause}
+       WHERE a.status = 'booked'`,
+      params
+    );
+    const cancellationsResult = await pool.query(
+      `SELECT COUNT(*) AS cancellations
+       FROM appointments a
+       ${whereClause}
+       WHERE a.status = 'cancelled'`,
+      params
+    );
+    const noShowsResult = await pool.query(
+      `SELECT COUNT(*) AS no_shows
+       FROM appointments a
+       ${whereClause}
+       WHERE a.status = 'no_show'`,
+      params
+    );
+    res.json({
+      bookings: bookingsResult.rows[0],
+      cancellations: Number(cancellationsResult.rows[0]?.cancellations || 0),
+      noShows: Number(noShowsResult.rows[0]?.no_shows || 0)
+    });
+  } catch (err) {
+    console.error('Appointment analytics error:', err);
+    res.status(500).json({ message: 'Failed to fetch appointment analytics.' });
+  }
+};
+
+
+exports.loyaltyAnalytics = async (req, res) => {
+  try {
+    const { business_id, branch_id, period = 'month', start_date, end_date } = req.query;
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+    if (business_id) { wheres.push(`l.business_id = $${idx}`); params.push(business_id); idx++; }
+    if (branch_id) { wheres.push(`l.branch_id = $${idx}`); params.push(branch_id); idx++; }
+    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+   
+    const accrualResult = await pool.query(
+      `SELECT l.customer_id, SUM(l.points) AS total_points
+       FROM loyalty_points l
+       ${whereClause}
+       GROUP BY l.customer_id
+       ORDER BY total_points DESC
+       LIMIT 10`,
+      params
+    );
+    
+    const redemptionResult = await pool.query(
+      `SELECT l.customer_id, SUM(l.points) AS redeemed_points
+       FROM loyalty_points l
+       ${whereClause}
+       WHERE l.type = 'redeem'
+       GROUP BY l.customer_id
+       ORDER BY redeemed_points DESC
+       LIMIT 10`,
+      params
+    );
+    res.json({
+      accrual: accrualResult.rows,
+      redemption: redemptionResult.rows
+    });
+  } catch (err) {
+    console.error('Loyalty analytics error:', err);
+    res.status(500).json({ message: 'Failed to fetch loyalty analytics.' });
+  }
+};
+
+
+exports.realtimeAnalytics = async (req, res) => {
+  try {
+    
+    const latestSales = await pool.query(
+      `SELECT o.id, o.total_amount, o.created_at FROM orders o WHERE o.status = 'completed' ORDER BY o.created_at DESC LIMIT 10`
+    );
+    const latestStock = await pool.query(
+      `SELECT v.id, v.quantity, v.updated_at FROM variants v ORDER BY v.updated_at DESC LIMIT 10`
+    );
+    const latestStaff = await pool.query(
+      `SELECT s.id, s.name, sa.action, sa.created_at FROM staff_actions sa JOIN staff s ON sa.staff_id = s.id ORDER BY sa.created_at DESC LIMIT 10`
+    );
+    res.json({
+      latestSales: latestSales.rows,
+      latestStock: latestStock.rows,
+      latestStaff: latestStaff.rows
+    });
+  } catch (err) {
+    console.error('Real-time analytics error:', err);
+    res.status(500).json({ message: 'Failed to fetch real-time analytics.' });
+  }
+};

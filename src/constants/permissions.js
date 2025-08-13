@@ -97,6 +97,7 @@ const CUSTOMER_PERMISSIONS = {
 
 const REPORTS_ANALYTICS_PERMISSIONS = {
   VIEW_SALES_OVERVIEW: 'view_sales_overview',
+  VIEW_SUPPLIER_OVERVIEW: 'view_supplier_overview',
   VIEW_INVENTORY_OVERVIEW: 'view_inventory_overview',
   VIEW_CUSTOMER_OVERVIEW: 'view_customer_overview',
   VIEW_FINANCIAL_OVERVIEW: 'view_financial_overview',
@@ -108,6 +109,14 @@ const REPORTS_ANALYTICS_PERMISSIONS = {
   VIEW_VARIANTS_OVERVIEW: 'view_variants_overview',
   VIEW_STOCK_OVERVIEW: 'view_stock_overview',
   VIEW_STOCK_MOVEMENT: 'view_stock_movement',
+  VIEW_EXPENSE_OVERVIEW: 'view_expense_overview',
+  VIEW_SERVICE_OVERVIEW: 'view_service_overview',
+  VIEW_LOYALTY_OVERVIEW: 'view_loyalty_overview',
+  VIEW_REALTIME_OVERVIEW: 'view_realtime_overview',
+  VIEW_AUDIT_LOG_OVERVIEW: 'view_audit_log_overview',
+  VIEW_DISCOUNT_OVERVIEW: 'view_discount_overview',
+  VIEW_SALES_MOVEMENT: 'view_sales_movement',
+  VIEW_SALES_REPORT: 'view_sales_report',
 }
 
 const FINANCIAL_PERMISSIONS = {
@@ -134,7 +143,7 @@ const FINANCIAL_PERMISSIONS = {
   UPDATE_TAXES: 'update_taxes',
   DELETE_TAXES: 'delete_taxes',
   CREATE_TAXES: 'create_taxes',
-  VIEW_FINANCIAL_REPORTS: 'view_financial_reports'
+  VIEW_FINANCIAL_REPORTS: 'view_financial_reports',
 };
 
 
