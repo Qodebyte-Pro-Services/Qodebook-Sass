@@ -310,6 +310,9 @@ router.get('/me', ...requireAuthOnly(), authController.getProfile);
  *                 type: string
  *               phone:
  *                 type: string
+ *               profile_image:
+ *                 type: string
+ *                 description: URL or base64 string of the profile image. If a URL is provided, it will be uploaded to Cloudinary.
  *     responses:
  *       200:
  *         description: Profile updated
@@ -321,7 +324,29 @@ router.get('/me', ...requireAuthOnly(), authController.getProfile);
  *                 message:
  *                   type: string
  *                 user:
- *                   $ref: '#/components/schemas/User'
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     first_name:
+ *                       type: string
+ *                     last_name:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     phone:
+ *                       type: string
+ *                     profile_image:
+ *                       type: string
+ *                       description: Cloudinary URL of the profile image
+ *                     is_verified:
+ *                       type: boolean
+ *                     is_social_media:
+ *                       type: boolean
+ *                     created_at:
+ *                       type: string
+ *                     updated_at:
+ *                       type: string
  *       401:
  *         description: Unauthorized - missing or invalid token
  */

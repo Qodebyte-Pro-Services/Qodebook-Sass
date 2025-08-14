@@ -1,6 +1,7 @@
 
 
 
+
 const { verifyGoogleToken } = require('../services/socialAuthService');
 
 
@@ -9,6 +10,13 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const { sendOtpEmail } = require('../services/emailService');
+
+const cloudinary = require('cloudinary').v2;
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 exports.verifyOtp = async (req, res) => {
   try {
@@ -61,23 +69,37 @@ exports.googleLogin = async (req, res) => {
     if (!googleUser) return res.status(401).json({ message: 'Invalid Google token.' });
 
     
+    let profileImageUrl = null;
+    if (googleUser.picture) {
+      try {
+        const uploadRes = await cloudinary.uploader.upload(googleUser.picture, { folder: 'profile_images', public_id: `user_${googleUser.email}` });
+        profileImageUrl = uploadRes.secure_url;
+      } catch (e) {
+        console.error('Cloudinary upload failed:', e);
+        profileImageUrl = googleUser.picture;
+      }
+    }
+
     let userResult = await pool.query('SELECT * FROM users WHERE email = $1', [googleUser.email]);
     let user;
     if (userResult.rows.length === 0) {
-      
-      const insertUserQuery = `INSERT INTO users (first_name, last_name, email, phone, is_social_media, is_verified) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, email`;
-      userResult = await pool.query(insertUserQuery, [googleUser.firstName, googleUser.lastName, googleUser.email, null, true, true]);
+      const insertUserQuery = `INSERT INTO users (first_name, last_name, email, phone, is_social_media, is_verified, profile_image) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, email, profile_image`;
+      userResult = await pool.query(insertUserQuery, [googleUser.firstName, googleUser.lastName, googleUser.email, null, true, true, profileImageUrl]);
       user = userResult.rows[0];
     } else {
       user = userResult.rows[0];
+      if (!user.profile_image && profileImageUrl) {
+        await pool.query('UPDATE users SET profile_image = $1 WHERE id = $2', [profileImageUrl, user.id]);
+        user.profile_image = profileImageUrl;
+      }
     }
 
     if (!user.is_verified) {
-  await pool.query(`UPDATE users SET is_verified = true WHERE id = $1`, [user.id]);
-}
+      await pool.query(`UPDATE users SET is_verified = true WHERE id = $1`, [user.id]);
+    }
 
     const token = jwt.sign({ user_id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    return res.status(200).json({ message: 'Google login successful.', token });
+    return res.status(200).json({ message: 'Google login successful.', token, profile_image: user.profile_image });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
@@ -272,7 +294,7 @@ exports.logout = async (req, res) => {
 exports.getProfile = async (req, res) => {
   try {
     const user_id = req.user.user_id;
-    const userResult = await pool.query('SELECT id, first_name, last_name, email, phone, is_verified, is_social_media, created_at, updated_at FROM users WHERE id = $1', [user_id]);
+    const userResult = await pool.query('SELECT id, first_name, last_name, email, phone, profile_image, is_verified, is_social_media, created_at, updated_at FROM users WHERE id = $1', [user_id]);
     if (userResult.rows.length === 0) return res.status(404).json({ message: 'User not found.' });
     return res.status(200).json({ user: userResult.rows[0] });
   } catch (err) {
@@ -285,18 +307,30 @@ exports.getProfile = async (req, res) => {
 exports.updateProfile = async (req, res) => {
   try {
     const user_id = req.user.user_id;
-    const { first_name, last_name, phone } = req.body;
-    if (!first_name && !last_name && !phone) return res.status(400).json({ message: 'No fields to update.' });
+    const { first_name, last_name, phone, profile_image } = req.body;
+    if (!first_name && !last_name && !phone && !profile_image) return res.status(400).json({ message: 'No fields to update.' });
     let setParts = [];
     let values = [];
     let idx = 1;
     if (first_name) { setParts.push('first_name = $' + idx); values.push(first_name); idx++; }
     if (last_name) { setParts.push('last_name = $' + idx); values.push(last_name); idx++; }
     if (phone) { setParts.push('phone = $' + idx); values.push(phone); idx++; }
+    if (profile_image) {
+      let uploadedUrl = null;
+      if (profile_image.startsWith('http')) {
+        const uploadRes = await cloudinary.uploader.upload(profile_image, { folder: 'profile_images', public_id: `user_${user_id}` });
+        uploadedUrl = uploadRes.secure_url;
+      } else {
+        uploadedUrl = profile_image;
+      }
+      setParts.push('profile_image = $' + idx);
+      values.push(uploadedUrl);
+      idx++;
+    }
     setParts.push('updated_at = NOW()');
     values.push(user_id);
     var setClause = setParts.join(', ');
-    var query = 'UPDATE users SET ' + setClause + ' WHERE id = $' + idx + ' RETURNING id, first_name, last_name, email, phone, is_verified, is_social_media, created_at, updated_at';
+    var query = 'UPDATE users SET ' + setClause + ' WHERE id = $' + idx + ' RETURNING id, first_name, last_name, email, phone, profile_image, is_verified, is_social_media, created_at, updated_at';
     const result = await pool.query(query, values);
     return res.status(200).json({ message: 'Profile updated.', user: result.rows[0] });
   } catch (err) {
