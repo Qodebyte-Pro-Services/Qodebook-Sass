@@ -1,4 +1,228 @@
+
 const pool = require('../config/db');
+
+exports.incomeExpenseOverTime = async (req, res) => {
+  try {
+    const { business_id, branch_id, period = 'day', start_date, end_date } = req.query;
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+    if (business_id) { wheres.push(`o.business_id = $${idx}`); params.push(business_id); idx++; }
+    if (branch_id) { wheres.push(`o.branch_id = $${idx}`); params.push(branch_id); idx++; }
+    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+    let dateSelect = `DATE_TRUNC('${period}', o.created_at)`;
+    let dateWhere = '';
+    if (start_date && end_date) dateWhere = ` AND o.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    
+    const incomeResult = await pool.query(
+      `SELECT ${dateSelect} AS period, COALESCE(SUM(o.total_amount),0) AS total_income
+       FROM orders o
+       ${whereClause}${dateWhere}
+       AND o.status = 'completed'
+       GROUP BY period
+       ORDER BY period ASC`,
+      params
+    );
+   
+    let expenseWheres = [];
+    let expenseParams = [];
+    let expenseIdx = 1;
+    if (business_id) { expenseWheres.push(`e.business_id = $${expenseIdx}`); expenseParams.push(business_id); expenseIdx++; }
+    if (branch_id) { expenseWheres.push(`e.branch_id = $${expenseIdx}`); expenseParams.push(branch_id); expenseIdx++; }
+    let expenseWhereClause = expenseWheres.length > 0 ? 'WHERE ' + expenseWheres.join(' AND ') : '';
+    let expenseDateSelect = `DATE_TRUNC('${period}', e.created_at)`;
+    let expenseDateWhere = '';
+    if (start_date && end_date) expenseDateWhere = ` AND e.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    const expenseResult = await pool.query(
+      `SELECT ${expenseDateSelect} AS period, COALESCE(SUM(e.amount),0) AS total_expense
+       FROM expenses e
+       ${expenseWhereClause}${expenseDateWhere}
+       GROUP BY period
+       ORDER BY period ASC`,
+      expenseParams
+    );
+    res.json({ income: incomeResult.rows, expense: expenseResult.rows });
+  } catch (err) {
+    console.error('Income vs Expense over time error:', err);
+    res.status(500).json({ message: 'Failed to fetch income vs expense over time.' });
+  }
+};
+
+
+exports.grossNetProfitOverTime = async (req, res) => {
+  try {
+    const { business_id, branch_id, period = 'day', start_date, end_date } = req.query;
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+    if (business_id) { wheres.push(`o.business_id = $${idx}`); params.push(business_id); idx++; }
+    if (branch_id) { wheres.push(`o.branch_id = $${idx}`); params.push(branch_id); idx++; }
+    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+    let dateSelect = `DATE_TRUNC('${period}', o.created_at)`;
+    let dateWhere = '';
+    if (start_date && end_date) dateWhere = ` AND o.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+   
+    const grossResult = await pool.query(
+      `SELECT ${dateSelect} AS period, COALESCE(SUM(oi.quantity * oi.selling_price),0) AS total_sales, COALESCE(SUM(oi.quantity * oi.cost_price),0) AS total_cogs
+       FROM orders o
+       JOIN order_items oi ON o.id = oi.order_id
+       ${whereClause}${dateWhere}
+       AND o.status = 'completed'
+       GROUP BY period
+       ORDER BY period ASC`,
+      params
+    );
+   
+    let expenseWheres = [];
+    let expenseParams = [];
+    let expenseIdx = 1;
+    if (business_id) { expenseWheres.push(`e.business_id = $${expenseIdx}`); expenseParams.push(business_id); expenseIdx++; }
+    if (branch_id) { expenseWheres.push(`e.branch_id = $${expenseIdx}`); expenseParams.push(branch_id); expenseIdx++; }
+    let expenseWhereClause = expenseWheres.length > 0 ? 'WHERE ' + expenseWheres.join(' AND ') : '';
+    let expenseDateSelect = `DATE_TRUNC('${period}', e.created_at)`;
+    let expenseDateWhere = '';
+    if (start_date && end_date) expenseDateWhere = ` AND e.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    const expenseResult = await pool.query(
+      `SELECT ${expenseDateSelect} AS period, COALESCE(SUM(e.amount),0) AS total_expense
+       FROM expenses e
+       ${expenseWhereClause}${expenseDateWhere}
+       GROUP BY period
+       ORDER BY period ASC`,
+      expenseParams
+    );
+  
+    const profitMap = {};
+    grossResult.rows.forEach(row => {
+      profitMap[row.period] = {
+        period: row.period,
+        gross_profit: Number(row.total_sales) - Number(row.total_cogs),
+        net_profit: Number(row.total_sales) - Number(row.total_cogs)
+      };
+    });
+    expenseResult.rows.forEach(row => {
+      if (!profitMap[row.period]) profitMap[row.period] = { period: row.period, gross_profit: 0, net_profit: 0 };
+      profitMap[row.period].net_profit -= Number(row.total_expense);
+    });
+    res.json({ profit: Object.values(profitMap) });
+  } catch (err) {
+    console.error('Gross vs Net profit over time error:', err);
+    res.status(500).json({ message: 'Failed to fetch gross vs net profit over time.' });
+  }
+};
+
+
+exports.expenseOverTime = async (req, res) => {
+  try {
+    const { business_id, branch_id, period = 'day', start_date, end_date } = req.query;
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+    if (business_id) { wheres.push(`e.business_id = $${idx}`); params.push(business_id); idx++; }
+    if (branch_id) { wheres.push(`e.branch_id = $${idx}`); params.push(branch_id); idx++; }
+    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+    let dateSelect = `DATE_TRUNC('${period}', e.created_at)`;
+    let dateWhere = '';
+    if (start_date && end_date) dateWhere = ` AND e.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    const expenseResult = await pool.query(
+      `SELECT ${dateSelect} AS period, SUM(e.amount) AS total_expense
+       FROM expenses e
+       ${whereClause}${dateWhere}
+       GROUP BY period
+       ORDER BY period ASC`,
+      params
+    );
+    res.json({ expense: expenseResult.rows });
+  } catch (err) {
+    console.error('Expense over time error:', err);
+    res.status(500).json({ message: 'Failed to fetch expense over time.' });
+  }
+};
+
+
+exports.budgetOverTime = async (req, res) => {
+  try {
+    const { business_id, branch_id, period = 'day', start_date, end_date } = req.query;
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+    if (business_id) { wheres.push(`b.business_id = $${idx}`); params.push(business_id); idx++; }
+    if (branch_id) { wheres.push(`b.branch_id = $${idx}`); params.push(branch_id); idx++; }
+    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+    let dateSelect = `DATE_TRUNC('${period}', b.created_at)`;
+    let dateWhere = '';
+    if (start_date && end_date) dateWhere = ` AND b.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    const budgetResult = await pool.query(
+      `SELECT ${dateSelect} AS period, SUM(b.amount) AS total_budget
+       FROM budgets b
+       ${whereClause}${dateWhere}
+       GROUP BY period
+       ORDER BY period ASC`,
+      params
+    );
+    res.json({ budget: budgetResult.rows });
+  } catch (err) {
+    console.error('Budget over time error:', err);
+    res.status(500).json({ message: 'Failed to fetch budget over time.' });
+  }
+};
+
+
+exports.budgetAllocationByCategory = async (req, res) => {
+  try {
+    const { business_id, branch_id, period = 'day', start_date, end_date } = req.query;
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+    if (business_id) { wheres.push(`b.business_id = $${idx}`); params.push(business_id); idx++; }
+    if (branch_id) { wheres.push(`b.branch_id = $${idx}`); params.push(branch_id); idx++; }
+    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+    let dateSelect = `DATE_TRUNC('${period}', b.created_at)`;
+    let dateWhere = '';
+    if (start_date && end_date) dateWhere = ` AND b.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    const allocationResult = await pool.query(
+      `SELECT ec.name AS category, ${dateSelect} AS period, SUM(b.amount) AS total_budget
+       FROM budgets b
+       JOIN expense_categories ec ON b.category_id = ec.id
+       ${whereClause}${dateWhere}
+       GROUP BY ec.name, period
+       ORDER BY period ASC, total_budget DESC`,
+      params
+    );
+    res.json({ allocation: allocationResult.rows });
+  } catch (err) {
+    console.error('Budget allocation by category error:', err);
+    res.status(500).json({ message: 'Failed to fetch budget allocation by category.' });
+  }
+};
+
+
+exports.taxFlowOverTime = async (req, res) => {
+  try {
+    const { business_id, branch_id, period = 'day', start_date, end_date } = req.query;
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+    if (business_id) { wheres.push(`o.business_id = $${idx}`); params.push(business_id); idx++; }
+    if (branch_id) { wheres.push(`o.branch_id = $${idx}`); params.push(branch_id); idx++; }
+    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+    let dateSelect = `DATE_TRUNC('${period}', o.created_at)`;
+    let dateWhere = '';
+    if (start_date && end_date) dateWhere = ` AND o.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    const taxResult = await pool.query(
+      `SELECT ${dateSelect} AS period, SUM(o.tax) AS total_tax
+       FROM orders o
+       ${whereClause}${dateWhere}
+       AND o.status = 'completed'
+       GROUP BY period
+       ORDER BY period ASC`,
+      params
+    );
+    res.json({ tax: taxResult.rows });
+  } catch (err) {
+    console.error('Tax flow over time error:', err);
+    res.status(500).json({ message: 'Failed to fetch tax flow over time.' });
+  }
+};
 
   exports.overview = async (req, res) => {
     try {

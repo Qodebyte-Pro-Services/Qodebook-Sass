@@ -116,7 +116,7 @@ const REPORTS_ANALYTICS_PERMISSIONS = {
   VIEW_AUDIT_LOG_OVERVIEW: 'view_audit_log_overview',
   VIEW_DISCOUNT_OVERVIEW: 'view_discount_overview',
   VIEW_SALES_MOVEMENT: 'view_sales_movement',
-  VIEW_SALES_REPORT: 'view_sales_report',
+  VIEW_SALES_REPORT: 'view_sales_report'
 }
 
 const FINANCIAL_PERMISSIONS = {
@@ -144,6 +144,8 @@ const FINANCIAL_PERMISSIONS = {
   DELETE_TAXES: 'delete_taxes',
   CREATE_TAXES: 'create_taxes',
   VIEW_FINANCIAL_REPORTS: 'view_financial_reports',
+  VIEW_EXPENSE_OVERVIEW: 'view_expense_overview',
+  VIEW_BUDGETS_OVERVIEW: 'view_budgets_overview'
 };
 
 

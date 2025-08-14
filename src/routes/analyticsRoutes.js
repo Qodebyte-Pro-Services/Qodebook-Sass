@@ -1,3 +1,4 @@
+
 const express = require('express');
 const router = express.Router();
 const controller = require('../controllers/analyticsController');
@@ -5,7 +6,263 @@ const auth = require('../middlewares/authMiddleware');
 const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
 const { REPORTS_ANALYTICS_PERMISSIONS, FINANCIAL_PERMISSIONS} = require('../constants/permissions');
 
+/**
+ * @swagger
+ * /api/finance/income-expense-overtime:
+ *   get:
+ *     summary: Get income vs expense over time (hour, day, week, month, year)
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         description: Business ID to filter
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         description: Branch ID to filter
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [hour, day, week, month, year]
+ *         description: Period to group by
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom end date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Income vs expense over time data
+ */
+router.get('/income-expense-overtime', ...requirePermission(FINANCIAL_PERMISSIONS.VIEW_FINANCIAL_REPORTS), controller.incomeExpenseOverTime);
 
+/**
+ * @swagger
+ * /api/finance/gross-net-profit-overtime:
+ *   get:
+ *     summary: Get gross vs net profit over time (hour, day, week, month, year)
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         description: Business ID to filter
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         description: Branch ID to filter
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [hour, day, week, month, year]
+ *         description: Period to group by
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom end date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Gross vs net profit over time data
+ */
+router.get('/gross-net-profit-overtime', ...requirePermission(FINANCIAL_PERMISSIONS.VIEW_FINANCIAL_REPORTS), controller.grossNetProfitOverTime);
+
+/**
+ * @swagger
+ * /api/finance/expense-overtime:
+ *   get:
+ *     summary: Get expense over time (hour, day, week, month, year)
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         description: Business ID to filter
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         description: Branch ID to filter
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [hour, day, week, month, year]
+ *         description: Period to group by
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom end date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Expense over time data
+ */
+router.get('/expense-overtime', ...requirePermission(FINANCIAL_PERMISSIONS.VIEW_EXPENSE_OVERVIEW), controller.expenseOverTime);
+
+/**
+ * @swagger
+ * /api/finance/budget-overtime:
+ *   get:
+ *     summary: Get budget over time (hour, day, week, month, year)
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         description: Business ID to filter
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         description: Branch ID to filter
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [hour, day, week, month, year]
+ *         description: Period to group by
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom end date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Budget over time data
+ */
+router.get('/budget-overtime', ...requirePermission(FINANCIAL_PERMISSIONS.VIEW_BUDGETS_OVERVIEW), controller.budgetOverTime);
+
+/**
+ * @swagger
+ * /api/finance/budget-allocation-category:
+ *   get:
+ *     summary: Get budget allocation by expense category over time (hour, day, week, month, year)
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         description: Business ID to filter
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         description: Branch ID to filter
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [hour, day, week, month, year]
+ *         description: Period to group by
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom end date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Budget allocation by category data
+ */
+router.get('/budget-allocation-category', ...requirePermission(FINANCIAL_PERMISSIONS.VIEW_BUDGETS_OVERVIEW), controller.budgetAllocationByCategory);
+
+/**
+ * @swagger
+ * /api/finance/tax-flow-overtime:
+ *   get:
+ *     summary: Get tax flow over time (hour, day, week, month, year)
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         description: Business ID to filter
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         description: Branch ID to filter
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [hour, day, week, month, year]
+ *         description: Period to group by
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom end date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Tax flow over time data
+ */
+router.get('/tax-flow-overtime', ...requirePermission(FINANCIAL_PERMISSIONS.VIEW_FINANCIAL_REPORTS), controller.taxFlowOverTime);
 
 /**
  * @swagger
