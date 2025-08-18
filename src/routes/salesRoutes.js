@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middlewares/authMiddleware');
 const salesController = require('../controllers/salesController');
-const { requirePermission } = require('../middlewares/permissionMiddleware');
+const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
 const { SALES_PERMISSIONS } = require('../constants/permissions');
 /**
  * @swagger
