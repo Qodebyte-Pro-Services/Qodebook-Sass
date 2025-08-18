@@ -4,6 +4,9 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middlewares/authMiddleware');
 const stockController = require('../controllers/stockController');
+const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
+const { STOCK_PERMISSIONS } = require('../constants/permissions');
+
 /**
  * @swagger
  * /api/stock/adjust:
@@ -75,7 +78,7 @@ const stockController = require('../controllers/stockController');
  *                       error:
  *                         type: string
  */
-router.post('/adjust', authenticateToken, stockController.adjustStock);
+router.post('/adjust', ...requirePermission(STOCK_PERMISSIONS.ADJUST_STOCK), stockController.adjustStock);
 
 /**
  * @swagger
@@ -140,8 +143,7 @@ router.post('/adjust', authenticateToken, stockController.adjustStock);
  *                       cost_price:
  *                         type: number
  */
-
-router.post('/create-supply-order', authenticateToken, stockController.createSupplyOrder);
+router.post('/create-supply-order', ...requirePermission(STOCK_PERMISSIONS.RESTOCK_ITEMS), stockController.createSupplyOrder);
 /**
  * @swagger
  * /api/stock/get-supply-orders:
@@ -198,7 +200,7 @@ router.get('/get-supply-order', authenticateToken, stockController.getSupplyOrde
  *       200:
  *         description: Supply status updated
  */
-router.post('/supply-status', authenticateToken, stockController.updateSupplyStatus);
+router.post('/supply-status', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK), stockController.updateSupplyStatus);
 
 /**
  *  @swagger
@@ -215,7 +217,7 @@ router.post('/supply-status', authenticateToken, stockController.updateSupplySta
  * schema:
  * 
  */
-router.delete('/delete-supply-order', authenticateToken, stockController.deleteSupplyOrder);
+router.delete('/delete-supply-order', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK), stockController.deleteSupplyOrder);
 
 /**
  * @swagger
@@ -529,7 +531,7 @@ router.get('/status/slow-moving', authenticateToken, stockController.getSlowMovi
  *       201:
  *         description: Stock transfer initiated
  */
-router.post('/transfer', authenticateToken, stockController.transferStock);
+router.post('/transfer', ...requirePermission(STOCK_PERMISSIONS.TRANSFER_STOCK), stockController.transferStock);
 
 /**
  * @swagger
@@ -561,7 +563,7 @@ router.post('/transfer', authenticateToken, stockController.transferStock);
  *       200:
  *         description: Stock transfer completed
  */
-router.post('/transfer/:transfer_id/complete', authenticateToken, stockController.completeTransfer);
+router.post('/transfer/:transfer_id/complete', ...requirePermission(STOCK_PERMISSIONS.TRANSFER_STOCK), stockController.completeTransfer);
 
 /**
  * @swagger

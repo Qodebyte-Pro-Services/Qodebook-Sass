@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middlewares/authMiddleware');
+const { requirePermission } = require('../middlewares/permissionMiddleware');
+const { STOCK_PERMISSIONS } = require('../constants/permissions'); 
 const orderController = require('../controllers/orderController');
 
 /**
@@ -46,7 +48,7 @@ const orderController = require('../controllers/orderController');
  *       201:
  *         description: Order created
  */
-router.post('/', authenticateToken, orderController.createOrder);
+router.post('/', ...requirePermission(STOCK_PERMISSIONS.VIEW_STOCK), orderController.createOrder);
 
 /**
  * @swagger

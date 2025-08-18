@@ -73,16 +73,21 @@ exports.generateVariants = async (req, res) => {
       return res.status(400).json({ message: 'Variants array required.' });
     }
 
-    const inserted = [];
-    const inventoryLogs = [];
-   
-    let business_id = null;
+    const business_id = req.business_id; 
+    const branch_id = req.branch_id || null; 
     const recorded_by = req.user?.staff_id || req.user?.user_id;
     const recorded_by_type = req.user?.staff_id ? 'staff' : 'user';
-    const productRes = await pool.query('SELECT * FROM products WHERE id = $1', [product_id]);
-    if (productRes.rows.length > 0) {
-      business_id = productRes.rows[0].business_id;
+
+    const productRes = await pool.query(
+      'SELECT * FROM products WHERE id = $1 AND business_id = $2',
+      [product_id, business_id]
+    );
+    if (productRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Product not found for this business.' });
     }
+
+    const inserted = [];
+    const inventoryLogs = [];
 
     for (let i = 0; i < variants.length; i++) {
       const v = variants[i];
@@ -135,6 +140,7 @@ exports.generateVariants = async (req, res) => {
           variant.quantity,
           'Initial stock on variant creation',
           business_id,
+          branch_id,
          recorded_by,
          recorded_by_type
         ]);
@@ -144,12 +150,12 @@ exports.generateVariants = async (req, res) => {
       const placeholders = inventoryLogs
          .map(
     (_, idx) =>
-      `($${idx * 7 + 1}, $${idx * 7 + 2}, $${idx * 7 + 3}, $${idx * 7 + 4}, $${idx * 7 + 5}, $${idx * 7 + 6}, $${idx * 7 + 7})`
+      `($${idx * 8 + 1}, $${idx * 8 + 2}, $${idx * 8 + 3}, $${idx * 8 + 4}, $${idx * 8 + 5}, $${idx * 8 + 6}, $${idx * 8 + 7}, $${idx * 8 + 8})`
   )
   .join(', ');
       const flatValues = inventoryLogs.flat();
       await pool.query(
-        `INSERT INTO inventory_logs (variant_id, type, quantity, note, business_id, recorded_by, recorded_by_type) VALUES ${placeholders}`,
+        `INSERT INTO inventory_logs (variant_id, type, quantity, note, business_id, branch_id recorded_by, recorded_by_type) VALUES ${placeholders}`,
         flatValues
       );
     }

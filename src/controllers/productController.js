@@ -451,6 +451,7 @@ exports.createProductWithVariants = async (req, res) => {
     let createdVariants = [];
     let inventoryLogs = [];
     const prod_business_id = product.business_id;
+    const branch_id = req.branch_id || null;
     const prod_recorded_by = req.user?.staff_id || req.user?.id;
     const prod_recorded_by_type = req.user.staff_id ? 'staff' : 'user';
 
@@ -512,6 +513,7 @@ exports.createProductWithVariants = async (req, res) => {
           variant.quantity,
           'Initial stock on variant creation',
           prod_business_id,
+          branch_id,
            prod_recorded_by,
           prod_recorded_by_type
         ]);
@@ -521,12 +523,12 @@ exports.createProductWithVariants = async (req, res) => {
       const valuesPlaceholders = inventoryLogs
         .map(
           (_, idx) =>
-           `($${idx * 7 + 1}, $${idx * 7 + 2}, $${idx * 7 + 3}, $${idx * 7 + 4}, $${idx * 7 + 5}, $${idx * 7 + 6}, $${idx * 7 + 7})`
+           `($${idx * 8 + 1}, $${idx * 8 + 2}, $${idx * 8 + 3}, $${idx * 8 + 4}, $${idx * 8 + 5}, $${idx * 8 + 6}, $${idx * 8 + 7}, $${idx * 8 + 8})`
         )
         .join(', ');
       const flatValues = inventoryLogs.flat();
       await pool.query(
-        `INSERT INTO inventory_logs (variant_id, type, quantity, note, business_id, recorded_by, recorded_by_type) VALUES ${valuesPlaceholders}`,
+        `INSERT INTO inventory_logs (variant_id, type, quantity, note, business_id, branch_id, recorded_by, recorded_by_type) VALUES ${valuesPlaceholders}`,
         flatValues
       );
     }

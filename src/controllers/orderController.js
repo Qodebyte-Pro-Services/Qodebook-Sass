@@ -15,7 +15,7 @@ exports.createOrder = async (req, res) => {
      
       await pool.query('UPDATE variants SET quantity = quantity - $1 WHERE id = $2', [item.quantity, item.variant_id]);
       
-      await pool.query('INSERT INTO inventory_logs (variant_id, type, quantity, note, business_id, recorded_by, recorded_by_type) VALUES ($1, $2, $3, $4, $5, $6, $7)', [item.variant_id, 'sale', item.quantity, 'Order sale', business_id, req.user?.staff_id || req.user?.id, recorded_by_type]);
+      await pool.query('INSERT INTO inventory_logs (variant_id, type, quantity, note, business_id, branch_id, recorded_by, recorded_by_type) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [item.variant_id, 'sale', item.quantity, 'Order sale', business_id, branch_id, req.user?.staff_id || req.user?.id, recorded_by_type]);
     }
     return res.status(201).json({ order });
   } catch (err) {

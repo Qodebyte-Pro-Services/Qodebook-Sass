@@ -30,6 +30,7 @@ const STOCK_PERMISSIONS = {
   VIEW_STOCK: 'view_stock',
   ADJUST_STOCK: 'adjust_stock',
   TRANSFER_STOCK: 'transfer_stock',
+  MANAGE_STOCK: 'manage_stock',
   VIEW_STOCK_HISTORY: 'view_stock_history',
   MANAGE_SUPPLIERS: 'manage_suppliers',
   RESTOCK_ITEMS: 'restock_items'

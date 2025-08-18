@@ -925,7 +925,7 @@ exports.supplierAnalytics = async (req, res) => {
     const topSuppliersResult = await pool.query(
       `SELECT s.id, s.name, COUNT(se.id) AS deliveries, COALESCE(SUM(se.total_cost),0) AS total_supplied
        FROM suppliers s
-       LEFT JOIN supply_entries se ON s.id = se.supplier_id
+       LEFT JOIN supply_orders sos ON s.id = sos.supplier_id
        ${whereClause}
        GROUP BY s.id, s.name
        ORDER BY total_supplied DESC
@@ -933,32 +933,56 @@ exports.supplierAnalytics = async (req, res) => {
       params
     );
 
-    const delayedDeliveriesResult = await pool.query(
-      `SELECT COUNT(*) AS delayed_deliveries
-       FROM supply_entries se
-       WHERE se.delivery_status = 'delayed'${wheres.length > 0 ? ' AND ' + wheres.join(' AND ') : ''}${dateWhere}`,
-      params
-    );
+   const delayedDeliveriesResult = await pool.query(
+  `SELECT COUNT(*) AS delayed_deliveries
+   FROM supply_orders sos
+   WHERE sos.supply_status = 'paid'
+     AND sos.expected_delivery_date < CURRENT_DATE
+     ${wheres.length > 0 ? ' AND ' + wheres.join(' AND ') : ''} 
+     ${dateWhere}`,
+  params
+);
     
-    const costPerSupplierResult = await pool.query(
-      `SELECT s.id, s.name, COALESCE(SUM(se.total_cost),0) AS total_cost
-       FROM suppliers s
-       LEFT JOIN supply_entries se ON s.id = se.supplier_id
-       ${whereClause}
-       GROUP BY s.id, s.name
-       ORDER BY total_cost DESC`,
-      params
-    );
+  const costPerSupplierResult = await pool.query(
+  `SELECT s.id, s.name, 
+          COALESCE(SUM(soi.quantity * soi.cost_price), 0) AS total_cost
+   FROM suppliers s
+   LEFT JOIN supply_orders sos ON s.id = sos.supplier_id
+   LEFT JOIN supply_order_items soi ON sos.id = soi.supply_order_id
+   ${whereClause}
+   GROUP BY s.id, s.name
+   ORDER BY total_cost DESC`,
+  params
+);
+
   
-    const reliabilityResult = await pool.query(
-      `SELECT s.id, s.name, COALESCE(SUM(CASE WHEN se.delivery_status = 'on_time' THEN 1 ELSE 0 END),0) AS on_time_deliveries
-       FROM suppliers s
-       LEFT JOIN supply_entries se ON s.id = se.supplier_id
-       ${whereClause}
-       GROUP BY s.id, s.name
-       ORDER BY on_time_deliveries DESC`,
-      params
-    );
+   const reliabilityResult = await pool.query(
+  `SELECT s.id, 
+          s.name,
+          COUNT(sos.id) FILTER (WHERE sos.supply_status = 'delivered') AS total_deliveries,
+          COUNT(sos.id) FILTER (
+            WHERE sos.supply_status = 'delivered' 
+              AND sos.expected_delivery_date >= sos.updated_at
+          ) AS on_time_deliveries,
+          CASE 
+            WHEN COUNT(sos.id) FILTER (WHERE sos.supply_status = 'delivered') = 0 
+            THEN 0
+            ELSE ROUND(
+              COUNT(sos.id) FILTER (
+                WHERE sos.supply_status = 'delivered' 
+                  AND sos.expected_delivery_date >= sos.updated_at
+              )::decimal 
+              / COUNT(sos.id) FILTER (WHERE sos.supply_status = 'delivered') * 100, 
+            2)
+          END AS reliability_percent
+   FROM suppliers s
+   LEFT JOIN supply_orders sos ON s.id = sos.supplier_id
+   ${whereClause}
+   GROUP BY s.id, s.name
+   ORDER BY reliability_percent DESC`,
+  params
+);
+
     res.json({
       topSuppliers: topSuppliersResult.rows,
       delayedDeliveries: Number(delayedDeliveriesResult.rows[0]?.delayed_deliveries || 0),

@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middlewares/authMiddleware');
 const salesController = require('../controllers/salesController');
-
+const { requirePermission } = require('../middlewares/permissionMiddleware');
+const { SALES_PERMISSIONS } = require('../constants/permissions');
 /**
  * @swagger
  * /api/sales/create:
@@ -55,7 +56,7 @@ const salesController = require('../controllers/salesController');
  *       201:
  *         description: Sale recorded
  */
-router.post('/create', authenticateToken, salesController.createSale);
+router.post('/create', ...requirePermission(SALES_PERMISSIONS.CREATE_SALE), salesController.createSale);
 
 /**
  * @swagger

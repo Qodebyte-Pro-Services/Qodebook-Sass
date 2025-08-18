@@ -71,10 +71,28 @@ exports.deleteSupplier = async (req, res) => {
 
 exports.getSupplierStockMovements = async (req, res) => {
   try {
-    const result = await pool.query('SELECT se.*, s.name as supplier_name, v.sku as variant_sku FROM supply_entries se JOIN suppliers s ON se.supplier_id = s.id JOIN variants v ON se.variant_id = v.id ORDER BY se.supplied_at DESC');
-    return res.status(200).json({ supply_entries: result.rows });
+    const result = await pool.query(`
+      SELECT sos.id AS supply_order_id,
+             sos.supply_status,
+             sos.expected_delivery_date,
+             sos.supply_order_date,
+             sos.business_id,
+             s.name AS supplier_name,
+             soi.variant_id,
+             v.sku AS variant_sku,
+             soi.quantity,
+             soi.cost_price
+      FROM supply_orders sos
+      JOIN suppliers s ON sos.supplier_id = s.id
+      JOIN supply_order_items soi ON sos.id = soi.supply_order_id
+      JOIN variants v ON soi.variant_id = v.id
+      ORDER BY sos.expected_delivery_date DESC
+    `);
+
+    return res.status(200).json({ supply_orders: result.rows });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+

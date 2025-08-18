@@ -621,8 +621,6 @@ exports.deleteSupplyOrder = async (req, res) => {
 };
 
 
-
-
 exports.getStockMovements = async (req, res) => {
   try {
     const business_id = req.user?.business_id;
@@ -732,9 +730,6 @@ exports.adjustStock = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 };
-
-
-
 
 
 exports.getFastMoving = async (req, res) => {
