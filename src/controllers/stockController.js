@@ -549,47 +549,72 @@ exports.updateSupplyStatus = async (req, res) => {
 };
 
 
+
 exports.getSupplyOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    const business_id = req.user?.business_id;
+    const business_id = req.query.business_id || req.body.business_id || req.params.business_id;
+    if (!business_id) return res.status(400).json({ message: 'business_id is required as a query or param.' });
 
+    
     const orderRes = await pool.query(
-      'SELECT * FROM supply_orders WHERE id = $1 AND business_id = $2',
+      `SELECT so.*, s.supplier_name
+       FROM supply_orders so
+       LEFT JOIN suppliers s ON so.supplier_id = s.id
+       WHERE so.id = $1 AND so.business_id = $2`,
       [id, business_id]
     );
     if (orderRes.rows.length === 0) {
       return res.status(404).json({ message: 'Supply order not found.' });
     }
 
+   
     const itemsRes = await pool.query(
-      'SELECT * FROM supply_order_items WHERE supply_order_id = $1',
+      `SELECT soi.*, v.sku, v.name as variant_name
+       FROM supply_order_items soi
+       LEFT JOIN variants v ON soi.variant_id = v.id
+       WHERE soi.supply_order_id = $1`,
       [id]
     );
 
     return res.status(200).json({ supply_order: orderRes.rows[0], items: itemsRes.rows });
-
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
   }
 };
 
+
 exports.getSupplyOrders = async (req, res) => {
   try {
-    const business_id = req.user?.business_id;
-    if (!business_id) return res.status(400).json({ message: 'business_idis required.' });
-      
+    const business_id = req.query.business_id || req.body.business_id || req.params.business_id;
+    if (!business_id) return res.status(400).json({ message: 'business_id is required as a query or param.' });
+
+   
     const ordersRes = await pool.query(
-      'SELECT * FROM supply_orders WHERE business_id = $1 ORDER BY created_at DESC',
+      `SELECT so.*, s.supplier_name
+       FROM supply_orders so
+       LEFT JOIN suppliers s ON so.supplier_id = s.id
+       WHERE so.business_id = $1
+       ORDER BY so.created_at DESC`,
       [business_id]
     );
     const orders = ordersRes.rows;
-    const itemsPromises = orders.map(order =>
-      pool.query('SELECT * FROM supply_order_items WHERE supply_order_id = $1', [order.id])
-    );
-    const itemsResults = await Promise.all(itemsPromises);
-    const items = itemsResults.map(res => res.rows);
+
+    
+    const orderIds = orders.map(o => o.id);
+    let items = [];
+    if (orderIds.length > 0) {
+      const itemsRes = await pool.query(
+        `SELECT soi.*, v.sku, v.name as variant_name
+         FROM supply_order_items soi
+         LEFT JOIN variants v ON soi.variant_id = v.id
+         WHERE soi.supply_order_id = ANY($1::int[])`,
+        [orderIds]
+      );
+      items = itemsRes.rows;
+    }
+
     return res.status(200).json({ supply_orders: orders, items });
   } catch (err) {
     console.error(err);
