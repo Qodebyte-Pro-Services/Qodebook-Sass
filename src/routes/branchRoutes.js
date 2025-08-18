@@ -24,7 +24,7 @@ const branchController = require('../controllers/branchController');
 
 /**
  * @swagger
- * /api/branch/create:
+ * /api/branches/create:
  *   post:
  *     summary: Create a new branch
  *     tags: [Branch]
@@ -41,7 +41,7 @@ const branchController = require('../controllers/branchController');
  *                 type: string
  *               branch_name:
  *                 type: string
- *               address:
+ *               location:
  *                 type: string
  *               phone:
  *                 type: string
@@ -56,7 +56,7 @@ router.post('/create', ...requirePermission(BUSINESS_PERMISSIONS.CREATE_BRANCH),
 
 /**
  * @swagger
- * /api/branch:
+ * /api/branches:
  *   get:
  *     summary: List all branches for the authenticated user
  *     tags: [Branch]
@@ -71,7 +71,7 @@ router.get('/', ...requirePermission(), branchController.listBranches);
 
 /**
  * @swagger
- * /api/branch/{id}:
+ * /api/branches/{id}:
  *   get:
  *     summary: Get a branch by ID
  *     tags: [Branch]
@@ -95,7 +95,7 @@ router.get('/:id', ...requirePermission(), branchController.getBranch);
 
 /**
  * @swagger
- * /api/branch/{id}:
+ * /api/branches/{id}:
  *   put:
  *     summary: Update a branch by ID
  *     tags: [Branch]
@@ -134,7 +134,7 @@ router.put('/:id', ...requirePermission(BUSINESS_PERMISSIONS.UPDATE_BRANCH), val
 
 /**
  * @swagger
- * /api/branch/{id}:
+ * /api/branches/{id}:
  *   delete:
  *     summary: Delete a branch by ID
  *     tags: [Branch]
@@ -158,7 +158,7 @@ router.delete('/:id', ...requirePermission(BUSINESS_PERMISSIONS.DELETE_BRANCH), 
 
 /**
  * @swagger
- * /api/branch/business/{businessId}:
+ * /api/branches/business/{businessId}:
  *   get:
  *     summary: List all branches for a business
  *     tags: [Branch]
@@ -182,7 +182,7 @@ router.get('/business/:businessId', ...requirePermission(), branchController.lis
 
 /**
  * @swagger
- * /api/branch/business/{businessId}/{id}:
+ * /api/branches/business/{businessId}/{id}:
  *   get:
  *     summary: Get a branch by ID for a business
  *     tags: [Branch]

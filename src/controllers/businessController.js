@@ -35,13 +35,20 @@ exports.createBusiness = async (req, res) => {
     const result = await pool.query(insertQuery, [user_id, business_name, business_type, address, business_phone, logo_url]);
     const business = result.rows[0];
 
+   
+    const branch_name = `${business.business_name} Branch One`;
+    const location = business.address;
+    const branchInsertQuery = `INSERT INTO branches (business_id, branch_name, location, branch_manager) VALUES ($1, $2, $3, $4) RETURNING *`;
+    const branchResult = await pool.query(branchInsertQuery, [business.id, branch_name, location, '']);
+    const branch = branchResult.rows[0];
+
     try {
       await sendBusinessCreatedEmail(req.user.email, business.business_name);
     } catch (e) {
       console.error('Failed to send business creation email:', e);
     }
 
-    return res.status(201).json({ message: 'Business created successfully.', business });
+    return res.status(201).json({ message: 'Business created successfully.', business, branch });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.', error: err.message });

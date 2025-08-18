@@ -437,8 +437,7 @@ exports.getStockHistory = async (req, res) => {
 
 exports.createSupplyOrder = async (req, res) => {
   try {
-    const { variants, expected_delivery_date, supply_order_date, supply_status = 'awaiting_payment', supplier_id } = req.body;
-    const business_id = req.user?.business_id;
+    const { business_id, variants, expected_delivery_date, supply_order_date, supply_status = 'awaiting_payment', supplier_id } = req.body;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     if (!supplier_id || !Array.isArray(variants) || variants.length === 0) {
       return res.status(400).json({ message: 'supplier_id and variants array are required.' });
@@ -475,8 +474,8 @@ exports.createSupplyOrder = async (req, res) => {
 
 exports.updateSupplyStatus = async (req, res) => {
   try {
-    const { supply_order_id, supply_status } = req.body;
-    const business_id = req.user?.business_id;
+    const {business_id, supply_order_id, supply_status } = req.body;
+    
     if (!supply_order_id || !supply_status) {
       return res.status(400).json({ message: 'supply_order_id and supply_status are required.' });
     }

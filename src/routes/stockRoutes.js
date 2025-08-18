@@ -106,8 +106,8 @@ router.post('/adjust', ...requirePermission(STOCK_PERMISSIONS.ADJUST_STOCK), sto
  *                       type: integer
  *                     cost_price:
  *                       type: number
- *               note:
- *                 type: string
+ *               business_id:
+ *                 type: integer
  *               supplier_id:
  *                 type: integer
  *               expected_delivery_date:
@@ -127,8 +127,6 @@ router.post('/adjust', ...requirePermission(STOCK_PERMISSIONS.ADJUST_STOCK), sto
  *             schema:
  *               type: object
  *               properties:
- *                 message:
- *                   type: string
  *                 supply_order:
  *                   type: object
  *                 items:
@@ -191,7 +189,7 @@ router.get('/get-supply-order', authenticateToken, stockController.getSupplyOrde
  *           schema:
  *             type: object
  *             properties:
- *               supply_entry_id:
+ *               supply_order_id:
  *                 type: integer
  *               supply_status:
  *                 type: string
