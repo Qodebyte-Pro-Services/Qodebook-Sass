@@ -570,7 +570,7 @@ exports.getSupplyOrder = async (req, res) => {
 
    
     const itemsRes = await pool.query(
-      `SELECT soi.*, v.sku, v.name as variant_name
+      `SELECT soi.*, v.sku
        FROM supply_order_items soi
        LEFT JOIN variants v ON soi.variant_id = v.id
        WHERE soi.supply_order_id = $1`,
@@ -606,7 +606,7 @@ exports.getSupplyOrders = async (req, res) => {
     let items = [];
     if (orderIds.length > 0) {
       const itemsRes = await pool.query(
-        `SELECT soi.*, v.sku, v.name as variant_name
+        `SELECT soi.*, v.sku
          FROM supply_order_items soi
          LEFT JOIN variants v ON soi.variant_id = v.id
          WHERE soi.supply_order_id = ANY($1::int[])`,
