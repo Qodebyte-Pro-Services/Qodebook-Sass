@@ -558,7 +558,7 @@ exports.getSupplyOrder = async (req, res) => {
 
     
     const orderRes = await pool.query(
-      `SELECT so.*, s.supplier_name
+      `SELECT so.*, s.name as supplier_name
        FROM supply_orders so
        LEFT JOIN suppliers s ON so.supplier_id = s.id
        WHERE so.id = $1 AND so.business_id = $2`,
@@ -592,7 +592,7 @@ exports.getSupplyOrders = async (req, res) => {
 
    
     const ordersRes = await pool.query(
-      `SELECT so.*, s.supplier_name
+      `SELECT so.*, s.name as supplier_name
        FROM supply_orders so
        LEFT JOIN suppliers s ON so.supplier_id = s.id
        WHERE so.business_id = $1
