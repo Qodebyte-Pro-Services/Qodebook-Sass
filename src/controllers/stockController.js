@@ -1,4 +1,5 @@
 
+
 const pool = require('../config/db');
 const AuditService = require('../services/auditService');
 const StockNotificationService = require('../services/stockNotificationService');
@@ -58,16 +59,21 @@ exports.transferStock = async (req, res) => {
     const transfer = transferResult.rows[0];
 
  
-    await pool.query(`
-      INSERT INTO inventory_logs (
-        variant_id, type, quantity, note, branch_id, 
-        related_transfer_id, business_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `, [
-      variant_id, 'transfer_out', -quantity, 
-      `Transfer to branch ${to_branch_id}: ${reason}`, 
-      from_branch_id, transfer.id, req.user?.business_id
-    ]);
+  const recorded_by = req.user?.staff_id || req.user?.user_id;
+const recorded_by_type = req.user?.staff_id ? 'staff' : 'user';
+
+await pool.query(`
+  INSERT INTO inventory_logs (
+    variant_id, type, quantity, note, branch_id, 
+    related_transfer_id, business_id, recorded_by, recorded_by_type
+  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+`, [
+  variant_id, 'transfer_out', -quantity, 
+  `Transfer to branch ${to_branch_id}: ${reason}`, 
+  from_branch_id, transfer.id, req.user?.business_id,
+  recorded_by, recorded_by_type
+]);
+
 
 
     await AuditService.logStockAction('transfer_initiated', variant_id, req.user?.business_id, req.user, {
@@ -157,16 +163,19 @@ exports.completeTransfer = async (req, res) => {
       WHERE id = $4
     `, [quantity, received_notes, req.user?.staff_id || req.user?.id, transfer_id]);
 
+    const recorded_by = req.user?.staff_id || req.user?.user_id;
+const recorded_by_type = req.user?.staff_id ? 'staff' : 'user';
    
     await pool.query(`
       INSERT INTO inventory_logs (
         variant_id, type, quantity, note, branch_id, 
-        related_transfer_id, business_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        related_transfer_id, business_id,  recorded_by, recorded_by_type
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     `, [
       destVariantId, 'transfer_in', quantity, 
       `Transfer from branch ${transfer.from_branch_id}: ${transfer.reason}`, 
-      transfer.to_branch_id, transfer_id, req.user?.business_id
+      transfer.to_branch_id, transfer_id, req.user?.business_id,
+      recorded_by, recorded_by_type
     ]);
 
 
@@ -227,74 +236,7 @@ exports.getPendingTransfers = async (req, res) => {
 };
 
 
-exports.adjustStock = async (req, res) => {
-  try {
-    const { 
-      variant_id, 
-      new_quantity, 
-      reason, 
-      type, 
-      adjustment_category,
-      reference_number,
-      notes 
-    } = req.body;
 
-    if (!variant_id || typeof new_quantity !== 'number' || !reason || !type) {
-      return res.status(400).json({ 
-        message: 'variant_id, new_quantity, type, and reason are required.' 
-      });
-    }
-
-    const variantRes = await pool.query('SELECT * FROM variants WHERE id = $1', [variant_id]);
-    if (variantRes.rows.length === 0) {
-      return res.status(404).json({ message: 'Variant not found.' });
-    }
-
-    const old_quantity = variantRes.rows[0].quantity;
-    const quantity_change = new_quantity - old_quantity;
-
-
-    await pool.query('UPDATE variants SET quantity = $1 WHERE id = $2', [new_quantity, variant_id]);
-
-    
-    await pool.query(`
-      INSERT INTO inventory_logs (
-        variant_id, type, quantity, note, adjustment_category, 
-        reference_number, business_id, branch_id, adjusted_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    `, [
-      variant_id, type, quantity_change, notes || reason, 
-      adjustment_category, reference_number, req.user?.business_id,
-      variantRes.rows[0].branch_id, req.user?.staff_id || req.user?.id
-    ]);
-
-   
-    await StockNotificationService.checkLowStock(variant_id, req.user?.business_id);
-    await StockNotificationService.checkOutOfStock(variant_id, req.user?.business_id);
-
-
-    await AuditService.logStockAction('adjustment', variant_id, req.user?.business_id, req.user, {
-      old_quantity,
-      new_quantity,
-      quantity_change,
-      reason,
-      type,
-      adjustment_category,
-      reference_number
-    }, req);
-
-    return res.status(200).json({ 
-      message: 'Stock adjusted successfully.', 
-      old_quantity, 
-      new_quantity,
-      quantity_change
-    });
-
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
-  }
-};
 
 exports.getStockHistory = async (req, res) => {
   try {
@@ -446,27 +388,246 @@ exports.getStockHistory = async (req, res) => {
 };
 
 
-exports.restockVariant = async (req, res) => {
+
+
+// exports.restockVariant = async (req, res) => {
+//   try {
+//     const { variants, expected_delivery_date, supply_order_date, supply_status = 'awaiting_payment', supplier_id } = req.body;
+//     const business_id = req.user?.business_id;
+//     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
+
+//     let variantList = [];
+//     if (Array.isArray(variants)) {
+//       variantList = variants;
+//     } else if (req.body.variant_id && req.body.quantity && req.body.cost_price) {
+//       variantList = [{
+//         variant_id: req.body.variant_id,
+//         quantity: req.body.quantity,
+//         cost_price: req.body.cost_price
+//       }];
+//     } else {
+//       return res.status(400).json({ message: 'variants array or variant_id, quantity, cost_price required.' });
+//     }
+
+//     const results = [];
+//     for (const v of variantList) {
+//       const { variant_id, quantity, cost_price } = v;
+//       if (!variant_id || !quantity || !cost_price) {
+//         results.push({ variant_id, error: 'variant_id, quantity, and cost_price are required.' });
+//         continue;
+//       }
+
+     
+//       const supplyRes = await pool.query(
+//         `INSERT INTO supply_entries (supplier_id, variant_id, quantity, cost_price, expected_delivery_date, supply_order_date, supply_status, business_id) 
+//          VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+//         [supplier_id || null, variant_id, quantity, cost_price, expected_delivery_date, supply_order_date, supply_status, business_id]
+//       );
+
+//       results.push({ variant_id, message: 'Supply entry created', supply_entry: supplyRes.rows[0] });
+//     }
+
+//     return res.status(200).json({ results });
+
+//   } catch (err) {
+//     console.error(err);
+//     return res.status(500).json({ message: 'Server error.' });
+//   }
+// };
+
+exports.createSupplyOrder = async (req, res) => {
   try {
-    const { variant_id, quantity, cost_price, expiry_date, note, supplier_id } = req.body;
-    if (!variant_id || !quantity || !cost_price) return res.status(400).json({ message: 'variant_id, quantity, and cost_price are required.' });
-    const variantRes = await pool.query('UPDATE variants SET quantity = quantity + $1, cost_price = $2, expiry_date = COALESCE($3, expiry_date) WHERE id = $4 RETURNING *', [quantity, cost_price, expiry_date, variant_id]);
-    if (variantRes.rows.length === 0) return res.status(404).json({ message: 'Variant not found.' });
-    await pool.query('INSERT INTO inventory_logs (variant_id, type, quantity, note) VALUES ($1, $2, $3, $4)', [variant_id, 'restock', quantity, note || null]);
-    if (supplier_id) {
-      await pool.query('INSERT INTO supply_entries (supplier_id, variant_id, quantity, cost_price) VALUES ($1, $2, $3, $4)', [supplier_id, variant_id, quantity, cost_price]);
+    const { variants, expected_delivery_date, supply_order_date, supply_status = 'awaiting_payment', supplier_id } = req.body;
+    const business_id = req.user?.business_id;
+    if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
+    if (!supplier_id || !Array.isArray(variants) || variants.length === 0) {
+      return res.status(400).json({ message: 'supplier_id and variants array are required.' });
     }
-    return res.status(200).json({ message: 'Variant restocked.', variant: variantRes.rows[0] });
+
+    
+    const orderRes = await pool.query(
+      `INSERT INTO supply_orders (supplier_id, business_id, expected_delivery_date, supply_order_date, supply_status) 
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [supplier_id, business_id, expected_delivery_date, supply_order_date, supply_status]
+    );
+    const supplyOrder = orderRes.rows[0];
+
+  
+    const items = [];
+    for (const v of variants) {
+      const { variant_id, quantity, cost_price } = v;
+      if (!variant_id || !quantity || !cost_price) continue;
+      const itemRes = await pool.query(
+        `INSERT INTO supply_order_items (supply_order_id, variant_id, quantity, cost_price)
+         VALUES ($1,$2,$3,$4) RETURNING *`,
+        [supplyOrder.id, variant_id, quantity, cost_price]
+      );
+      items.push(itemRes.rows[0]);
+    }
+
+    return res.status(201).json({ message: 'Supply order created.', supply_order: supplyOrder, items });
+
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+
+exports.updateSupplyStatus = async (req, res) => {
+  try {
+    const { supply_order_id, supply_status } = req.body;
+    const business_id = req.user?.business_id;
+    if (!supply_order_id || !supply_status) {
+      return res.status(400).json({ message: 'supply_order_id and supply_status are required.' });
+    }
+
+    const allowed = ['awaiting_payment', 'paid', 'delivered', 'cancelled'];
+    if (!allowed.includes(supply_status)) {
+      return res.status(400).json({ message: 'Invalid supply_status.' });
+    }
+
+  
+    const orderRes = await pool.query(
+      'SELECT * FROM supply_orders WHERE id = $1 AND business_id = $2',
+      [supply_order_id, business_id]
+    );
+    if (orderRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Supply order not found.' });
+    }
+    const order = orderRes.rows[0];
+
+    const itemsRes = await pool.query(
+      'SELECT * FROM supply_order_items WHERE supply_order_id = $1',
+      [supply_order_id]
+    );
+    const items = itemsRes.rows;
+
+   
+    if (supply_status === 'delivered') {
+      const recorded_by = req.user?.staff_id || req.user?.id;
+      const recorded_by_type = req.user?.staff_id ? 'staff' : 'user';
+
+      for (const item of items) {
+        const variantRes = await pool.query('SELECT * FROM variants WHERE id = $1', [item.variant_id]);
+        if (variantRes.rows.length === 0) continue;
+        const variant = variantRes.rows[0];
+
+        const newQty = variant.quantity + item.quantity;
+        const newCostPrice = item.cost_price !== variant.cost_price ? item.cost_price : variant.cost_price;
+
+        await pool.query('UPDATE variants SET quantity = $1, cost_price = $2 WHERE id = $3',
+          [newQty, newCostPrice, variant.id]);
+
+        await pool.query(
+          `INSERT INTO inventory_logs (variant_id, type, quantity, note, business_id, branch_id, recorded_by, recorded_by_type) 
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+          [
+            variant.id,
+            'restock',
+            item.quantity,
+            `Supply delivered (order ID: ${supply_order_id})`,
+            business_id,
+            variant.branch_id || null,
+            recorded_by,
+            recorded_by_type
+          ]
+        );
+      }
+    }
+
+   
+    const updated = await pool.query(
+      'UPDATE supply_orders SET supply_status = $1 WHERE id = $2 RETURNING *',
+      [supply_status, supply_order_id]
+    );
+
+    return res.status(200).json({ message: 'Supply status updated.', supply_order: updated.rows[0] });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+
+exports.getSupplyOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const business_id = req.user?.business_id;
+
+    const orderRes = await pool.query(
+      'SELECT * FROM supply_orders WHERE id = $1 AND business_id = $2',
+      [id, business_id]
+    );
+    if (orderRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Supply order not found.' });
+    }
+
+    const itemsRes = await pool.query(
+      'SELECT * FROM supply_order_items WHERE supply_order_id = $1',
+      [id]
+    );
+
+    return res.status(200).json({ supply_order: orderRes.rows[0], items: itemsRes.rows });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+exports.getSupplyOrders = async (req, res) => {
+  try {
+    const business_id = req.user?.business_id;
+    if (!business_id) return res.status(400).json({ message: 'business_idis required.' });
+      
+    const ordersRes = await pool.query(
+      'SELECT * FROM supply_orders WHERE business_id = $1 ORDER BY created_at DESC',
+      [business_id]
+    );
+    const orders = ordersRes.rows;
+    const itemsPromises = orders.map(order =>
+      pool.query('SELECT * FROM supply_order_items WHERE supply_order_id = $1', [order.id])
+    );
+    const itemsResults = await Promise.all(itemsPromises);
+    const items = itemsResults.map(res => res.rows);
+    return res.status(200).json({ supply_orders: orders, items });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+exports.deleteSupplyOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const business_id = req.user?.business_id;
+
+    const orderRes = await pool.query(
+      'DELETE FROM supply_orders WHERE id = $1 AND business_id = $2 RETURNING *',
+      [id, business_id]
+    );
+
+    if (orderRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Supply order not found.' });
+    }
+
+    return res.status(200).json({ message: 'Supply order deleted.' });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+
 
 
 exports.getStockMovements = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM inventory_logs ORDER BY created_at DESC');
+    const business_id = req.user?.business_id;
+    if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
+    const result = await pool.query('SELECT * FROM inventory_logs WHERE business_id = $1 ORDER BY created_at DESC', [business_id]);
     return res.status(200).json({ logs: result.rows });
   } catch (err) {
     console.error(err);
@@ -475,11 +636,97 @@ exports.getStockMovements = async (req, res) => {
 };
 
 
-exports.getStockMovementsByVariant = async (req, res) => {
+
+exports.adjustStock = async (req, res) => {
   try {
-    const { id } = req.params;
-    const result = await pool.query('SELECT * FROM inventory_logs WHERE variant_id = $1 ORDER BY created_at DESC', [id]);
-    return res.status(200).json({ logs: result.rows });
+    const { adjustments } = req.body;
+    const business_id = req.user?.business_id;
+    const recorded_by = req.user?.staff_id || req.user?.id;
+    const recorded_by_type = req.user?.staff_id ? 'staff' : 'user';
+
+    if (!business_id) {
+      return res.status(400).json({ message: 'business_id is required.' });
+    }
+
+    
+    let adjList = [];
+    if (Array.isArray(adjustments)) {
+      adjList = adjustments;
+    } else if (req.body.variant_id && typeof req.body.new_quantity === 'number') {
+      adjList = [{
+        variant_id: req.body.variant_id,
+        new_quantity: req.body.new_quantity,
+        reason: req.body.reason,
+        type: req.body.type,
+        notes: req.body.notes
+      }];
+    } else {
+      return res.status(400).json({ message: 'adjustments array or variant_id/new_quantity required.' });
+    }
+
+    const results = [];
+
+    for (const adj of adjList) {
+      const { variant_id, new_quantity, reason, type, notes } = adj;
+
+      if (!variant_id || typeof new_quantity !== 'number' || !reason || !type) {
+        results.push({ variant_id, error: 'variant_id, new_quantity, type, and reason are required.' });
+        continue;
+      }
+
+      
+      const variantRes = await pool.query('SELECT * FROM variants WHERE id = $1', [variant_id]);
+      if (variantRes.rows.length === 0) {
+        results.push({ variant_id, error: 'Variant not found.' });
+        continue;
+      }
+
+      const old_quantity = variantRes.rows[0].quantity;
+      const quantity_change = new_quantity - old_quantity;
+
+     
+      await pool.query('UPDATE variants SET quantity = $1 WHERE id = $2', [new_quantity, variant_id]);
+
+      
+      await pool.query(
+        `INSERT INTO inventory_logs (variant_id, type, quantity, note, business_id, branch_id, recorded_by, recorded_by_type) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          variant_id,
+          type,
+          quantity_change,
+          notes || reason,
+          business_id,
+          variantRes.rows[0].branch_id,
+          recorded_by,
+          recorded_by_type
+        ]
+      );
+
+      
+      await StockNotificationService.checkLowStock(variant_id, business_id);
+      await StockNotificationService.checkOutOfStock(variant_id, business_id);
+
+     
+      await AuditService.logStockAction(
+        'adjustment',
+        variant_id,
+        business_id,
+        req.user,
+        { old_quantity, new_quantity, quantity_change, reason, type },
+        req
+      );
+
+      results.push({
+        variant_id,
+        message: 'Stock adjusted',
+        old_quantity,
+        new_quantity,
+        quantity_change
+      });
+    }
+
+    return res.status(200).json({ results });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
@@ -487,66 +734,14 @@ exports.getStockMovementsByVariant = async (req, res) => {
 };
 
 
-exports.deleteStockMovement = async (req, res) => {
-  try {
-    const { id } = req.params;
-    await pool.query('DELETE FROM inventory_logs WHERE id = $1', [id]);
-    return res.status(200).json({ message: 'Stock movement deleted.' });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
-  }
-};
 
-
-exports.getLowStock = async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM variants WHERE quantity <= threshold AND quantity > 0');
-    return res.status(200).json({ variants: result.rows });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
-  }
-};
-
-
-exports.getOutOfStock = async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM variants WHERE quantity = 0');
-    return res.status(200).json({ variants: result.rows });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
-  }
-};
-
-
-exports.getExpiredStock = async (req, res) => {
-  try {
-    const now = new Date();
-    const result = await pool.query('SELECT * FROM variants WHERE expiry_date IS NOT NULL AND expiry_date < $1', [now]);
-    return res.status(200).json({ variants: result.rows });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
-  }
-};
-
-
-exports.getRecentlyRestocked = async (req, res) => {
-  try {
-    const result = await pool.query("SELECT v.*, l.created_at AS restocked_at FROM variants v JOIN inventory_logs l ON v.id = l.variant_id WHERE l.type = 'restock' ORDER BY l.created_at DESC LIMIT 20");
-    return res.status(200).json({ variants: result.rows });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
-  }
-};
 
 
 exports.getFastMoving = async (req, res) => {
   try {
-    const result = await pool.query("SELECT variant_id, SUM(quantity) as total_sold FROM inventory_logs WHERE type = 'sale' AND created_at > NOW() - INTERVAL '30 days' GROUP BY variant_id ORDER BY total_sold DESC LIMIT 20");
+    const business_id = req.user?.business_id;
+    if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
+    const result = await pool.query("SELECT variant_id, SUM(quantity) as total_sold FROM inventory_logs WHERE type = 'sale' AND business_id = $1 AND created_at > NOW() - INTERVAL '30 days' GROUP BY variant_id ORDER BY total_sold DESC LIMIT 20", [business_id]);
     return res.status(200).json({ fast_moving: result.rows });
   } catch (err) {
     console.error(err);
@@ -557,7 +752,9 @@ exports.getFastMoving = async (req, res) => {
 
 exports.getSlowMoving = async (req, res) => {
   try {
-    const result = await pool.query("SELECT variant_id, SUM(quantity) as total_sold FROM inventory_logs WHERE type = 'sale' AND created_at > NOW() - INTERVAL '30 days' GROUP BY variant_id ORDER BY total_sold ASC LIMIT 20");
+    const business_id = req.user?.business_id;
+    if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
+    const result = await pool.query("SELECT variant_id, SUM(quantity) as total_sold FROM inventory_logs WHERE type = 'sale' AND business_id = $1 AND created_at > NOW() - INTERVAL '30 days' GROUP BY variant_id ORDER BY total_sold ASC LIMIT 20", [business_id]);
     return res.status(200).json({ slow_moving: result.rows });
   } catch (err) {
     console.error(err);
@@ -568,12 +765,13 @@ exports.getSlowMoving = async (req, res) => {
 
 exports.getNotifications = async (req, res) => {
   try {
+    const business_id = req.user?.business_id;
+    if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     const { limit = 50 } = req.query;
     const notifications = await StockNotificationService.getUnreadNotifications(
-      req.user?.business_id, 
+      business_id, 
       parseInt(limit)
     );
-
     return res.status(200).json({ notifications });
   } catch (err) {
     console.error(err);
@@ -583,10 +781,12 @@ exports.getNotifications = async (req, res) => {
 
 exports.markNotificationAsRead = async (req, res) => {
   try {
+    const business_id = req.user?.business_id;
+    if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     const { id } = req.params;
     const user_id = req.user?.staff_id || req.user?.id;
-
-    await StockNotificationService.markAsRead(id, user_id);
+    // Optionally, you can check if the notification belongs to the business_id before marking as read
+    await StockNotificationService.markAsRead(id, user_id, business_id);
     return res.status(200).json({ message: 'Notification marked as read.' });
   } catch (err) {
     console.error(err);
@@ -596,8 +796,119 @@ exports.markNotificationAsRead = async (req, res) => {
 
 exports.getNotificationStats = async (req, res) => {
   try {
-    const stats = await StockNotificationService.getNotificationStats(req.user?.business_id);
+    const business_id = req.user?.business_id;
+    if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
+    const stats = await StockNotificationService.getNotificationStats(business_id);
     return res.status(200).json({ stats });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+
+// Get stock movement logs for a specific variant
+exports.getStockMovementsByVariant = async (req, res) => {
+  try {
+    const business_id = req.user?.business_id;
+    const { id } = req.params;
+    if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
+    if (!id) return res.status(400).json({ message: 'Variant ID is required.' });
+    const logs = await pool.query(
+      'SELECT * FROM inventory_logs WHERE business_id = $1 AND variant_id = $2 ORDER BY created_at DESC',
+      [business_id, id]
+    );
+    return res.status(200).json({ logs: logs.rows });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// Delete a stock movement log
+exports.deleteStockMovement = async (req, res) => {
+  try {
+    const business_id = req.user?.business_id;
+    const { id } = req.params;
+    if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
+    if (!id) return res.status(400).json({ message: 'Log ID is required.' });
+    // Optionally, check if the log belongs to the business
+    const logRes = await pool.query('DELETE FROM inventory_logs WHERE id = $1 AND business_id = $2 RETURNING *', [id, business_id]);
+    if (logRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Stock movement log not found.' });
+    }
+    return res.status(200).json({ message: 'Stock movement deleted.' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// Get low stock items
+exports.getLowStock = async (req, res) => {
+  try {
+    const business_id = req.user?.business_id;
+    if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
+    const result = await pool.query(
+      'SELECT * FROM variants WHERE business_id = $1 AND quantity <= threshold AND deleted_at IS NULL ORDER BY quantity ASC',
+      [business_id]
+    );
+    return res.status(200).json({ low_stock: result.rows });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// Get out of stock items
+exports.getOutOfStock = async (req, res) => {
+  try {
+    const business_id = req.user?.business_id;
+    if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
+    const result = await pool.query(
+      'SELECT * FROM variants WHERE business_id = $1 AND quantity = 0 AND deleted_at IS NULL ORDER BY updated_at DESC',
+      [business_id]
+    );
+    return res.status(200).json({ out_of_stock: result.rows });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// Get expired stock
+exports.getExpiredStock = async (req, res) => {
+  try {
+    const business_id = req.user?.business_id;
+    if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
+    const today = new Date().toISOString().split('T')[0];
+    const result = await pool.query(
+      'SELECT * FROM variants WHERE business_id = $1 AND expiry_date IS NOT NULL AND expiry_date < $2 AND deleted_at IS NULL ORDER BY expiry_date ASC',
+      [business_id, today]
+    );
+    return res.status(200).json({ expired_stock: result.rows });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// Get recently restocked items
+exports.getRecentlyRestocked = async (req, res) => {
+  try {
+    const business_id = req.user?.business_id;
+    if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
+    // Get variants with recent restock logs (last 7 days)
+    const result = await pool.query(
+      `SELECT v.* FROM variants v
+        JOIN inventory_logs il ON v.id = il.variant_id
+        WHERE il.business_id = $1 AND il.type = 'restock' AND il.created_at > NOW() - INTERVAL '7 days'
+        AND v.deleted_at IS NULL
+        GROUP BY v.id
+        ORDER BY MAX(il.created_at) DESC`,
+      [business_id]
+    );
+    return res.status(200).json({ recently_restocked: result.rows });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });

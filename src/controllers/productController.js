@@ -447,19 +447,19 @@ exports.createProductWithVariants = async (req, res) => {
     }
 
     
+
     let createdVariants = [];
     let inventoryLogs = [];
+    const prod_business_id = product.business_id;
+    const prod_recorded_by = req.user?.staff_id || req.user?.id;
+    const prod_recorded_by_type = req.user.staff_id ? 'staff' : 'user';
 
     for (let i = 0; i < finalVariants.length; i++) {
       const v = finalVariants[i];
-
-    
       const skuCheck = await pool.query("SELECT 1 FROM variants WHERE sku = $1", [v.sku]);
       if (skuCheck.rows.length > 0) {
         return res.status(409).json({ message: `SKU ${v.sku} already exists.` });
       }
-
-      
       let attrArr = [];
       for (const [attrName, val] of Object.entries(v.attributes || {})) {
         const attr = attributeMatrix.find((a) => a.name === attrName);
@@ -475,11 +475,8 @@ exports.createProductWithVariants = async (req, res) => {
           }
         }
       }
-
-     
       const fileKey = `variants[${i}][image_url]`;
       const variantFiles = (req.files || []).filter(f => f.fieldname === fileKey);
-
       let variantImages = [];
       if (variantFiles.length > 0) {
         variantImages = await uploadFilesToCloudinary(variantFiles);
@@ -489,8 +486,6 @@ exports.createProductWithVariants = async (req, res) => {
         variantImages = productImages;
       }
       variantImages = [...new Set(variantImages)];
-
-     
       const variantResult = await pool.query(
         `INSERT INTO variants 
           (product_id, attributes, cost_price, selling_price, quantity, threshold, sku, image_url, expiry_date, barcode) 
@@ -508,34 +503,30 @@ exports.createProductWithVariants = async (req, res) => {
           v.barcode || null
         ]
       );
-
       const variant = variantResult.rows[0];
       createdVariants.push(variant);
-
-     
       if (variant.quantity > 0) {
         inventoryLogs.push([
           variant.id,
           'restock',
           variant.quantity,
-          'Initial stock on variant creation'
+          'Initial stock on variant creation',
+          prod_business_id,
+           prod_recorded_by,
+          prod_recorded_by_type
         ]);
       }
     }
-
-   
     if (inventoryLogs.length > 0) {
       const valuesPlaceholders = inventoryLogs
         .map(
           (_, idx) =>
-            `($${idx * 4 + 1}, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4})`
+           `($${idx * 7 + 1}, $${idx * 7 + 2}, $${idx * 7 + 3}, $${idx * 7 + 4}, $${idx * 7 + 5}, $${idx * 7 + 6}, $${idx * 7 + 7})`
         )
         .join(', ');
-
       const flatValues = inventoryLogs.flat();
-
       await pool.query(
-        `INSERT INTO inventory_logs (variant_id, type, quantity, note) VALUES ${valuesPlaceholders}`,
+        `INSERT INTO inventory_logs (variant_id, type, quantity, note, business_id, recorded_by, recorded_by_type) VALUES ${valuesPlaceholders}`,
         flatValues
       );
     }

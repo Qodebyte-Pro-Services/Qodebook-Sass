@@ -74,18 +74,22 @@ exports.generateVariants = async (req, res) => {
     }
 
     const inserted = [];
-    const inventoryLogs = []; 
+    const inventoryLogs = [];
+   
+    let business_id = null;
+    const recorded_by = req.user?.staff_id || req.user?.user_id;
+    const recorded_by_type = req.user?.staff_id ? 'staff' : 'user';
+    const productRes = await pool.query('SELECT * FROM products WHERE id = $1', [product_id]);
+    if (productRes.rows.length > 0) {
+      business_id = productRes.rows[0].business_id;
+    }
 
     for (let i = 0; i < variants.length; i++) {
       const v = variants[i];
-
-     
       const skuCheck = await pool.query('SELECT 1 FROM variants WHERE sku = $1', [v.sku]);
       if (skuCheck.rows.length > 0) {
         return res.status(409).json({ message: `SKU ${v.sku} already exists.` });
       }
-
-      
       const attrComboCheck = await pool.query(
         'SELECT 1 FROM variants WHERE product_id = $1 AND attributes = $2',
         [product_id, JSON.stringify(v.attributes || {})]
@@ -93,11 +97,8 @@ exports.generateVariants = async (req, res) => {
       if (attrComboCheck.rows.length > 0) {
         return res.status(409).json({ message: 'Variant with this attribute combination already exists.' });
       }
-
-      
       const fileKey = `variants[${i}][image_url]`;
       const variantFiles = (req.files || []).filter(f => f.fieldname === fileKey);
-
       let variantImages = [];
       if (variantFiles.length > 0) {
         variantImages = await uploadFilesToCloudinary(variantFiles);
@@ -105,8 +106,6 @@ exports.generateVariants = async (req, res) => {
         variantImages = Array.isArray(v.image_url) ? v.image_url : [v.image_url];
       }
       variantImages = [...new Set(variantImages)];
-
-      
       const result = await pool.query(
         `INSERT INTO variants 
           (product_id, attributes, cost_price, selling_price, quantity, threshold, sku, image_url, expiry_date, barcode, custom_price) 
@@ -127,34 +126,30 @@ exports.generateVariants = async (req, res) => {
           v.custom_price || null
         ]
       );
-
       const variant = result.rows[0];
       inserted.push(variant);
-
-      
       if (variant.quantity > 0) {
         inventoryLogs.push([
           variant.id,
           'restock',
           variant.quantity,
-          'Initial stock on variant creation'
+          'Initial stock on variant creation',
+          business_id,
+         recorded_by,
+         recorded_by_type
         ]);
       }
     }
-
-   
     if (inventoryLogs.length > 0) {
       const placeholders = inventoryLogs
-        .map(
-          (_, idx) =>
-            `($${idx * 4 + 1}, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4})`
-        )
-        .join(', ');
-
+         .map(
+    (_, idx) =>
+      `($${idx * 7 + 1}, $${idx * 7 + 2}, $${idx * 7 + 3}, $${idx * 7 + 4}, $${idx * 7 + 5}, $${idx * 7 + 6}, $${idx * 7 + 7})`
+  )
+  .join(', ');
       const flatValues = inventoryLogs.flat();
-
       await pool.query(
-        `INSERT INTO inventory_logs (variant_id, type, quantity, note) VALUES ${placeholders}`,
+        `INSERT INTO inventory_logs (variant_id, type, quantity, note, business_id, recorded_by, recorded_by_type) VALUES ${placeholders}`,
         flatValues
       );
     }

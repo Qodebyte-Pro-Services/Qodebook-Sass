@@ -1,4 +1,5 @@
 
+
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middlewares/authMiddleware');
@@ -7,7 +8,80 @@ const stockController = require('../controllers/stockController');
  * @swagger
  * /api/stock/adjust:
  *   post:
- *     summary: Manually adjust stock for a variant
+ *     summary: Manually adjust stock for one or more variants
+ *     tags: [Stock]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             oneOf:
+ *               - type: object
+ *                 properties:
+ *                   adjustments:
+ *                     type: array
+ *                     items:
+ *                       type: object
+ *                       properties:
+ *                         variant_id:
+ *                           type: integer
+ *                         new_quantity:
+ *                           type: integer
+ *                         type:
+ *                           type: string
+ *                           enum: [adjustment, damage, return]
+ *                         reason:
+ *                           type: string
+ *                         notes:
+ *                           type: string
+ *               - type: object
+ *                 properties:
+ *                   variant_id:
+ *                     type: integer
+ *                   new_quantity:
+ *                     type: integer
+ *                   type:
+ *                     type: string
+ *                     enum: [adjustment, damage, return]
+ *                   reason:
+ *                     type: string
+ *                   notes:
+ *                     type: string
+ *     responses:
+ *       200:
+ *         description: Stock adjusted (batch or single)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 results:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       variant_id:
+ *                         type: integer
+ *                       message:
+ *                         type: string
+ *                       old_quantity:
+ *                         type: integer
+ *                       new_quantity:
+ *                         type: integer
+ *                       quantity_change:
+ *                         type: integer
+ *                       error:
+ *                         type: string
+ */
+router.post('/adjust', authenticateToken, stockController.adjustStock);
+
+/**
+ * @swagger
+ * /api/stock/create-supply-order:
+ *   post:
+ *     summary: Create a supply order for one or more variants
  *     tags: [Stock]
  *     security:
  *       - bearerAuth: []
@@ -18,26 +92,136 @@ const stockController = require('../controllers/stockController');
  *           schema:
  *             type: object
  *             properties:
- *               variant_id:
- *                 type: integer
- *               new_quantity:
- *                 type: integer
- *               type:
+ *               variants:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     variant_id:
+ *                       type: integer
+ *                     quantity:
+ *                       type: integer
+ *                     cost_price:
+ *                       type: number
+ *               note:
  *                 type: string
- *                 enum: [adjustment, transfer, damage, return]
- *               reason:
+ *               supplier_id:
+ *                 type: integer
+ *               expected_delivery_date:
  *                 type: string
+ *                 format: date
+ *               supply_order_date:
+ *                 type: string
+ *                 format: date
+ *               supply_status:
+ *                 type: string
+ *                 enum: [awaiting_payment, paid, delivered, cancelled]
+ *     responses:
+ *       201:
+ *         description: Supply order created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 supply_order:
+ *                   type: object
+ *                 items:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       variant_id:
+ *                         type: integer
+ *                       quantity:
+ *                         type: integer
+ *                       cost_price:
+ *                         type: number
+ */
+
+router.post('/create-supply-order', authenticateToken, stockController.createSupplyOrder);
+/**
+ * @swagger
+ * /api/stock/get-supply-orders:
+ *   get:
+ *     summary: Get all supply orders for the authenticated business
+ *     tags: [Stock]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Stock adjusted
+ *         description: List of supply orders
  */
-router.post('/adjust', authenticateToken, stockController.adjustStock);
+router.get('/get-supply-orders', authenticateToken, stockController.getSupplyOrders);
+/**
+ * @swagger
+ * /api/stock/get-supply-order:
+ *   get:
+ *     summary: Get a specific supply order by ID
+ *     tags: [Stock]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: supply_order_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Supply order details
+ */
+router.get('/get-supply-order', authenticateToken, stockController.getSupplyOrder);
+/**
+ * @swagger
+ * /api/stock/supply-status:
+ *   post:
+ *     summary: Update supply status for a supply entry
+ *     tags: [Stock]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               supply_entry_id:
+ *                 type: integer
+ *               supply_status:
+ *                 type: string
+ *                 enum: [awaiting_payment, paid, delivered, cancelled]
+ *     responses:
+ *       200:
+ *         description: Supply status updated
+ */
+router.post('/supply-status', authenticateToken, stockController.updateSupplyStatus);
+
+/**
+ *  @swagger
+ * /api/stock/delete-supply-order:
+ *  delete:
+ * summary: Delete a supply order
+ * tags: [Stock]
+ * security:
+ *  - bearerAuth: []
+ * parameters:
+ * - in: query
+ * name: supply_order_id
+ * required: true
+ * schema:
+ * 
+ */
+router.delete('/delete-supply-order', authenticateToken, stockController.deleteSupplyOrder);
 
 /**
  * @swagger
  * /api/stock/history:
  *   get:
- *     summary: Get full stock movement history for a variant
+ *     summary: Get full stock movement history (filterable by business, branch, variant, type, date)
  *     tags: [Stock]
  *     security:
  *       - bearerAuth: []
@@ -46,59 +230,142 @@ router.post('/adjust', authenticateToken, stockController.adjustStock);
  *         name: variant_id
  *         schema:
  *           type: integer
- *         required: true
- *         description: Variant ID
+ *         description: Variant ID (optional)
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: integer
+ *         description: Branch ID (optional)
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *         description: Movement type (optional)
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date (optional)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date (optional)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Limit (optional)
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Offset (optional)
  *     responses:
  *       200:
- *         description: Stock movement history
+ *         description: Stock movement history (filtered by business_id and optionally branch_id)
  */
 router.get('/history', authenticateToken, stockController.getStockHistory);
 
-/**
- * @swagger
- * /api/stock/restock:
- *   post:
- *     summary: Restock a variant
- *     tags: [Stock]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               variant_id:
- *                 type: integer
- *               quantity:
- *                 type: integer
- *               cost_price:
- *                 type: number
- *               expiry_date:
- *                 type: string
- *                 format: date
- *               note:
- *                 type: string
- *               supplier_id:
- *                 type: integer
- *     responses:
- *       200:
- *         description: Variant restocked
- */
-router.post('/restock', authenticateToken, stockController.restockVariant);
+// /**
+//  * @swagger
+//  * /api/stock/restock:
+//  *   post:
+//  *     summary: Restock one or more variants
+//  *     tags: [Stock]
+//  *     security:
+//  *       - bearerAuth: []
+//  *     requestBody:
+//  *       required: true
+//  *       content:
+//  *         application/json:
+//  *           schema:
+//  *             oneOf:
+//  *               - type: object
+//  *                 properties:
+//  *                   variants:
+//  *                     type: array
+//  *                     items:
+//  *                       type: object
+//  *                       properties:
+//  *                         variant_id:
+//  *                           type: integer
+//  *                         quantity:
+//  *                           type: integer
+//  *                         cost_price:
+//  *                           type: number
+//  *                   note:
+//  *                     type: string
+//  *                   supplier_id:
+//  *                     type: integer
+//  *                   expected_delivery_date:
+//  *                     type: string
+//  *                     format: date
+//  *                   supply_order_date:
+//  *                     type: string
+//  *                     format: date
+//  *                   supply_status:
+//  *                     type: string
+//  *                     enum: [awaiting_payment, paid, delivered, cancelled]
+//  *               - type: object
+//  *                 properties:
+//  *                   variant_id:
+//  *                     type: integer
+//  *                   quantity:
+//  *                     type: integer
+//  *                   cost_price:
+//  *                     type: number
+//  *                   note:
+//  *                     type: string
+//  *                   supplier_id:
+//  *                     type: integer
+//  *                   expected_delivery_date:
+//  *                     type: string
+//  *                     format: date
+//  *                   supply_order_date:
+//  *                     type: string
+//  *                     format: date
+//  *                   supply_status:
+//  *                     type: string
+//  *                     enum: [awaiting_payment, paid, delivered, cancelled]
+//  *     responses:
+//  *       200:
+//  *         description: Restock results (batch or single)
+//  *         content:
+//  *           application/json:
+//  *             schema:
+//  *               type: object
+//  *               properties:
+//  *                 results:
+//  *                   type: array
+//  *                   items:
+//  *                     type: object
+//  *                     properties:
+//  *                       variant_id:
+//  *                         type: integer
+//  *                       message:
+//  *                         type: string
+//  *                       error:
+//  *                         type: string
+//  *                       old_quantity:
+//  */
+// router.post('/restock', authenticateToken, stockController.restockVariant);
 
 /**
  * @swagger
  * /api/stock/movement:
  *   get:
- *     summary: Get all stock movement logs
+ *     summary: Get all stock movement logs for the authenticated business
  *     tags: [Stock]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Stock movement logs
+ *         description: Stock movement logs (filtered by business_id)
  */
 router.get('/movement', authenticateToken, stockController.getStockMovements);
 
@@ -204,13 +471,13 @@ router.get('/status/recent', authenticateToken, stockController.getRecentlyResto
  * @swagger
  * /api/stock/status/fast-moving:
  *   get:
- *     summary: Get fast-moving items
+ *     summary: Get fast-moving items for the authenticated business
  *     tags: [Stock]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Fast-moving items
+ *         description: Fast-moving items (filtered by business_id)
  */
 router.get('/status/fast-moving', authenticateToken, stockController.getFastMoving);
 
@@ -218,13 +485,13 @@ router.get('/status/fast-moving', authenticateToken, stockController.getFastMovi
  * @swagger
  * /api/stock/status/slow-moving:
  *   get:
- *     summary: Get slow-moving items
+ *     summary: Get slow-moving items for the authenticated business
  *     tags: [Stock]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Slow-moving items
+ *         description: Slow-moving items (filtered by business_id)
  */
 router.get('/status/slow-moving', authenticateToken, stockController.getSlowMoving);
 
@@ -341,7 +608,7 @@ router.get('/analytics', authenticateToken, stockController.getStockAnalytics);
  * @swagger
  * /api/stock/notifications:
  *   get:
- *     summary: Get unread stock notifications
+ *     summary: Get unread stock notifications for the authenticated business
  *     tags: [Stock]
  *     security:
  *       - bearerAuth: []
@@ -354,7 +621,7 @@ router.get('/analytics', authenticateToken, stockController.getStockAnalytics);
  *         description: Number of notifications to return
  *     responses:
  *       200:
- *         description: Unread notifications
+ *         description: Unread notifications (filtered by business_id)
  */
 router.get('/notifications', authenticateToken, stockController.getNotifications);
 
@@ -362,7 +629,7 @@ router.get('/notifications', authenticateToken, stockController.getNotifications
  * @swagger
  * /api/stock/notifications/{id}/read:
  *   post:
- *     summary: Mark notification as read
+ *     summary: Mark notification as read (for the authenticated business)
  *     tags: [Stock]
  *     security:
  *       - bearerAuth: []
@@ -375,7 +642,7 @@ router.get('/notifications', authenticateToken, stockController.getNotifications
  *         description: Notification ID
  *     responses:
  *       200:
- *         description: Notification marked as read
+ *         description: Notification marked as read (filtered by business_id)
  */
 router.post('/notifications/:id/read', authenticateToken, stockController.markNotificationAsRead);
 
@@ -383,13 +650,13 @@ router.post('/notifications/:id/read', authenticateToken, stockController.markNo
  * @swagger
  * /api/stock/notifications/stats:
  *   get:
- *     summary: Get notification statistics
+ *     summary: Get notification statistics for the authenticated business
  *     tags: [Stock]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Notification statistics
+ *         description: Notification statistics (filtered by business_id)
  */
 router.get('/notifications/stats', authenticateToken, stockController.getNotificationStats);
 
