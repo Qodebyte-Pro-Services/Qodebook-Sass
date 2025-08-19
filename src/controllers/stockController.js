@@ -474,7 +474,7 @@ exports.createSupplyOrder = async (req, res) => {
 
 exports.updateSupplyStatus = async (req, res) => {
   try {
-    const {business_id, supply_order_id, supply_status } = req.body;
+    const { business_id, supply_order_id, supply_status } = req.body;
     
     if (!supply_order_id || !supply_status) {
       return res.status(400).json({ message: 'supply_order_id and supply_status are required.' });
@@ -485,7 +485,7 @@ exports.updateSupplyStatus = async (req, res) => {
       return res.status(400).json({ message: 'Invalid supply_status.' });
     }
 
-  
+   
     const orderRes = await pool.query(
       'SELECT * FROM supply_orders WHERE id = $1 AND business_id = $2',
       [supply_order_id, business_id]
@@ -493,7 +493,6 @@ exports.updateSupplyStatus = async (req, res) => {
     if (orderRes.rows.length === 0) {
       return res.status(404).json({ message: 'Supply order not found.' });
     }
-    const order = orderRes.rows[0];
 
     const itemsRes = await pool.query(
       'SELECT * FROM supply_order_items WHERE supply_order_id = $1',
@@ -509,21 +508,28 @@ exports.updateSupplyStatus = async (req, res) => {
       for (const item of items) {
         const variantRes = await pool.query('SELECT * FROM variants WHERE id = $1', [item.variant_id]);
         if (variantRes.rows.length === 0) continue;
-        const variant = variantRes.rows[0];
 
-        const newQty = variant.quantity + item.quantity;
+        const variant = variantRes.rows[0];
+        const old_quantity = variant.quantity;
+        const new_quantity = old_quantity + item.quantity;
+        const quantity_change = item.quantity;
+        const reason = 'increase';
         const newCostPrice = item.cost_price !== variant.cost_price ? item.cost_price : variant.cost_price;
 
+       
         await pool.query('UPDATE variants SET quantity = $1, cost_price = $2 WHERE id = $3',
-          [newQty, newCostPrice, variant.id]);
+          [new_quantity, newCostPrice, variant.id]);
 
+       
         await pool.query(
-          `INSERT INTO inventory_logs (variant_id, type, quantity, note, business_id, branch_id, recorded_by, recorded_by_type) 
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+          `INSERT INTO inventory_logs 
+           (variant_id, type, quantity, reason, note, business_id, branch_id, recorded_by, recorded_by_type) 
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
           [
             variant.id,
-            'restock',
-            item.quantity,
+            'restock', 
+            quantity_change,
+            reason, 
             `Supply delivered (order ID: ${supply_order_id})`,
             business_id,
             variant.branch_id || null,
@@ -534,7 +540,7 @@ exports.updateSupplyStatus = async (req, res) => {
       }
     }
 
-   
+    // Update the supply order status
     const updated = await pool.query(
       'UPDATE supply_orders SET supply_status = $1 WHERE id = $2 RETURNING *',
       [supply_status, supply_order_id]
@@ -547,6 +553,7 @@ exports.updateSupplyStatus = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+
 
 
 
@@ -678,8 +685,7 @@ exports.adjustStock = async (req, res) => {
       adjList = [{
         variant_id: req.body.variant_id,
         new_quantity: req.body.new_quantity,
-        reason: req.body.reason,
-        type: req.body.type,
+        reason: req.body.reason, 
         notes: req.body.notes
       }];
     } else {
@@ -689,10 +695,10 @@ exports.adjustStock = async (req, res) => {
     const results = [];
 
     for (const adj of adjList) {
-      const { variant_id, new_quantity, reason, type, notes } = adj;
+      const { variant_id, new_quantity, reason, notes } = adj;
 
-      if (!variant_id || typeof new_quantity !== 'number' || !reason || !type) {
-        results.push({ variant_id, error: 'variant_id, new_quantity, type, and reason are required.' });
+      if (!variant_id || typeof new_quantity !== 'number' || !reason) {
+        results.push({ variant_id, error: 'variant_id, new_quantity, and reason are required.' });
         continue;
       }
 
@@ -708,13 +714,15 @@ exports.adjustStock = async (req, res) => {
       await pool.query('UPDATE variants SET quantity = $1 WHERE id = $2', [new_quantity, variant_id]);
 
       await pool.query(
-        `INSERT INTO inventory_logs (variant_id, type, quantity, note, business_id, branch_id, recorded_by, recorded_by_type) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        `INSERT INTO inventory_logs 
+         (variant_id, type, quantity, reason, note, business_id, branch_id, recorded_by, recorded_by_type) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [
           variant_id,
-          type,
-          quantity_change,
-          notes || reason,
+          'adjustment',               
+          quantity_change,           
+          reason,                    
+          notes || null,              
           business_id,
           branch_id,
           recorded_by,
@@ -730,7 +738,7 @@ exports.adjustStock = async (req, res) => {
         variant_id,
         business_id,
         req.user,
-        { old_quantity, new_quantity, quantity_change, reason, type },
+        { old_quantity, new_quantity, quantity_change, reason },
         req
       );
 
@@ -749,6 +757,7 @@ exports.adjustStock = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+
 
 
 

@@ -32,11 +32,9 @@ const { STOCK_PERMISSIONS } = require('../constants/permissions');
  *                           type: integer
  *                         new_quantity:
  *                           type: integer
- *                         type:
- *                           type: string
- *                           enum: [adjustment, damage, return]
  *                         reason:
  *                           type: string
+ *                           description: Reason for stock adjustment (e.g., 'increase' or 'decrease')
  *                         notes:
  *                           type: string
  *               - type: object
@@ -45,11 +43,9 @@ const { STOCK_PERMISSIONS } = require('../constants/permissions');
  *                     type: integer
  *                   new_quantity:
  *                     type: integer
- *                   type:
- *                     type: string
- *                     enum: [adjustment, damage, return]
  *                   reason:
  *                     type: string
+ *                     description: Reason for stock adjustment (e.g., 'increase' or 'decrease')
  *                   notes:
  *                     type: string
  *     responses:
@@ -79,6 +75,7 @@ const { STOCK_PERMISSIONS } = require('../constants/permissions');
  *                         type: string
  */
 router.post('/adjust', ...requirePermission(STOCK_PERMISSIONS.ADJUST_STOCK), stockController.adjustStock);
+
 
 /**
  * @swagger

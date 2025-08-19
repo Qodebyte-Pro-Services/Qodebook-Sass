@@ -509,29 +509,34 @@ exports.createProductWithVariants = async (req, res) => {
       if (variant.quantity > 0) {
         inventoryLogs.push([
           variant.id,
-          'restock',
-          variant.quantity,
-          'Initial stock on variant creation',
-          prod_business_id,
-          branch_id,
-           prod_recorded_by,
-          prod_recorded_by_type
+    'restock',                       
+    variant.quantity,                  
+    'increase',                        
+    'Initial stock on variant creation', 
+    prod_business_id,
+    branch_id,
+    prod_recorded_by,
+    prod_recorded_by_type
         ]);
       }
     }
     if (inventoryLogs.length > 0) {
-      const valuesPlaceholders = inventoryLogs
-        .map(
-          (_, idx) =>
-           `($${idx * 8 + 1}, $${idx * 8 + 2}, $${idx * 8 + 3}, $${idx * 8 + 4}, $${idx * 8 + 5}, $${idx * 8 + 6}, $${idx * 8 + 7}, $${idx * 8 + 8})`
-        )
-        .join(', ');
-      const flatValues = inventoryLogs.flat();
-      await pool.query(
-        `INSERT INTO inventory_logs (variant_id, type, quantity, note, business_id, branch_id, recorded_by, recorded_by_type) VALUES ${valuesPlaceholders}`,
-        flatValues
-      );
-    }
+  const valuesPlaceholders = inventoryLogs
+    .map(
+      (_, idx) =>
+        `($${idx * 9 + 1}, $${idx * 9 + 2}, $${idx * 9 + 3}, $${idx * 9 + 4}, $${idx * 9 + 5}, $${idx * 9 + 6}, $${idx * 9 + 7}, $${idx * 9 + 8}, $${idx * 9 + 9})`
+    )
+    .join(', ');
+
+  const flatValues = inventoryLogs.flat();
+
+  await pool.query(
+    `INSERT INTO inventory_logs 
+     (variant_id, type, quantity, reason, note, business_id, branch_id, recorded_by, recorded_by_type) 
+     VALUES ${valuesPlaceholders}`,
+    flatValues
+  );
+}
 
     return res.status(201).json({
       message: "Product with variants created.",
