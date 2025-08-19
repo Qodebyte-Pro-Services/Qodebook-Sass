@@ -393,7 +393,7 @@ exports.getStockHistory = async (req, res) => {
 // exports.restockVariant = async (req, res) => {
 //   try {
 //     const { variants, expected_delivery_date, supply_order_date, supply_status = 'awaiting_payment', supplier_id } = req.body;
-//     const business_id = req.user?.business_id;
+//     const business_id = req.business_id;
 //     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
 
 //     let variantList = [];
@@ -625,7 +625,7 @@ exports.getSupplyOrders = async (req, res) => {
 exports.deleteSupplyOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    const business_id = req.user?.business_id;
+    const business_id = req.business_id;
 
     const orderRes = await pool.query(
       'DELETE FROM supply_orders WHERE id = $1 AND business_id = $2 RETURNING *',
@@ -647,7 +647,7 @@ exports.deleteSupplyOrder = async (req, res) => {
 
 exports.getStockMovements = async (req, res) => {
   try {
-    const business_id = req.user?.business_id;
+    const business_id = req.business_id;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     const result = await pool.query('SELECT * FROM inventory_logs WHERE business_id = $1 ORDER BY created_at DESC', [business_id]);
     return res.status(200).json({ logs: result.rows });
@@ -754,7 +754,7 @@ exports.adjustStock = async (req, res) => {
 
 exports.getFastMoving = async (req, res) => {
   try {
-    const business_id = req.user?.business_id;
+    const business_id = req.business_id;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     const result = await pool.query("SELECT variant_id, SUM(quantity) as total_sold FROM inventory_logs WHERE type = 'sale' AND business_id = $1 AND created_at > NOW() - INTERVAL '30 days' GROUP BY variant_id ORDER BY total_sold DESC LIMIT 20", [business_id]);
     return res.status(200).json({ fast_moving: result.rows });
@@ -767,7 +767,7 @@ exports.getFastMoving = async (req, res) => {
 
 exports.getSlowMoving = async (req, res) => {
   try {
-    const business_id = req.user?.business_id;
+    const business_id = req.business_id;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     const result = await pool.query("SELECT variant_id, SUM(quantity) as total_sold FROM inventory_logs WHERE type = 'sale' AND business_id = $1 AND created_at > NOW() - INTERVAL '30 days' GROUP BY variant_id ORDER BY total_sold ASC LIMIT 20", [business_id]);
     return res.status(200).json({ slow_moving: result.rows });
@@ -780,7 +780,7 @@ exports.getSlowMoving = async (req, res) => {
 
 exports.getNotifications = async (req, res) => {
   try {
-    const business_id = req.user?.business_id;
+    const business_id = req.business_id;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     const { limit = 50 } = req.query;
     const notifications = await StockNotificationService.getUnreadNotifications(
@@ -796,7 +796,7 @@ exports.getNotifications = async (req, res) => {
 
 exports.markNotificationAsRead = async (req, res) => {
   try {
-    const business_id = req.user?.business_id;
+    const business_id = req.business_id;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     const { id } = req.params;
     const user_id = req.user?.staff_id || req.user?.id;
@@ -811,7 +811,7 @@ exports.markNotificationAsRead = async (req, res) => {
 
 exports.getNotificationStats = async (req, res) => {
   try {
-    const business_id = req.user?.business_id;
+    const business_id = req.business_id;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     const stats = await StockNotificationService.getNotificationStats(business_id);
     return res.status(200).json({ stats });
@@ -825,7 +825,7 @@ exports.getNotificationStats = async (req, res) => {
 // Get stock movement logs for a specific variant
 exports.getStockMovementsByVariant = async (req, res) => {
   try {
-    const business_id = req.user?.business_id;
+    const business_id = req.business_id;
     const { id } = req.params;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     if (!id) return res.status(400).json({ message: 'Variant ID is required.' });
@@ -843,7 +843,7 @@ exports.getStockMovementsByVariant = async (req, res) => {
 // Delete a stock movement log
 exports.deleteStockMovement = async (req, res) => {
   try {
-    const business_id = req.user?.business_id;
+    const business_id = req.business_id;
     const { id } = req.params;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     if (!id) return res.status(400).json({ message: 'Log ID is required.' });
@@ -862,7 +862,7 @@ exports.deleteStockMovement = async (req, res) => {
 // Get low stock items
 exports.getLowStock = async (req, res) => {
   try {
-    const business_id = req.user?.business_id;
+    const business_id = req.business_id;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     const result = await pool.query(
       'SELECT * FROM variants WHERE business_id = $1 AND quantity <= threshold AND deleted_at IS NULL ORDER BY quantity ASC',
@@ -878,7 +878,7 @@ exports.getLowStock = async (req, res) => {
 // Get out of stock items
 exports.getOutOfStock = async (req, res) => {
   try {
-    const business_id = req.user?.business_id;
+    const business_id = req.business_id;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     const result = await pool.query(
       'SELECT * FROM variants WHERE business_id = $1 AND quantity = 0 AND deleted_at IS NULL ORDER BY updated_at DESC',
@@ -894,7 +894,7 @@ exports.getOutOfStock = async (req, res) => {
 // Get expired stock
 exports.getExpiredStock = async (req, res) => {
   try {
-    const business_id = req.user?.business_id;
+    const business_id = req.business_id;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     const today = new Date().toISOString().split('T')[0];
     const result = await pool.query(
@@ -911,7 +911,7 @@ exports.getExpiredStock = async (req, res) => {
 // Get recently restocked items
 exports.getRecentlyRestocked = async (req, res) => {
   try {
-    const business_id = req.user?.business_id;
+    const business_id = req.business_id;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     // Get variants with recent restock logs (last 7 days)
     const result = await pool.query(

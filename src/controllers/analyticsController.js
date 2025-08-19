@@ -226,7 +226,7 @@ exports.taxFlowOverTime = async (req, res) => {
 
   exports.overview = async (req, res) => {
     try {
-      const business_id = req.query.business_id || req.user?.business_id;
+      const business_id = req.query.business_id || req.business_id;
       const branch_id = req.query.branch_id;
       const date_filter = req.query.date_filter;
       const start_date = req.query.start_date;

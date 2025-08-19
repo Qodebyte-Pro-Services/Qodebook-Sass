@@ -154,7 +154,7 @@ router.post('/create-supply-order', ...requirePermission(STOCK_PERMISSIONS.RESTO
  *       200:
  *         description: List of supply orders
  */
-router.get('/get-supply-orders', authenticateToken, stockController.getSupplyOrders);
+router.get('/get-supply-orders', ...requirePermission(STOCK_PERMISSIONS.VIEW_STOCK), stockController.getSupplyOrders);
 /**
  * @swagger
  * /api/stock/get-supply-order:
@@ -173,7 +173,7 @@ router.get('/get-supply-orders', authenticateToken, stockController.getSupplyOrd
  *       200:
  *         description: Supply order details
  */
-router.get('/get-supply-order', authenticateToken, stockController.getSupplyOrder);
+router.get('/get-supply-order', ...requirePermission(STOCK_PERMISSIONS.VIEW_STOCK), stockController.getSupplyOrder);
 /**
  * @swagger
  * /api/stock/supply-status:
@@ -367,7 +367,7 @@ router.get('/history', authenticateToken, stockController.getStockHistory);
  *       200:
  *         description: Stock movement logs (filtered by business_id)
  */
-router.get('/movement', authenticateToken, stockController.getStockMovements);
+router.get('/movement', ...requirePermission(STOCK_PERMISSIONS.VIEW_STOCK), stockController.getStockMovements);
 
 /**
  * @swagger
@@ -388,7 +388,7 @@ router.get('/movement', authenticateToken, stockController.getStockMovements);
  *       200:
  *         description: Stock movement logs for variant
  */
-router.get('/movement/variant/:id', authenticateToken, stockController.getStockMovementsByVariant);
+router.get('/movement/variant/:id', ...requirePermission(STOCK_PERMISSIONS.VIEW_STOCK), stockController.getStockMovementsByVariant);
 
 /**
  * @swagger
@@ -409,7 +409,7 @@ router.get('/movement/variant/:id', authenticateToken, stockController.getStockM
  *       200:
  *         description: Stock movement deleted
  */
-router.delete('/movement/:id', authenticateToken, stockController.deleteStockMovement);
+router.delete('/movement/:id', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK), stockController.deleteStockMovement);
 
 /**
  * @swagger
@@ -423,7 +423,7 @@ router.delete('/movement/:id', authenticateToken, stockController.deleteStockMov
  *       200:
  *         description: Low stock items
  */
-router.get('/status/low', authenticateToken, stockController.getLowStock);
+router.get('/status/low', ...requirePermission(STOCK_PERMISSIONS.VIEW_STOCK), stockController.getLowStock);
 
 /**
  * @swagger
@@ -437,7 +437,7 @@ router.get('/status/low', authenticateToken, stockController.getLowStock);
  *       200:
  *         description: Out of stock items
  */
-router.get('/status/out-of-stock', authenticateToken, stockController.getOutOfStock);
+router.get('/status/out-of-stock', ...requirePermission(STOCK_PERMISSIONS.VIEW_STOCK), stockController.getOutOfStock);
 
 /**
  * @swagger
@@ -451,7 +451,7 @@ router.get('/status/out-of-stock', authenticateToken, stockController.getOutOfSt
  *       200:
  *         description: Expired stock
  */
-router.get('/status/expired', authenticateToken, stockController.getExpiredStock);
+router.get('/status/expired', ...requirePermission(STOCK_PERMISSIONS.VIEW_STOCK), stockController.getExpiredStock);
 
 /**
  * @swagger
@@ -465,7 +465,7 @@ router.get('/status/expired', authenticateToken, stockController.getExpiredStock
  *       200:
  *         description: Recently restocked items
  */
-router.get('/status/recent', authenticateToken, stockController.getRecentlyRestocked);
+router.get('/status/recent', ...requirePermission(STOCK_PERMISSIONS.VIEW_STOCK), stockController.getRecentlyRestocked);
 
 /**
  * @swagger
@@ -479,7 +479,7 @@ router.get('/status/recent', authenticateToken, stockController.getRecentlyResto
  *       200:
  *         description: Fast-moving items (filtered by business_id)
  */
-router.get('/status/fast-moving', authenticateToken, stockController.getFastMoving);
+router.get('/status/fast-moving', ...requirePermission(STOCK_PERMISSIONS.VIEW_STOCK), stockController.getFastMoving);
 
 /**
  * @swagger
@@ -493,7 +493,7 @@ router.get('/status/fast-moving', authenticateToken, stockController.getFastMovi
  *       200:
  *         description: Slow-moving items (filtered by business_id)
  */
-router.get('/status/slow-moving', authenticateToken, stockController.getSlowMoving);
+router.get('/status/slow-moving', ...requirePermission(STOCK_PERMISSIONS.VIEW_STOCK), stockController.getSlowMoving);
 
 /**
  * @swagger
@@ -623,7 +623,7 @@ router.get('/analytics', authenticateToken, stockController.getStockAnalytics);
  *       200:
  *         description: Unread notifications (filtered by business_id)
  */
-router.get('/notifications', authenticateToken, stockController.getNotifications);
+router.get('/notifications', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK), stockController.getNotifications);
 
 /**
  * @swagger
@@ -644,7 +644,7 @@ router.get('/notifications', authenticateToken, stockController.getNotifications
  *       200:
  *         description: Notification marked as read (filtered by business_id)
  */
-router.post('/notifications/:id/read', authenticateToken, stockController.markNotificationAsRead);
+router.post('/notifications/:id/read', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK), stockController.markNotificationAsRead);
 
 /**
  * @swagger
@@ -658,6 +658,6 @@ router.post('/notifications/:id/read', authenticateToken, stockController.markNo
  *       200:
  *         description: Notification statistics (filtered by business_id)
  */
-router.get('/notifications/stats', authenticateToken, stockController.getNotificationStats);
+router.get('/notifications/stats', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK), stockController.getNotificationStats);
 
 module.exports = router;
