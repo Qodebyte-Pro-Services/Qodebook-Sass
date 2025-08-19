@@ -398,26 +398,26 @@ exports.overview = async (req, res) => {
     );
 
    
-    const discountsResult = await pool.query(
-      `
-      SELECT COALESCE(SUM(d.amount), 0) + COALESCE(SUM(c.discount_amount), 0) AS total_discounts
-      FROM discounts d
-      FULL OUTER JOIN coupons c ON d.business_id = c.business_id
-      ${business_id ? "WHERE d.business_id = $1 OR c.business_id = $1" : ""}
-      `,
-      business_id ? [business_id] : []
-    );
-    const discounts = Number(discountsResult.rows[0]?.total_discounts || 0);
+const discountsResult = await pool.query(
+  `
+  SELECT COALESCE(SUM(d.amount), 0) + COALESCE(SUM(c.discount_amount), 0) AS total_discounts
+  FROM discounts d
+  FULL OUTER JOIN coupons c ON d.business_id = c.business_id::int
+  ${business_id ? "WHERE d.business_id = $1 OR c.business_id::int = $1" : ""}
+  `,
+  business_id ? [business_id] : []
+);
+const discounts = Number(discountsResult.rows[0]?.total_discounts || 0);
 
-    const taxesResult = await pool.query(
-      `
-      SELECT COALESCE(SUM(rate), 0) AS total_tax_rate
-      FROM taxes
-      ${business_id ? "WHERE business_id = $1" : ""}
-      `,
-      business_id ? [business_id] : []
-    );
-    const taxes = Number(taxesResult.rows[0]?.total_tax_rate || 0);
+const taxesResult = await pool.query(
+  `
+  SELECT COALESCE(SUM(rate), 0) AS total_tax_rate
+  FROM taxes
+  ${business_id ? "WHERE business_id::int = $1" : ""}
+  `,
+  business_id ? [business_id] : []
+);
+const taxes = Number(taxesResult.rows[0]?.total_tax_rate || 0);
 
 
     const staffSalaryExpenseResult = await pool.query(
@@ -435,41 +435,40 @@ exports.overview = async (req, res) => {
     );
 
 
-    const counts = {};
-    const tables = ["products", "staff", "customers", "services"];
-    for (const table of tables) {
-      const { clause, params } = buildWhere(
-        { business_id, branch_id },
-        table[0] + "."
-      );
-      const result = await pool.query(
-        `SELECT COUNT(*) FROM ${table} ${clause ? "WHERE TRUE" + clause : ""}`,
-        params
-      );
-      counts[table] = Number(result.rows[0]?.count || 0);
-    }
+  const counts = {};
+const tables = ["products", "staff", "customers", "services"];
+for (const table of tables) {
+  const { clause, params } = buildWhere({ business_id, branch_id }, "");
+  const result = await pool.query(
+    `SELECT COUNT(*) FROM ${table} WHERE TRUE${clause}`,
+    params
+  );
+  counts[table] = Number(result.rows[0]?.count || 0);
+}
+
+
 
   
-    const variantsCountResult = await pool.query(
-      `
-      SELECT COUNT(*)
-      FROM variants v
-      JOIN products p ON v.product_id = p.id
-      WHERE TRUE${productWhere}
-      `,
-      productParams
-    );
+   const variantsCountResult = await pool.query(
+  `
+  SELECT COUNT(*)
+  FROM variants v
+  JOIN products p ON v.product_id = p.id
+  WHERE TRUE${productWhere}
+  `,
+  productParams
+);
     const variantsCount = Number(variantsCountResult.rows[0]?.count || 0);
 
-    const variantsInStockResult = await pool.query(
-      `
-      SELECT COUNT(*)
-      FROM variants v
-      JOIN products p ON v.product_id = p.id
-      WHERE v.quantity > 0${productWhere}
-      `,
-      productParams
-    );
+  const variantsInStockResult = await pool.query(
+  `
+  SELECT COUNT(*)
+  FROM variants v
+  JOIN products p ON v.product_id = p.id
+  WHERE v.quantity > 0${productWhere}
+  `,
+  productParams
+);
     const variantsInStock = Number(variantsInStockResult.rows[0]?.count || 0);
 
     
@@ -535,21 +534,22 @@ exports.overview = async (req, res) => {
     );
 
    
-    const { clause: serviceWhere, params: serviceParams } = buildWhere(
-      { business_id, branch_id },
-      "a."
-    );
-    const serviceTrackingResult = await pool.query(
-      `
-      SELECT s.name, COUNT(a.id) as usage_count, COALESCE(SUM(s.price),0) as total_revenue
-      FROM appointments a
-      JOIN services s ON a.service_id = s.id
-      WHERE TRUE${serviceWhere}
-      GROUP BY s.name
-      ORDER BY usage_count DESC
-      `,
-      serviceParams
-    );
+ const { clause: serviceWhere, params: serviceParams } = buildWhere(
+  { business_id, branch_id },
+  "s." 
+);
+
+const serviceTrackingResult = await pool.query(
+  `
+  SELECT s.name, COUNT(a.id) as usage_count, COALESCE(SUM(s.price),0) as total_revenue
+  FROM appointments a
+  JOIN services s ON a.service_id = s.id
+  WHERE TRUE${serviceWhere}
+  GROUP BY s.name
+  ORDER BY usage_count DESC
+  `,
+  serviceParams
+);
 
     
     res.json({
