@@ -226,13 +226,22 @@ exports.taxFlowOverTime = async (req, res) => {
 
   exports.overview = async (req, res) => {
     try {
-      const business_id = req.query.business_id || req.business_id;
-      const branch_id = req.query.branch_id;
+      const business_id = req.query.business_id
+  ? parseInt(req.query.business_id, 10)
+  : req.business_id;
+
+const branch_id = req.query.branch_id
+  ? parseInt(req.query.branch_id, 10)
+  : req.branch_id;
+
       const date_filter = req.query.date_filter;
       const start_date = req.query.start_date;
       const end_date = req.query.end_date;
-     
+      
+      const params = [];
       let dateWhere = '';
+
+
       if (date_filter) {
         if (date_filter === 'today') {
           dateWhere = ` AND o.created_at::date = CURRENT_DATE`;
@@ -247,10 +256,11 @@ exports.taxFlowOverTime = async (req, res) => {
         } else if (date_filter === 'this_year') {
           dateWhere = ` AND o.created_at >= date_trunc('year', CURRENT_DATE)`;
         } else if (date_filter === 'custom' && start_date && end_date) {
-          dateWhere = ` AND o.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+          params.push(start_date, end_date);
+          dateWhere = ` AND o.created_at::date BETWEEN $${params.length - 1} AND $${params.length}`;
         }
       }
-      const params = [];
+    
       let whereBusiness = '';
       let whereBusinessBranch = '';
       if (business_id) {
