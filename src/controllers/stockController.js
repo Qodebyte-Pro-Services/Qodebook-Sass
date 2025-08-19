@@ -662,7 +662,8 @@ exports.getStockMovements = async (req, res) => {
 exports.adjustStock = async (req, res) => {
   try {
     const { adjustments } = req.body;
-    const business_id = req.user?.business_id;
+    const business_id = req.business_id;  
+    const branch_id = req.branch_id;      
     const recorded_by = req.user?.staff_id || req.user?.id;
     const recorded_by_type = req.user?.staff_id ? 'staff' : 'user';
 
@@ -670,7 +671,6 @@ exports.adjustStock = async (req, res) => {
       return res.status(400).json({ message: 'business_id is required.' });
     }
 
-    
     let adjList = [];
     if (Array.isArray(adjustments)) {
       adjList = adjustments;
@@ -696,7 +696,6 @@ exports.adjustStock = async (req, res) => {
         continue;
       }
 
-      
       const variantRes = await pool.query('SELECT * FROM variants WHERE id = $1', [variant_id]);
       if (variantRes.rows.length === 0) {
         results.push({ variant_id, error: 'Variant not found.' });
@@ -706,10 +705,8 @@ exports.adjustStock = async (req, res) => {
       const old_quantity = variantRes.rows[0].quantity;
       const quantity_change = new_quantity - old_quantity;
 
-     
       await pool.query('UPDATE variants SET quantity = $1 WHERE id = $2', [new_quantity, variant_id]);
 
-      
       await pool.query(
         `INSERT INTO inventory_logs (variant_id, type, quantity, note, business_id, branch_id, recorded_by, recorded_by_type) 
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
@@ -719,17 +716,15 @@ exports.adjustStock = async (req, res) => {
           quantity_change,
           notes || reason,
           business_id,
-          variantRes.rows[0].branch_id,
+          branch_id,
           recorded_by,
           recorded_by_type
         ]
       );
 
-      
       await StockNotificationService.checkLowStock(variant_id, business_id);
       await StockNotificationService.checkOutOfStock(variant_id, business_id);
 
-     
       await AuditService.logStockAction(
         'adjustment',
         variant_id,
@@ -754,6 +749,7 @@ exports.adjustStock = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+
 
 
 exports.getFastMoving = async (req, res) => {
