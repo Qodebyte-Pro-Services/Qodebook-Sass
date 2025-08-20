@@ -656,7 +656,19 @@ exports.getStockMovements = async (req, res) => {
   try {
     const business_id = req.business_id;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
-    const result = await pool.query('SELECT * FROM inventory_logs WHERE business_id = $1 ORDER BY created_at DESC', [business_id]);
+    const result = await pool.query(`
+      SELECT il.*, 
+        CASE 
+          WHEN il.recorded_by_type = 'staff' THEN s.full_name
+          WHEN il.recorded_by_type = 'user' THEN CONCAT(u.first_name, ' ', u.last_name)
+          ELSE NULL
+        END AS recorded_by_name
+      FROM inventory_logs il
+      LEFT JOIN staff s ON il.recorded_by_type = 'staff' AND il.recorded_by = s.staff_id
+      LEFT JOIN "user" u ON il.recorded_by_type = 'user' AND il.recorded_by = u.id
+      WHERE il.business_id = $1
+      ORDER BY il.created_at DESC
+    `, [business_id]);
     return res.status(200).json({ logs: result.rows });
   } catch (err) {
     console.error(err);
@@ -838,10 +850,19 @@ exports.getStockMovementsByVariant = async (req, res) => {
     const { id } = req.params;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     if (!id) return res.status(400).json({ message: 'Variant ID is required.' });
-    const logs = await pool.query(
-      'SELECT * FROM inventory_logs WHERE business_id = $1 AND variant_id = $2 ORDER BY created_at DESC',
-      [business_id, id]
-    );
+    const logs = await pool.query(`
+      SELECT il.*, 
+        CASE 
+          WHEN il.recorded_by_type = 'staff' THEN s.full_name
+          WHEN il.recorded_by_type = 'user' THEN CONCAT(u.first_name, ' ', u.last_name)
+          ELSE NULL
+        END AS recorded_by_name
+      FROM inventory_logs il
+      LEFT JOIN staff s ON il.recorded_by_type = 'staff' AND il.recorded_by = s.staff_id
+      LEFT JOIN "user" u ON il.recorded_by_type = 'user' AND il.recorded_by = u.id
+      WHERE il.business_id = $1 AND il.variant_id = $2
+      ORDER BY il.created_at DESC
+    `, [business_id, id]);
     return res.status(200).json({ logs: logs.rows });
   } catch (err) {
     console.error(err);
