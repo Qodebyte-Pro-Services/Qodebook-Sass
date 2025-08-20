@@ -655,7 +655,10 @@ exports.deleteSupplyOrder = async (req, res) => {
 exports.getStockMovements = async (req, res) => {
   try {
     const business_id = req.business_id;
-    if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
+    if (!business_id) {
+      return res.status(400).json({ message: 'business_id is required.' });
+    }
+
     const result = await pool.query(`
       SELECT il.*, 
         CASE 
@@ -664,17 +667,23 @@ exports.getStockMovements = async (req, res) => {
           ELSE NULL
         END AS recorded_by_name
       FROM inventory_logs il
-      LEFT JOIN staff s ON il.recorded_by_type = 'staff' AND il.recorded_by = s.staff_id
-      LEFT JOIN "user" u ON il.recorded_by_type = 'user' AND il.recorded_by = u.id
+      LEFT JOIN staff s 
+        ON il.recorded_by_type = 'staff' 
+       AND il.recorded_by::text = s.staff_id
+      LEFT JOIN users u 
+        ON il.recorded_by_type = 'user' 
+       AND il.recorded_by = u.id
       WHERE il.business_id = $1
       ORDER BY il.created_at DESC
     `, [business_id]);
+
     return res.status(200).json({ logs: result.rows });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+
 
 
 
@@ -858,11 +867,15 @@ exports.getStockMovementsByVariant = async (req, res) => {
           ELSE NULL
         END AS recorded_by_name
       FROM inventory_logs il
-      LEFT JOIN staff s ON il.recorded_by_type = 'staff' AND il.recorded_by = s.staff_id
-      LEFT JOIN "user" u ON il.recorded_by_type = 'user' AND il.recorded_by = u.id
+       LEFT JOIN staff s 
+        ON il.recorded_by_type = 'staff' 
+       AND il.recorded_by::text = s.staff_id
+      LEFT JOIN users u 
+        ON il.recorded_by_type = 'user' 
+       AND il.recorded_by = u.id
       WHERE il.business_id = $1 AND il.variant_id = $2
       ORDER BY il.created_at DESC
-    `, [business_id, id]);
+    `, [business_id, parseInt(id, 10)]);
     return res.status(200).json({ logs: logs.rows });
   } catch (err) {
     console.error(err);
