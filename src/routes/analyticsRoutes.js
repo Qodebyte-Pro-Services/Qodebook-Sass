@@ -1,3 +1,45 @@
+/**
+ * @swagger
+ * /api/finance/category-stock-distribution:
+ *   get:
+ *     summary: Get total stock distribution by product category (for pie chart)
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Business ID to filter
+ *       - in: query
+ *         name: date_filter
+ *         schema:
+ *           type: string
+ *           enum: [today, yesterday, last_7_days, this_month, this_year, custom]
+ *         description: Date filter type (optional)
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom start date (YYYY-MM-DD, required if date_filter=custom)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom end date (YYYY-MM-DD, required if date_filter=custom)
+ *     responses:
+ *       200:
+ *         description: Category stock distribution data
+ */
+router.get(
+  '/category-stock-distribution',
+  ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_STOCK_OVERVIEW),
+  controller.categoryStockDistribution
+);
 
 const express = require('express');
 const router = express.Router();

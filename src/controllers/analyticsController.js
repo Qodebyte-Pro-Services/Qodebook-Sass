@@ -1754,3 +1754,38 @@ exports.realtimeAnalytics = async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch real-time analytics.' });
   }
 };
+
+
+exports.categoryStockDistribution = async (req, res) => {
+  try {
+    const { business_id, date_filter, start_date, end_date } = req.query;
+    if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
+
+    let dateWhere = '';
+    if (date_filter) {
+      if (date_filter === 'today') dateWhere = ` AND v.updated_at::date = CURRENT_DATE`;
+      else if (date_filter === 'yesterday') dateWhere = ` AND v.updated_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+      else if (date_filter === 'last_7_days') dateWhere = ` AND v.updated_at >= CURRENT_DATE - INTERVAL '7 days'`;
+      else if (date_filter === 'this_month') dateWhere = ` AND v.updated_at >= date_trunc('month', CURRENT_DATE)`;
+      else if (date_filter === 'this_year') dateWhere = ` AND v.updated_at >= date_trunc('year', CURRENT_DATE)`;
+      else if (date_filter === 'custom' && start_date && end_date) dateWhere = ` AND v.updated_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    }
+
+    const result = await pool.query(
+      `SELECT c.id AS category_id, c.name AS category_name, 
+              COALESCE(SUM(v.quantity), 0) AS total_stock
+         FROM categories c
+         JOIN products p ON c.id = p.category_id
+         JOIN variants v ON p.id = v.product_id
+         WHERE c.business_id = $1${dateWhere}
+         GROUP BY c.id, c.name
+         ORDER BY total_stock DESC`,
+      [business_id]
+    );
+
+    res.status(200).json({ categories: result.rows });
+  } catch (err) {
+    console.error('Category stock distribution error:', err);
+    res.status(500).json({ message: 'Failed to fetch category stock distribution.' });
+  }
+};
