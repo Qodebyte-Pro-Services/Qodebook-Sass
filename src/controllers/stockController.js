@@ -893,14 +893,14 @@ exports.getStockMovementsByVariant = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 };
-// Delete a stock movement log
+
 exports.deleteStockMovement = async (req, res) => {
   try {
     const business_id = req.business_id;
     const { id } = req.params;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     if (!id) return res.status(400).json({ message: 'Log ID is required.' });
-    // Optionally, check if the log belongs to the business
+    
     const logRes = await pool.query('DELETE FROM inventory_logs WHERE id = $1 AND business_id = $2 RETURNING *', [id, business_id]);
     if (logRes.rows.length === 0) {
       return res.status(404).json({ message: 'Stock movement log not found.' });
@@ -912,13 +912,19 @@ exports.deleteStockMovement = async (req, res) => {
   }
 };
 
-// Get low stock items
+
 exports.getLowStock = async (req, res) => {
   try {
     const business_id = req.business_id;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     const result = await pool.query(
-      'SELECT * FROM variants WHERE business_id = $1 AND quantity <= threshold AND deleted_at IS NULL ORDER BY quantity ASC',
+      `SELECT v.*
+       FROM variants v
+       JOIN products p ON v.product_id = p.id
+       WHERE p.business_id = $1
+         AND v.quantity <= v.threshold
+         AND v.deleted_at IS NULL
+       ORDER BY v.quantity ASC`,
       [business_id]
     );
     return res.status(200).json({ low_stock: result.rows });
@@ -928,13 +934,20 @@ exports.getLowStock = async (req, res) => {
   }
 };
 
-// Get out of stock items
+
 exports.getOutOfStock = async (req, res) => {
   try {
     const business_id = req.business_id;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     const result = await pool.query(
-      'SELECT * FROM variants WHERE business_id = $1 AND quantity = 0 AND deleted_at IS NULL ORDER BY updated_at DESC',
+      `SELECT v.*
+       FROM variants v
+        JOIN products p ON v.product_id = p.id
+        WHERE p.business_id = $1
+          AND v.quantity = 0
+          AND v.deleted_at IS NULL
+        ORDER BY v.variant_id ASC
+      `,
       [business_id]
     );
     return res.status(200).json({ out_of_stock: result.rows });
@@ -944,7 +957,7 @@ exports.getOutOfStock = async (req, res) => {
   }
 };
 
-// Get expired stock
+
 exports.getExpiredStock = async (req, res) => {
   try {
     const business_id = req.business_id;
@@ -961,12 +974,12 @@ exports.getExpiredStock = async (req, res) => {
   }
 };
 
-// Get recently restocked items
+
 exports.getRecentlyRestocked = async (req, res) => {
   try {
     const business_id = req.business_id;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
-    // Get variants with recent restock logs (last 7 days)
+   
     const result = await pool.query(
       `SELECT v.* FROM variants v
         JOIN inventory_logs il ON v.id = il.variant_id
