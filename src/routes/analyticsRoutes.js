@@ -897,6 +897,7 @@ router.get('/sales-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISSION
 router.get('/staff-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_STAFF_OVERVIEW), controller.staffAnalytics);
 
 /**
+/**
  * @swagger
  * /api/finance/product-variant-stock-movement:
  *   get:
@@ -927,7 +928,7 @@ router.get('/staff-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISSION
  *         schema:
  *           type: string
  *           enum: [hour, day, week, month, year]
- *         description: Period to group by (default: day)
+ *         description: Period to group by eg day default, week, month, year
  *       - in: query
  *         name: start_date
  *         schema:
