@@ -829,6 +829,87 @@ const serviceTrackingResult = await pool.query(
     }
   };
 
+  exports.productVariantStockMovement = async (req, res) => {
+  try {
+    const { business_id, product_id, branch_id, period = 'day', start_date, end_date } = req.query;
+    if (!business_id) {
+      return res.status(400).json({ message: 'business_id is required' });
+    }
+    if (!product_id) {
+      return res.status(400).json({ message: 'product_id is required' });
+    }
+
+    
+    const variantsResult = await pool.query(
+      `SELECT v.id, v.sku
+       FROM variants v
+       JOIN products p ON v.product_id = p.id
+       WHERE v.product_id = $1 AND p.business_id = $2`,
+      [product_id, business_id]
+    );
+    const variants = variantsResult.rows;
+    if (variants.length === 0) {
+      return res.json({ product_id, variants: [] });
+    }
+
+    
+    let params = [product_id, business_id];
+    let idx = 3;
+    let dateSelect = `il.created_at`;
+    if (period === 'hour') dateSelect = `DATE_TRUNC('hour', il.created_at)`;
+    else if (period === 'day') dateSelect = `DATE(il.created_at)`;
+    else if (period === 'week') dateSelect = `DATE_TRUNC('week', il.created_at)`;
+    else if (period === 'month') dateSelect = `DATE_TRUNC('month', il.created_at)`;
+    else if (period === 'year') dateSelect = `DATE_TRUNC('year', il.created_at)`;
+
+    let branchWhere = '';
+    if (branch_id) {
+      branchWhere = ` AND il.branch_id = $${idx}`;
+      params.push(branch_id);
+      idx++;
+    }
+    let dateWhere = '';
+    if (start_date && end_date) {
+      dateWhere = ` AND il.created_at::date BETWEEN $${idx} AND $${idx + 1}`;
+      params.push(start_date, end_date);
+      idx += 2;
+    }
+
+    const movementResult = await pool.query(
+      `SELECT il.variant_id, v.sku, ${dateSelect} AS period, il.quantity AS movement, il.reason
+       FROM inventory_logs il
+       JOIN variants v ON il.variant_id = v.id
+       JOIN products p ON v.product_id = p.id
+       WHERE v.product_id = $1 AND p.business_id = $2${branchWhere}${dateWhere}
+       ORDER BY il.variant_id, period ASC`,
+      params
+    );
+
+   
+    const variantMap = {};
+    variants.forEach(v => {
+      variantMap[v.id] = { variant_id: v.id, sku: v.sku, flow: [] };
+    });
+    movementResult.rows.forEach(row => {
+      if (variantMap[row.variant_id]) {
+        variantMap[row.variant_id].flow.push({
+          period: row.period,
+          movement: row.movement,
+          reason: row.reason
+        });
+      }
+    });
+
+    res.json({
+      product_id,
+      variants: Object.values(variantMap)
+    });
+  } catch (err) {
+    console.error('Product variant stock movement error:', err);
+    res.status(500).json({ message: 'Failed to fetch product variant stock movement.', error: err.message });
+  }
+};
+
   exports.salesMovementAnalytics = async (req, res) => {
     try {
       const { business_id, branch_id, variant_id, product_id, period, start_date, end_date } = req.query;

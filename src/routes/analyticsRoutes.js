@@ -898,6 +898,60 @@ router.get('/staff-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISSION
 
 /**
  * @swagger
+ * /api/finance/product-variant-stock-movement:
+ *   get:
+ *     summary: Get stock movement for all variants of a product (with SKU and movement flow)
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Business ID to filter
+ *       - in: query
+ *         name: product_id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Product ID to filter
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         description: Branch ID to filter (optional)
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [hour, day, week, month, year]
+ *         description: Period to group by (default: day)
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom end date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Product variant stock movement data
+ */
+router.get(
+  '/product-variant-stock-movement',
+  ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_STOCK_MOVEMENT),
+  controller.productVariantStockMovement
+);
+
+/**
+ * @swagger
  * /api/finance/stock-movement-analytics:
  *   get:
  *     summary: Get stock movement analytics for variations across periods
