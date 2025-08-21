@@ -585,7 +585,6 @@ const serviceTrackingResult = await pool.query(
   exports.variationAnalytics = async (req, res) => {
     try {
       const business_id = req.query.business_id;
-      const branch_id = req.query.branch_id;
       const date_filter = req.query.date_filter;
       const start_date = req.query.start_date;
       const end_date = req.query.end_date;
@@ -595,11 +594,6 @@ const serviceTrackingResult = await pool.query(
       if (business_id) {
         wheres.push(`p.business_id = $${idx}`);
         params.push(business_id);
-        idx++;
-      }
-      if (branch_id) {
-        wheres.push(`p.branch_id = $${idx}`);
-        params.push(branch_id);
         idx++;
       }
       let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
@@ -659,12 +653,11 @@ const serviceTrackingResult = await pool.query(
 
   exports.productAnalytics = async (req, res) => {
     try {
-      const { business_id, branch_id, date_filter, start_date, end_date } = req.query;
+      const { business_id, date_filter, start_date, end_date } = req.query;
       let params = [];
       let wheres = [];
       let idx = 1;
       if (business_id) { wheres.push(`p.business_id = $${idx}`); params.push(business_id); idx++; }
-      if (branch_id) { wheres.push(`p.branch_id = $${idx}`); params.push(branch_id); idx++; }
       let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
       let dateWhere = '';
       if (date_filter) {
@@ -1052,82 +1045,138 @@ const serviceTrackingResult = await pool.query(
 
 exports.supplierAnalytics = async (req, res) => {
   try {
-    const { business_id, branch_id, period = 'month', start_date, end_date } = req.query;
+    const { business_id, date_filter, start_date, end_date } = req.query;
     let params = [];
     let wheres = [];
     let idx = 1;
-    if (business_id) { wheres.push(`s.business_id = $${idx}`); params.push(business_id); idx++; }
-    if (branch_id) { wheres.push(`s.branch_id = $${idx}`); params.push(branch_id); idx++; }
+    if (business_id) { wheres.push(`sos.business_id = $${idx}`); params.push(business_id); idx++; }
     let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+
     let dateWhere = '';
-    if (start_date && end_date) dateWhere = ` AND se.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
-  
+    if (date_filter) {
+      if (date_filter === 'today') dateWhere = ` AND sos.created_at::date = CURRENT_DATE`;
+      else if (date_filter === 'yesterday') dateWhere = ` AND sos.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+      else if (date_filter === 'this_week') dateWhere = ` AND sos.created_at >= date_trunc('week', CURRENT_DATE)`;
+      else if (date_filter === 'last_7_days') dateWhere = ` AND sos.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
+      else if (date_filter === 'this_month') dateWhere = ` AND sos.created_at >= date_trunc('month', CURRENT_DATE)`;
+      else if (date_filter === 'this_year') dateWhere = ` AND sos.created_at >= date_trunc('year', CURRENT_DATE)`;
+      else if (date_filter === 'custom' && start_date && end_date) dateWhere = ` AND sos.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    } else if (start_date && end_date) {
+      dateWhere = ` AND sos.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    }
+
+    
     const topSuppliersResult = await pool.query(
-      `SELECT s.id, s.name, COUNT(se.id) AS deliveries, COALESCE(SUM(se.total_cost),0) AS total_supplied
+      `SELECT s.id, s.name, COUNT(sos.id) AS deliveries, COALESCE(SUM(sos.total_cost),0) AS total_supplied
        FROM suppliers s
        LEFT JOIN supply_orders sos ON s.id = sos.supplier_id
        ${whereClause}
+       ${dateWhere}
        GROUP BY s.id, s.name
        ORDER BY total_supplied DESC
        LIMIT 10`,
       params
     );
 
-   const delayedDeliveriesResult = await pool.query(
-  `SELECT COUNT(*) AS delayed_deliveries
-   FROM supply_orders sos
-   WHERE sos.supply_status = 'paid'
-     AND sos.expected_delivery_date < CURRENT_DATE
-     ${wheres.length > 0 ? ' AND ' + wheres.join(' AND ') : ''} 
-     ${dateWhere}`,
-  params
-);
-    
-  const costPerSupplierResult = await pool.query(
-  `SELECT s.id, s.name, 
-          COALESCE(SUM(soi.quantity * soi.cost_price), 0) AS total_cost
-   FROM suppliers s
-   LEFT JOIN supply_orders sos ON s.id = sos.supplier_id
-   LEFT JOIN supply_order_items soi ON sos.id = soi.supply_order_id
-   ${whereClause}
-   GROUP BY s.id, s.name
-   ORDER BY total_cost DESC`,
-  params
-);
+   
+    const delayedDeliveriesResult = await pool.query(
+      `SELECT COUNT(*) AS delayed_deliveries
+       FROM supply_orders sos
+       WHERE sos.supply_status = 'paid'
+         AND sos.expected_delivery_date < CURRENT_DATE
+         ${wheres.length > 0 ? ' AND ' + wheres.join(' AND ') : ''}
+         ${dateWhere}`,
+      params
+    );
 
-  
-   const reliabilityResult = await pool.query(
-  `SELECT s.id, 
-          s.name,
-          COUNT(sos.id) FILTER (WHERE sos.supply_status = 'delivered') AS total_deliveries,
-          COUNT(sos.id) FILTER (
-            WHERE sos.supply_status = 'delivered' 
-              AND sos.expected_delivery_date >= sos.updated_at
-          ) AS on_time_deliveries,
-          CASE 
-            WHEN COUNT(sos.id) FILTER (WHERE sos.supply_status = 'delivered') = 0 
-            THEN 0
-            ELSE ROUND(
+   
+    const costPerSupplierResult = await pool.query(
+      `SELECT s.id, s.name,
+              COALESCE(SUM(soi.quantity * soi.cost_price), 0) AS total_cost
+       FROM suppliers s
+       LEFT JOIN supply_orders sos ON s.id = sos.supplier_id
+       LEFT JOIN supply_order_items soi ON sos.id = soi.supply_order_id
+       ${whereClause}
+       ${dateWhere}
+       GROUP BY s.id, s.name
+       ORDER BY total_cost DESC`,
+      params
+    );
+
+    
+    const reliabilityResult = await pool.query(
+      `SELECT s.id,
+              s.name,
+              COUNT(sos.id) FILTER (WHERE sos.supply_status = 'delivered') AS total_deliveries,
               COUNT(sos.id) FILTER (
-                WHERE sos.supply_status = 'delivered' 
+                WHERE sos.supply_status = 'delivered'
                   AND sos.expected_delivery_date >= sos.updated_at
-              )::decimal 
-              / COUNT(sos.id) FILTER (WHERE sos.supply_status = 'delivered') * 100, 
-            2)
-          END AS reliability_percent
-   FROM suppliers s
-   LEFT JOIN supply_orders sos ON s.id = sos.supplier_id
-   ${whereClause}
-   GROUP BY s.id, s.name
-   ORDER BY reliability_percent DESC`,
-  params
-);
+              ) AS on_time_deliveries,
+              CASE
+                WHEN COUNT(sos.id) FILTER (WHERE sos.supply_status = 'delivered') = 0
+                THEN 0
+                ELSE ROUND(
+                  COUNT(sos.id) FILTER (
+                    WHERE sos.supply_status = 'delivered'
+                      AND sos.expected_delivery_date >= sos.updated_at
+                  )::decimal
+                  / COUNT(sos.id) FILTER (WHERE sos.supply_status = 'delivered') * 100,
+                2)
+              END AS reliability_percent
+       FROM suppliers s
+       LEFT JOIN supply_orders sos ON s.id = sos.supplier_id
+       ${whereClause}
+       ${dateWhere}
+       GROUP BY s.id, s.name
+       ORDER BY reliability_percent DESC`,
+      params
+    );
+
+    
+    const activeSuppliersResult = await pool.query(
+      `SELECT COUNT(DISTINCT s.id) AS active_suppliers
+       FROM suppliers s
+       JOIN supply_orders sos ON s.id = sos.supplier_id
+       ${whereClause}
+       ${dateWhere}`,
+      params
+    );
+
+   
+    const dormantSuppliersResult = await pool.query(
+      `SELECT COUNT(*) AS dormant_suppliers
+       FROM suppliers s
+       WHERE NOT EXISTS (
+         SELECT 1 FROM supply_orders sos WHERE sos.supplier_id = s.id
+         ${business_id ? 'AND sos.business_id = $1' : ''}
+       )
+       ${business_id ? 'AND s.business_id = $1' : ''}`,
+      business_id ? [business_id] : []
+    );
+
+    
+    const supplyOrderStatsResult = await pool.query(
+      `SELECT s.id, s.name, 
+              COUNT(DISTINCT sos.id) AS supply_order_count,
+              COALESCE(SUM(soi.quantity), 0) AS total_qty_supplied
+       FROM suppliers s
+       LEFT JOIN supply_orders sos ON s.id = sos.supplier_id
+       LEFT JOIN supply_order_items soi ON sos.id = soi.supply_order_id
+       ${whereClause}
+       ${dateWhere}
+       GROUP BY s.id, s.name
+       ORDER BY supply_order_count DESC`,
+      params
+    );
 
     res.json({
       topSuppliers: topSuppliersResult.rows,
       delayedDeliveries: Number(delayedDeliveriesResult.rows[0]?.delayed_deliveries || 0),
       costPerSupplier: costPerSupplierResult.rows,
-      supplierReliability: reliabilityResult.rows
+      supplierReliability: reliabilityResult.rows,
+      activeSuppliers: Number(activeSuppliersResult.rows[0]?.active_suppliers || 0),
+      dormantSuppliers: Number(dormantSuppliersResult.rows[0]?.dormant_suppliers || 0),
+      supplyOrderStats: supplyOrderStatsResult.rows
     });
   } catch (err) {
     console.error('Supplier analytics error:', err);
@@ -1138,47 +1187,61 @@ exports.supplierAnalytics = async (req, res) => {
 
 exports.expenseAnalytics = async (req, res) => {
   try {
-    const { business_id, branch_id, period = 'month', start_date, end_date } = req.query;
+    const { business_id, branch_id, date_filter, start_date, end_date } = req.query;
     let params = [];
     let wheres = [];
     let idx = 1;
     if (business_id) { wheres.push(`e.business_id = $${idx}`); params.push(business_id); idx++; }
     if (branch_id) { wheres.push(`e.branch_id = $${idx}`); params.push(branch_id); idx++; }
     let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+
     let dateWhere = '';
-    if (start_date && end_date) dateWhere = ` AND e.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
-    
-    const monthlyTrendsResult = await pool.query(
+    if (date_filter) {
+      if (date_filter === 'today') dateWhere = ` AND e.created_at::date = CURRENT_DATE`;
+      else if (date_filter === 'yesterday') dateWhere = ` AND e.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+      else if (date_filter === 'this_week') dateWhere = ` AND e.created_at >= date_trunc('week', CURRENT_DATE)`;
+      else if (date_filter === 'last_7_days') dateWhere = ` AND e.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
+      else if (date_filter === 'this_month') dateWhere = ` AND e.created_at >= date_trunc('month', CURRENT_DATE)`;
+      else if (date_filter === 'this_year') dateWhere = ` AND e.created_at >= date_trunc('year', CURRENT_DATE)`;
+      else if (date_filter === 'custom' && start_date && end_date) dateWhere = ` AND e.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    } else if (start_date && end_date) {
+      dateWhere = ` AND e.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    }
+
+    const whereClauseWithDate = whereClause + (dateWhere ? dateWhere : '');
+
+    const monthlyExpensesResult = await pool.query(
       `SELECT DATE_TRUNC('month', e.created_at) AS month, SUM(e.amount) AS total_expense
        FROM expenses e
-       ${whereClause}${dateWhere}
+       ${whereClauseWithDate}
        GROUP BY month
        ORDER BY month DESC`,
       params
     );
-    
-    const topCategoriesResult = await pool.query(
+
+    const topExpenseCategoriesResult = await pool.query(
       `SELECT ec.name AS category, SUM(e.amount) AS total_expense
        FROM expenses e
        JOIN expense_categories ec ON e.category_id = ec.id
-       ${whereClause}${dateWhere}
+       ${whereClauseWithDate}
        GROUP BY ec.name
        ORDER BY total_expense DESC
        LIMIT 5`,
       params
     );
-   
+
     const anomalyResult = await pool.query(
       `SELECT e.id, e.amount, ec.name AS category, e.created_at
        FROM expenses e
        JOIN expense_categories ec ON e.category_id = ec.id
-       ${whereClause}${dateWhere}
+       ${whereClauseWithDate}
        AND e.amount > 2 * (SELECT AVG(amount) FROM expenses WHERE status = 'approved')`,
       params
     );
+
     res.json({
-      monthlyTrends: monthlyTrendsResult.rows,
-      topCategories: topCategoriesResult.rows,
+      monthlyExpenses: monthlyExpensesResult.rows,
+      topExpenseCategories: topExpenseCategoriesResult.rows,
       anomalies: anomalyResult.rows
     });
   } catch (err) {
@@ -1190,7 +1253,7 @@ exports.expenseAnalytics = async (req, res) => {
 
 exports.serviceAnalytics = async (req, res) => {
   try {
-    const { business_id, branch_id, period = 'month', start_date, end_date } = req.query;
+    const { business_id, branch_id, date_filter, start_date, end_date } = req.query;
     let params = [];
     let wheres = [];
     let idx = 1;
@@ -1198,7 +1261,18 @@ exports.serviceAnalytics = async (req, res) => {
     if (branch_id) { wheres.push(`s.branch_id = $${idx}`); params.push(branch_id); idx++; }
     let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
     let dateWhere = '';
-    if (start_date && end_date) dateWhere = ` AND a.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    if (date_filter) {
+      if (date_filter === 'today') dateWhere = ` AND a.created_at::date = CURRENT_DATE`;
+      else if (date_filter === 'yesterday') dateWhere = ` AND a.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+      else if (date_filter === 'this_week') dateWhere = ` AND a.created_at >= date_trunc('week', CURRENT_DATE)`;
+      else if (date_filter === 'last_7_days') dateWhere = ` AND a.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
+      else if (date_filter === 'this_month') dateWhere = ` AND a.created_at >= date_trunc('month', CURRENT_DATE)`;
+      else if (date_filter === 'this_year') dateWhere = ` AND a.created_at >= date_trunc('year', CURRENT_DATE)`;  
+      else if (date_filter === 'custom' && start_date && end_date) dateWhere = ` AND a.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    } else if (start_date && end_date) {
+      dateWhere = ` AND a.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    }
+    
     
     const usageResult = await pool.query(
       `SELECT s.id, s.name, COUNT(a.id) AS usage_count, SUM(s.price) AS total_revenue
@@ -1232,14 +1306,25 @@ exports.serviceAnalytics = async (req, res) => {
 
 exports.inventoryAnalytics = async (req, res) => {
   try {
-    const { business_id, branch_id, period = 'month', start_date, end_date } = req.query;
+    const { business_id, date_filter, start_date, end_date } = req.query;
     let params = [];
     let wheres = [];
     let idx = 1;
     if (business_id) { wheres.push(`p.business_id = $${idx}`); params.push(business_id); idx++; }
-    if (branch_id) { wheres.push(`p.branch_id = $${idx}`); params.push(branch_id); idx++; }
     let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
-   
+
+    let dateWhere = '';
+    if (date_filter) {
+      if (date_filter === 'today') dateWhere = ` AND v.created_at::date = CURRENT_DATE`;
+      else if (date_filter === 'yesterday') dateWhere = ` AND v.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+      else if (date_filter === 'this_week') dateWhere = ` AND v.created_at >= date_trunc('week', CURRENT_DATE)`;
+      else if (date_filter === 'last_7_days') dateWhere = ` AND v.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
+      else if (date_filter === 'this_month') dateWhere = ` AND v.created_at >= date_trunc('month', CURRENT_DATE)`;
+      else if (date_filter === 'this_year') dateWhere = ` AND v.created_at >= date_trunc('year', CURRENT_DATE)`;
+      else if (date_filter === 'custom' && start_date && end_date) dateWhere = ` AND v.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    }
+
+
     const turnoverResult = await pool.query(
       `SELECT p.id, p.name, COALESCE(SUM(oi.quantity),0) AS units_sold, COALESCE(SUM(v.quantity),0) AS current_stock,
         CASE WHEN SUM(v.quantity) > 0 THEN SUM(oi.quantity)::float / SUM(v.quantity) ELSE 0 END AS turnover_ratio
@@ -1251,22 +1336,24 @@ exports.inventoryAnalytics = async (req, res) => {
        ORDER BY turnover_ratio DESC`,
       params
     );
-   
+
+  
     const agingResult = await pool.query(
       `SELECT v.id, p.name AS product, v.quantity, v.created_at
        FROM variants v
        JOIN products p ON v.product_id = p.id
        ${whereClause}
-       WHERE v.quantity > 0 AND v.created_at < CURRENT_DATE - INTERVAL '180 days'`,
+       AND v.quantity > 0 AND v.created_at < CURRENT_DATE - INTERVAL '180 days'${dateWhere}`,
       params
     );
+
    
     const deadStockResult = await pool.query(
       `SELECT v.id, p.name AS product, v.quantity
        FROM variants v
        JOIN products p ON v.product_id = p.id
        ${whereClause}
-       WHERE v.quantity > 0 AND v.quantity = v.initial_quantity`,
+       AND v.quantity > 0 AND v.quantity = v.initial_quantity${dateWhere}`,
       params
     );
     res.json({
@@ -1283,47 +1370,102 @@ exports.inventoryAnalytics = async (req, res) => {
 
 exports.discountAnalytics = async (req, res) => {
   try {
-    const { business_id, branch_id, period = 'month', start_date, end_date } = req.query;
+    const { business_id, date_filter, start_date, end_date } = req.query;
     let params = [];
     let wheres = [];
     let idx = 1;
-    if (business_id) { wheres.push(`d.business_id = $${idx}`); params.push(business_id); idx++; }
-    if (branch_id) { wheres.push(`d.branch_id = $${idx}`); params.push(branch_id); idx++; }
+    if (business_id) { wheres.push(`o.business_id = $${idx}`); params.push(business_id); idx++; }
     let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+
+    let dateWhere = '';
+    if (date_filter) {
+      if (date_filter === 'today') dateWhere = ` AND o.created_at::date = CURRENT_DATE`;
+      else if (date_filter === 'yesterday') dateWhere = ` AND o.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+      else if (date_filter === 'this_week') dateWhere = ` AND o.created_at >= date_trunc('week', CURRENT_DATE)`;
+      else if (date_filter === 'last_7_days') dateWhere = ` AND o.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
+      else if (date_filter === 'this_month') dateWhere = ` AND o.created_at >= date_trunc('month', CURRENT_DATE)`;
+      else if (date_filter === 'this_year') dateWhere = ` AND o.created_at >= date_trunc('year', CURRENT_DATE)`;
+      else if (date_filter === 'custom' && start_date && end_date) dateWhere = ` AND o.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    }
+
    
     const topDiscountsResult = await pool.query(
       `SELECT d.code, COUNT(*) AS usage_count, SUM(d.amount) AS total_discount
        FROM discounts d
-       ${whereClause}
+       JOIN orders o ON d.code = o.discount_code
+       ${whereClause.replace('WHERE', 'WHERE o.status = \'completed\' AND')}
+       ${dateWhere}
        GROUP BY d.code
        ORDER BY usage_count DESC
        LIMIT 10`,
       params
     );
- 
+
+    
     const upliftResult = await pool.query(
       `SELECT d.code, SUM(o.total_amount) AS sales_uplift
        FROM discounts d
        JOIN orders o ON d.code = o.discount_code
-       ${whereClause}
+       ${whereClause.replace('WHERE', 'WHERE o.status = \'completed\' AND')}
+       ${dateWhere}
        GROUP BY d.code
        ORDER BY sales_uplift DESC`,
       params
     );
-   
+
     const redemptionResult = await pool.query(
       `SELECT d.code, COUNT(*) AS redemptions, DATE_TRUNC('month', o.created_at) AS month
        FROM discounts d
        JOIN orders o ON d.code = o.discount_code
-       ${whereClause}
+       ${whereClause.replace('WHERE', 'WHERE o.status = \'completed\' AND')}
+       ${dateWhere}
        GROUP BY d.code, month
        ORDER BY month DESC, redemptions DESC`,
       params
     );
+
+   
+    const unusedDiscountsResult = await pool.query(
+      `SELECT d.code, d.amount, d.percentage
+       FROM discounts d
+       LEFT JOIN orders o ON d.code = o.discount_code
+       WHERE o.id IS NULL
+       ${business_id ? 'AND d.business_id = $1' : ''}
+       ORDER BY d.created_at DESC`,
+      business_id ? [business_id] : []
+    );
+
+   
+    const highestPercentageResult = await pool.query(
+      `SELECT code, percentage
+       FROM discounts
+       ${business_id ? 'WHERE business_id = $1' : ''}
+       ORDER BY percentage DESC NULLS LAST
+       LIMIT 1`,
+      business_id ? [business_id] : []
+    );
+
+   
+    const leastUsedDiscountResult = await pool.query(
+      `SELECT d.code, COUNT(o.id) AS usage_count
+       FROM discounts d
+       JOIN orders o ON d.code = o.discount_code
+       ${whereClause.replace('WHERE', 'WHERE o.status = \'completed\' AND')}
+       ${dateWhere}
+       GROUP BY d.code
+       HAVING COUNT(o.id) > 0
+       ORDER BY usage_count ASC
+       LIMIT 1`,
+      params
+    );
+
     res.json({
       topDiscounts: topDiscountsResult.rows,
       salesUplift: upliftResult.rows,
-      redemptionTrends: redemptionResult.rows
+      redemptionTrends: redemptionResult.rows,
+      unusedDiscounts: unusedDiscountsResult.rows,
+      highestPercentage: highestPercentageResult.rows[0] || null,
+      leastUsedDiscount: leastUsedDiscountResult.rows[0] || null
     });
   } catch (err) {
     console.error('Discount analytics error:', err);
@@ -1334,18 +1476,30 @@ exports.discountAnalytics = async (req, res) => {
 
 exports.auditLogAnalytics = async (req, res) => {
   try {
-    const { business_id, branch_id, period = 'month', start_date, end_date } = req.query;
+    const { business_id, branch_id, date_filter, start_date, end_date } = req.query;
     let params = [];
     let wheres = [];
     let idx = 1;
     if (business_id) { wheres.push(`a.business_id = $${idx}`); params.push(business_id); idx++; }
     if (branch_id) { wheres.push(`a.branch_id = $${idx}`); params.push(branch_id); idx++; }
     let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+
+       let dateWhere = '';
+    if (date_filter) {
+      if (date_filter === 'today') dateWhere = ` AND a.created_at::date = CURRENT_DATE`;
+      else if (date_filter === 'yesterday') dateWhere = ` AND a.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+      else if (date_filter === 'this_week') dateWhere = ` AND a.created_at >= date_trunc('week', CURRENT_DATE)`;
+      else if (date_filter === 'last_7_days') dateWhere = ` AND a.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
+      else if (date_filter === 'this_month') dateWhere = ` AND a.created_at >= date_trunc('month', CURRENT_DATE)`;
+      else if (date_filter === 'this_year') dateWhere = ` AND a.created_at >= date_trunc('year', CURRENT_DATE)`;
+      else if (date_filter === 'custom' && start_date && end_date) dateWhere = ` AND a.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    }
   
     const activeUsersResult = await pool.query(
       `SELECT a.user_id, COUNT(*) AS actions
        FROM audit_logs a
        ${whereClause}
+        ${dateWhere}
        GROUP BY a.user_id
        ORDER BY actions DESC
        LIMIT 10`,
@@ -1356,6 +1510,7 @@ exports.auditLogAnalytics = async (req, res) => {
       `SELECT a.action, COUNT(*) AS count
        FROM audit_logs a
        ${whereClause}
+       ${dateWhere}
        GROUP BY a.action
        ORDER BY count DESC
        LIMIT 10`,
@@ -1366,6 +1521,7 @@ exports.auditLogAnalytics = async (req, res) => {
       `SELECT a.id, a.user_id, a.action, a.created_at
        FROM audit_logs a
        ${whereClause}
+       ${dateWhere}
        WHERE a.action IN ('failed_login', 'permission_error')
        ORDER BY a.created_at DESC
        LIMIT 20`,
@@ -1385,19 +1541,31 @@ exports.auditLogAnalytics = async (req, res) => {
 
 exports.appointmentAnalytics = async (req, res) => {
   try {
-    const { business_id, branch_id, period = 'month', start_date, end_date } = req.query;
+    const { business_id, branch_id, date_filter, start_date, end_date } = req.query;
     let params = [];
     let wheres = [];
     let idx = 1;
     if (business_id) { wheres.push(`a.business_id = $${idx}`); params.push(business_id); idx++; }
     if (branch_id) { wheres.push(`a.branch_id = $${idx}`); params.push(branch_id); idx++; }
     let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+
+       let dateWhere = '';
+    if (date_filter) {
+      if (date_filter === 'today') dateWhere = ` AND a.created_at::date = CURRENT_DATE`;
+      else if (date_filter === 'yesterday') dateWhere = ` AND a.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+      else if (date_filter === 'this_week') dateWhere = ` AND a.created_at >= date_trunc('week', CURRENT_DATE)`;
+      else if (date_filter === 'last_7_days') dateWhere = ` AND a.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
+      else if (date_filter === 'this_month') dateWhere = ` AND a.created_at >= date_trunc('month', CURRENT_DATE)`;
+      else if (date_filter === 'this_year') dateWhere = ` AND a.created_at >= date_trunc('year', CURRENT_DATE)`;
+      else if (date_filter === 'custom' && start_date && end_date) dateWhere = ` AND a.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    }
     
     const bookingsResult = await pool.query(
       `SELECT COUNT(*) AS total_bookings, SUM(s.price) AS total_revenue
        FROM appointments a
        JOIN services s ON a.service_id = s.id
        ${whereClause}
+        ${dateWhere}
        WHERE a.status = 'booked'`,
       params
     );
@@ -1405,6 +1573,7 @@ exports.appointmentAnalytics = async (req, res) => {
       `SELECT COUNT(*) AS cancellations
        FROM appointments a
        ${whereClause}
+        ${dateWhere}
        WHERE a.status = 'cancelled'`,
       params
     );
@@ -1412,6 +1581,7 @@ exports.appointmentAnalytics = async (req, res) => {
       `SELECT COUNT(*) AS no_shows
        FROM appointments a
        ${whereClause}
+        ${dateWhere}
        WHERE a.status = 'no_show'`,
       params
     );
@@ -1429,18 +1599,30 @@ exports.appointmentAnalytics = async (req, res) => {
 
 exports.loyaltyAnalytics = async (req, res) => {
   try {
-    const { business_id, branch_id, period = 'month', start_date, end_date } = req.query;
+    const { business_id, branch_id, date_filter, start_date, end_date } = req.query;
     let params = [];
     let wheres = [];
     let idx = 1;
     if (business_id) { wheres.push(`l.business_id = $${idx}`); params.push(business_id); idx++; }
     if (branch_id) { wheres.push(`l.branch_id = $${idx}`); params.push(branch_id); idx++; }
     let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+
+       let dateWhere = '';
+    if (date_filter) {
+      if (date_filter === 'today') dateWhere = ` AND l.created_at::date = CURRENT_DATE`;
+      else if (date_filter === 'yesterday') dateWhere = ` AND l.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+      else if (date_filter === 'this_week') dateWhere = ` AND l.created_at >= date_trunc('week', CURRENT_DATE)`;
+      else if (date_filter === 'last_7_days') dateWhere = ` AND l.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
+      else if (date_filter === 'this_month') dateWhere = ` AND l.created_at >= date_trunc('month', CURRENT_DATE)`;
+      else if (date_filter === 'this_year') dateWhere = ` AND l.created_at >= date_trunc('year', CURRENT_DATE)`;
+      else if (date_filter === 'custom' && start_date && end_date) dateWhere = ` AND l.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    }
    
     const accrualResult = await pool.query(
       `SELECT l.customer_id, SUM(l.points) AS total_points
        FROM loyalty_points l
        ${whereClause}
+       ${dateWhere}
        GROUP BY l.customer_id
        ORDER BY total_points DESC
        LIMIT 10`,
@@ -1451,6 +1633,7 @@ exports.loyaltyAnalytics = async (req, res) => {
       `SELECT l.customer_id, SUM(l.points) AS redeemed_points
        FROM loyalty_points l
        ${whereClause}
+        ${dateWhere}
        WHERE l.type = 'redeem'
        GROUP BY l.customer_id
        ORDER BY redeemed_points DESC
