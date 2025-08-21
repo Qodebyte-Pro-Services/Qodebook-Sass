@@ -1,3 +1,12 @@
+
+
+const express = require('express');
+const router = express.Router();
+const controller = require('../controllers/analyticsController');
+const auth = require('../middlewares/authMiddleware');
+const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
+const { REPORTS_ANALYTICS_PERMISSIONS, FINANCIAL_PERMISSIONS} = require('../constants/permissions');
+
 /**
  * @swagger
  * /api/finance/category-stock-distribution:
@@ -40,13 +49,6 @@ router.get(
   ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_STOCK_OVERVIEW),
   controller.categoryStockDistribution
 );
-
-const express = require('express');
-const router = express.Router();
-const controller = require('../controllers/analyticsController');
-const auth = require('../middlewares/authMiddleware');
-const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
-const { REPORTS_ANALYTICS_PERMISSIONS, FINANCIAL_PERMISSIONS} = require('../constants/permissions');
 
 /**
  * @swagger
