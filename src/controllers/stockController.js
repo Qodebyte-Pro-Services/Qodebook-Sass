@@ -923,7 +923,6 @@ exports.getLowStock = async (req, res) => {
        JOIN products p ON v.product_id = p.id
        WHERE p.business_id = $1
          AND v.quantity <= v.threshold
-         AND v.deleted_at IS NULL
        ORDER BY v.quantity ASC`,
       [business_id]
     );
@@ -945,7 +944,6 @@ exports.getOutOfStock = async (req, res) => {
         JOIN products p ON v.product_id = p.id
         WHERE p.business_id = $1
           AND v.quantity = 0
-          AND v.deleted_at IS NULL
         ORDER BY v.variant_id ASC
       `,
       [business_id]
