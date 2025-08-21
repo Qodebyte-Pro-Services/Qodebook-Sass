@@ -944,7 +944,7 @@ exports.getOutOfStock = async (req, res) => {
         JOIN products p ON v.product_id = p.id
         WHERE p.business_id = $1
           AND v.quantity = 0
-        ORDER BY v.variant_id ASC
+        ORDER BY v.id ASC
       `,
       [business_id]
     );
