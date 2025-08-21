@@ -75,8 +75,9 @@ exports.generateVariants = async (req, res) => {
 
     const business_id = req.business_id; 
     const branch_id = req.branch_id || null; 
-    const recorded_by = req.user?.staff_id || req.user?.user_id;
-    const recorded_by_type = req.user?.staff_id ? 'staff' : 'user';
+    const isStaff = !!req.user?.staff_id;
+    const recorded_by = isStaff ? String(req.user.staff_id) : String(req.user.user_id || req.user.id);
+    const recorded_by_type = isStaff ? 'staff' : 'user';
 
     const productRes = await pool.query(
       'SELECT * FROM products WHERE id = $1 AND business_id = $2',

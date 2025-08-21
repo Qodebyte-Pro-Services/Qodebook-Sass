@@ -452,8 +452,9 @@ exports.createProductWithVariants = async (req, res) => {
     let inventoryLogs = [];
     const prod_business_id = product.business_id;
     const branch_id = req.branch_id || null;
-    const prod_recorded_by = req.user?.staff_id || req.user?.id;
-    const prod_recorded_by_type = req.user.staff_id ? 'staff' : 'user';
+    const isStaff = !!req.user?.staff_id;
+    const prod_recorded_by = isStaff ? String(req.user.staff_id) : String(req.user.user_id || req.user.id);
+    const prod_recorded_by_type = isStaff ? 'staff' : 'user';
 
     for (let i = 0; i < finalVariants.length; i++) {
       const v = finalVariants[i];

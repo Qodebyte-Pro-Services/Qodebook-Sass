@@ -14,8 +14,9 @@ exports.createOrder = async (req, res) => {
     );
     const order = orderRes.rows[0];
 
-    const recorded_by = req.user?.staff_id || req.user?.id;
-    const recorded_by_type = req.user?.staff_id ? 'staff' : 'user';
+    const isStaff = !!req.user?.staff_id;
+    const recorded_by = isStaff ? String(req.user.staff_id) : String(req.user.user_id || req.user.id);
+    const recorded_by_type = isStaff ? 'staff' : 'user';
 
     for (const item of items) {
     
@@ -52,7 +53,7 @@ exports.createOrder = async (req, res) => {
     return res.status(201).json({ order });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(500).json({ message: 'Server error.', error: err.message });
   }
 };
 

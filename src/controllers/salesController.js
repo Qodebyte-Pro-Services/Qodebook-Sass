@@ -24,8 +24,9 @@ exports.createSale = async (req, res) => {
     );
     const order = orderRes.rows[0];
 
-    const recorded_by = req.user?.staff_id || req.user?.id;
-    const recorded_by_type = req.user?.staff_id ? 'staff' : 'user';
+    const isStaff = !!req.user?.staff_id;
+    const recorded_by = isStaff ? String(req.user.staff_id) : String(req.user.user_id || req.user.id);
+    const recorded_by_type = isStaff ? 'staff' : 'user';
 
     for (const item of items) {
      

@@ -59,8 +59,9 @@ exports.transferStock = async (req, res) => {
     const transfer = transferResult.rows[0];
 
  
-  const recorded_by = req.user?.staff_id || req.user?.user_id;
-const recorded_by_type = req.user?.staff_id ? 'staff' : 'user';
+  const isStaff = !!req.user?.staff_id;
+    const recorded_by = isStaff ? String(req.user.staff_id) : String(req.user.user_id || req.user.id);
+    const recorded_by_type = isStaff ? 'staff' : 'user';
 
 await pool.query(`
   INSERT INTO inventory_logs (
@@ -163,8 +164,9 @@ exports.completeTransfer = async (req, res) => {
       WHERE id = $4
     `, [quantity, received_notes, req.user?.staff_id || req.user?.id, transfer_id]);
 
-    const recorded_by = req.user?.staff_id || req.user?.user_id;
-const recorded_by_type = req.user?.staff_id ? 'staff' : 'user';
+     const isStaff = !!req.user?.staff_id;
+    const recorded_by = isStaff ? String(req.user.staff_id) : String(req.user.user_id || req.user.id);
+    const recorded_by_type = isStaff ? 'staff' : 'user';
    
     await pool.query(`
       INSERT INTO inventory_logs (
@@ -502,8 +504,9 @@ exports.updateSupplyStatus = async (req, res) => {
 
    
     if (supply_status === 'delivered') {
-      const recorded_by = req.user?.staff_id || req.user?.id;
-      const recorded_by_type = req.user?.staff_id ? 'staff' : 'user';
+    const isStaff = !!req.user?.staff_id;
+    const recorded_by = isStaff ? String(req.user.staff_id) : String(req.user.user_id || req.user.id);
+    const recorded_by_type = isStaff ? 'staff' : 'user';
 
       for (const item of items) {
         const variantRes = await pool.query('SELECT * FROM variants WHERE id = $1', [item.variant_id]);
@@ -660,19 +663,21 @@ exports.getStockMovements = async (req, res) => {
     }
 
     const result = await pool.query(`
-      SELECT il.*, 
-        CASE 
-          WHEN il.recorded_by_type = 'staff' THEN s.full_name
-          WHEN il.recorded_by_type = 'user' THEN CONCAT(u.first_name, ' ', u.last_name)
-          ELSE NULL
-        END AS recorded_by_name
+       SELECT 
+        il.*, 
+        COALESCE(
+          CASE 
+            WHEN il.recorded_by_type = 'staff' THEN s.full_name
+            WHEN il.recorded_by_type = 'user' THEN CONCAT(u.first_name, ' ', u.last_name)
+          END, 'Unknown'
+        ) AS recorded_by_name
       FROM inventory_logs il
-      LEFT JOIN staff s 
+       LEFT JOIN staff s 
         ON il.recorded_by_type = 'staff' 
-       AND il.recorded_by::text = s.staff_id
+       AND s.staff_id = il.recorded_by
       LEFT JOIN users u 
         ON il.recorded_by_type = 'user' 
-       AND il.recorded_by = u.id
+       AND u.id::text = il.recorded_by
       WHERE il.business_id = $1
       ORDER BY il.created_at DESC
     `, [business_id]);
@@ -692,8 +697,9 @@ exports.adjustStock = async (req, res) => {
     const { adjustments } = req.body;
     const business_id = req.business_id;  
     const branch_id = req.branch_id;      
-    const recorded_by = req.user?.staff_id || req.user?.id;
-    const recorded_by_type = req.user?.staff_id ? 'staff' : 'user';
+     const isStaff = !!req.user?.staff_id;
+    const recorded_by = isStaff ? String(req.user.staff_id) : String(req.user.user_id || req.user.id);
+    const recorded_by_type = isStaff ? 'staff' : 'user';
 
     if (!business_id) {
       return res.status(400).json({ message: 'business_id is required.' });
@@ -775,7 +781,7 @@ exports.adjustStock = async (req, res) => {
     return res.status(200).json({ results });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(500).json({ message: 'Server error.', error: err.message });
   }
 };
 
@@ -852,37 +858,41 @@ exports.getNotificationStats = async (req, res) => {
 };
 
 
-// Get stock movement logs for a specific variant
 exports.getStockMovementsByVariant = async (req, res) => {
   try {
     const business_id = req.business_id;
     const { id } = req.params;
+
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
     if (!id) return res.status(400).json({ message: 'Variant ID is required.' });
+
     const logs = await pool.query(`
-      SELECT il.*, 
-        CASE 
-          WHEN il.recorded_by_type = 'staff' THEN s.full_name
-          WHEN il.recorded_by_type = 'user' THEN CONCAT(u.first_name, ' ', u.last_name)
-          ELSE NULL
-        END AS recorded_by_name
+      SELECT 
+        il.*, 
+        COALESCE(
+          CASE 
+            WHEN il.recorded_by_type = 'staff' THEN s.full_name
+            WHEN il.recorded_by_type = 'user' THEN CONCAT(u.first_name, ' ', u.last_name)
+          END, 'Unknown'
+        ) AS recorded_by_name
       FROM inventory_logs il
-       LEFT JOIN staff s 
+      LEFT JOIN staff s 
         ON il.recorded_by_type = 'staff' 
-       AND il.recorded_by::text = s.staff_id
+       AND s.staff_id = il.recorded_by
       LEFT JOIN users u 
         ON il.recorded_by_type = 'user' 
-       AND il.recorded_by = u.id
-      WHERE il.business_id = $1 AND il.variant_id = $2
+       AND u.id::text = il.recorded_by
+      WHERE il.business_id = $1 
+        AND il.variant_id = $2
       ORDER BY il.created_at DESC
     `, [business_id, parseInt(id, 10)]);
+
     return res.status(200).json({ logs: logs.rows });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
   }
 };
-
 // Delete a stock movement log
 exports.deleteStockMovement = async (req, res) => {
   try {
