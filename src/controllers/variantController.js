@@ -268,79 +268,183 @@ exports.createVariantsBatch = async (req, res) => {
 
 exports.updateVariant = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    
-    const currentRes = await pool.query('SELECT * FROM variants WHERE id = $1', [id]);
-    if (currentRes.rows.length === 0) {
-      return res.status(404).json({ message: 'Variant not found.' });
-    }
-    let existingImages = currentRes.rows[0].image_url || [];
+    const { variant_id } = req.params;
 
    
-    const uploadedFiles = (req.files || []).filter(f => f.fieldname === 'image_url');
+    const variantRes = await pool.query(
+      "SELECT * FROM variants WHERE id = $1",
+      [variant_id]
+    );
+    if (variantRes.rows.length === 0) {
+      return res.status(404).json({ message: "Variant not found." });
+    }
+    const currentVariant = variantRes.rows[0];
+
+    
+    const variantFiles = (req.files || []).filter(f => f.fieldname === "image_url");
     let uploadedImages = [];
-    if (uploadedFiles.length > 0) {
-      uploadedImages = await uploadFilesToCloudinary(uploadedFiles);
+    if (variantFiles.length > 0) {
+      uploadedImages = await uploadFilesToCloudinary(variantFiles);
     }
 
     
-    const removeImages = req.body.remove_images
-      ? Array.isArray(req.body.remove_images)
-        ? req.body.remove_images
-        : [req.body.remove_images]
+    let existingImages = Array.isArray(currentVariant.image_url)
+      ? currentVariant.image_url
       : [];
 
-    existingImages = existingImages.filter(img => !removeImages.includes(img));
+    
+    const deleteImages = req.body.deleteImages
+      ? Array.isArray(req.body.deleteImages)
+        ? req.body.deleteImages
+        : [req.body.deleteImages]
+      : [];
 
-   
-    let finalImages = [...existingImages, ...uploadedImages];
-
-   
-    if (req.body.replace_images === 'true') {
-      finalImages = uploadedImages;
-    }
-
-    finalImages = [...new Set(finalImages)];
-
-   
-    let setParts = [];
-    let values = [];
-    let idx = 1;
-
-    const updatableFields = [
-      'attributes', 'cost_price', 'selling_price', 'quantity', 'threshold', 
-      'sku', 'barcode', 'expiry_date', 'custom_price'
-    ];
-
-    for (const field of updatableFields) {
-      if (req.body[field] !== undefined) {
-        setParts.push(`${field} = $${idx}`);
-        values.push(field === 'attributes' ? JSON.stringify(req.body[field]) : req.body[field]);
-        idx++;
+    if (deleteImages.length > 0) {
+      for (const public_id of deleteImages) {
+        try {
+          await deleteFileFromCloudinary(public_id);
+          existingImages = existingImages.filter(img => img.public_id !== public_id);
+        } catch (err) {
+          console.error(`Failed to delete image ${public_id}:`, err.message);
+        }
       }
     }
 
    
-    if (uploadedImages.length > 0 || removeImages.length > 0 || req.body.replace_images === 'true') {
-      setParts.push(`image_url = $${idx}`);
-      values.push(finalImages);
+    
+    let finalImages = [];
+    if (req.body.replace_images === "true") {
+      finalImages = uploadedImages;
+    } else {
+      finalImages = [...existingImages, ...uploadedImages];
+      finalImages = finalImages.filter(
+        (img, index, self) =>
+          index === self.findIndex(i => i.public_id === img.public_id)
+      );
+    }
+
+   
+    const fields = [];
+    const values = [];
+    let idx = 1;
+
+    const castValue = (field, val) => {
+      if (["quantity", "threshold"].includes(field)) return parseInt(val, 10);
+      if (["cost_price", "selling_price"].includes(field)) return parseFloat(val);
+      if (field === "attributes") return typeof val === "string" ? val : JSON.stringify(val);
+      if (field === "expiry_date") return val; 
+      return val;
+    };
+
+    const updatableFields = [
+      "attributes", "cost_price", "selling_price", "quantity",
+      "threshold", "sku", "expiry_date", "barcode"
+    ];
+
+
+    
+    let quantityChanged = false;
+    let oldQuantity = currentVariant.quantity;
+    let newQuantity = oldQuantity;
+
+    for (const field of updatableFields) {
+      if (req.body[field] !== undefined) {
+        const newVal = castValue(field, req.body[field]);
+        if (JSON.stringify(newVal) !== JSON.stringify(currentVariant[field])) {
+          fields.push(`"${field}" = $${idx}`);
+          values.push(newVal);
+          if (field === "quantity") {
+            quantityChanged = true;
+            newQuantity = newVal;
+          }
+          idx++;
+        }
+      }
+    }
+
+    
+    if (JSON.stringify(currentVariant.image_url || []) !== JSON.stringify(finalImages)) {
+      fields.push(`image_url = $${idx}::jsonb`);
+      values.push(JSON.stringify(finalImages));
       idx++;
     }
 
-    setParts.push('updated_at = NOW()');
 
-    values.push(id);
-    const query = `UPDATE variants SET ${setParts.join(', ')} WHERE id = $${idx} RETURNING *`;
+    if (fields.length === 0) {
+      return res.status(400).json({ message: "No changes detected." });
+    }
+
+
+    fields.push("updated_at = NOW()");
+    values.push(variant_id);
+
+    const query = `
+      UPDATE variants
+      SET ${fields.join(", ")}
+      WHERE id = $${idx}
+      RETURNING *`;
 
     const result = await pool.query(query, values);
+    const updatedVariant = result.rows[0];
 
-    return res.status(200).json({ message: 'Variant updated.', variant: result.rows[0] });
+   
+    if (quantityChanged && newQuantity !== oldQuantity) {
+      let business_id = null;
+      try {
+        const prodRes = await pool.query(
+          'SELECT business_id FROM products WHERE id = $1',
+          [updatedVariant.product_id]
+        );
+        if (prodRes.rows.length > 0) {
+          business_id = prodRes.rows[0].business_id;
+        }
+      } catch (e) {
+        console.error('Failed to fetch business for variant:', e.message);
+      }
+
+    
+      let branch_id = req.headers['x-branch'] || req.headers['x-branch-id'] || null;
+
+      let diff = newQuantity - oldQuantity;
+      let type = diff > 0 ? 'restock' : 'deduct';
+      let reason = diff > 0 ? 'increase' : 'decrease';
+      let note = `Quantity updated from ${oldQuantity} to ${newQuantity}`;
+
+      const isStaff = !!req.user?.staff_id;
+      const recorded_by = isStaff ? String(req.user.staff_id) : String(req.user.user_id || req.user.id);
+      const recorded_by_type = isStaff ? 'staff' : 'user';
+
+      await pool.query(
+        `INSERT INTO inventory_logs
+          (variant_id, type, quantity, reason, note, business_id, branch_id, recorded_by, recorded_by_type)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          updatedVariant.id,
+          type,
+          Math.abs(diff),
+          reason,
+          note,
+          business_id,
+          branch_id,
+          recorded_by,
+          recorded_by_type
+        ]
+      );
+    }
+
+    return res.status(200).json({
+      message: "Variant updated successfully.",
+      variant: updatedVariant
+    });
+
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(500).json({ message: "Server error.", details: err.message });
   }
 };
+
+
+
 
 
 

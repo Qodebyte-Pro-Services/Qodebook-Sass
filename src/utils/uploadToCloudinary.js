@@ -54,7 +54,22 @@ const uploadFilesToCloudinary = async (files) => {
   return Promise.all(uploads);
 };
 
+  const deleteFileFromCloudinary = async (publicId) => {
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader.destroy(publicId, (error, result) => {
+      if (error) {
+        return reject(new Error(`Cloudinary delete failed: ${error.message || error}`));
+      }
+      if (result.result !== "ok" && result.result !== "not found") {
+        return reject(new Error(`Unexpected Cloudinary delete result: ${result.result}`));
+      }
+      resolve(result);
+    });
+  });
+};
+
 module.exports = {
   uploadToCloudinary,
-  uploadFilesToCloudinary
+  uploadFilesToCloudinary,
+  deleteFileFromCloudinary
 };

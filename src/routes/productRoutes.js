@@ -279,51 +279,12 @@ router.get('/:id', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT), produ
  * @swagger
  * /api/products/{id}:
  *   put:
- *     summary: Update product
- *     tags: [Product]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         schema:
- *           type: string
- *         required: true
- *         description: Product ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               brand:
- *                 type: string
- *               description:
- *                 type: string
- *               base_sku:
- *                 type: string
- *               image_url:
- *                 type: string
- *               taxable:
- *                 type: boolean
- *               threshold:
- *                 type: integer
- *               category_id:
- *                 type: string
- *     responses:
- *       200:
- *         description: Product updated
- *       404:
- *         description: Product not found
- */
-/**
- * @swagger
- * /api/products/{id}:
- *   put:
- *     summary: Update product
+ *     summary: Update an existing product
+ *     description: >
+ *       Update product details, add new images, remove specific images, or replace all images.  
+ *       - To upload new images: send files with field name **image_url**.  
+ *       - To remove images: send an array of `public_id`s in **remove_images**.  
+ *       - To replace all images: send **replace_images=true** along with new files.  
  *     tags: [Product]
  *     security:
  *       - bearerAuth: []
@@ -349,21 +310,41 @@ router.get('/:id', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT), produ
  *                 type: string
  *               base_sku:
  *                 type: string
- *               image:
- *                 type: string
- *                 format: binary
  *               taxable:
  *                 type: boolean
  *               threshold:
  *                 type: integer
  *               category_id:
  *                 type: string
+ *               unit:
+ *                 type: string
+ *               hasVariation:
+ *                 type: boolean
+ *               image_url:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: One or more product images
+ *               remove_images:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of Cloudinary public_ids to delete
+ *               replace_images:
+ *                 type: boolean
+ *                 description: If true, replaces all existing images with new uploads
  *     responses:
  *       200:
  *         description: Product updated
+ *       400:
+ *         description: No fields to update
  *       404:
  *         description: Product not found
+ *       500:
+ *         description: Server error
  */
+
 router.put('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT), upload.any(), productController.updateProduct);
 
 /**

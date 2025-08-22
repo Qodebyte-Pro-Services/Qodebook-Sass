@@ -162,18 +162,17 @@ const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
  *         description: Variant not found for this product
  */
 
-
 /**
  * @swagger
- * /api/variants/{id}:
+ * /api/variants/{variant_id}:
  *   put:
- *     summary: Update variant
+ *     summary: Update an existing variant
  *     tags: [Variant]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: variant_id
  *         schema:
  *           type: string
  *         required: true
@@ -187,25 +186,41 @@ const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
  *             properties:
  *               attributes:
  *                 type: object
+ *                 description: JSON attributes for the variant
  *               cost_price:
  *                 type: number
+ *                 format: float
  *               selling_price:
  *                 type: number
- *               quantity:
- *                 type: integer
+ *                 format: float
  *               threshold:
  *                 type: integer
  *               sku:
  *                 type: string
- *               image:
- *                 type: string
- *                 format: binary
  *               expiry_date:
  *                 type: string
  *                 format: date
+ *               barcode:
+ *                 type: string
+ *               image_url:
+ *                 type: array
+ *                 description: Existing images (JSON stringified array of objects `{ public_id, secure_url }`)
+ *                 items:
+ *                   type: string
+ *               image_url_files:
+ *                 type: array
+ *                 description: Upload new images
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *               deleteImages:
+ *                 type: array
+ *                 description: Array of Cloudinary public_ids to delete
+ *                 items:
+ *                   type: string
  *     responses:
  *       200:
- *         description: Variant updated
+ *         description: Variant updated successfully
  *         content:
  *           application/json:
  *             schema:
@@ -217,7 +232,10 @@ const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
  *                   $ref: '#/components/schemas/Variant'
  *       404:
  *         description: Variant not found
+ *       500:
+ *         description: Server error
  */
+
 
 /**
  * @swagger

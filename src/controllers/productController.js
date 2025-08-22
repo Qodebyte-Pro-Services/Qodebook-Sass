@@ -154,11 +154,12 @@ exports.getProduct = async (req, res) => {
   }
 };
 
+
+
 exports.updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
 
-    
     const currentProductRes = await pool.query(
       'SELECT * FROM products WHERE id = $1',
       [id]
@@ -167,9 +168,13 @@ exports.updateProduct = async (req, res) => {
       return res.status(404).json({ message: 'Product not found.' });
     }
     const currentProduct = currentProductRes.rows[0];
-    let existingImages = currentProduct.image_url || [];
 
    
+    let existingImages = Array.isArray(currentProduct.image_url)
+      ? currentProduct.image_url
+      : [];
+
+    
     const uploadedFiles = (req.files || []).filter(f => f.fieldname === 'image_url');
     let uploadedImages = [];
     if (uploadedFiles.length > 0) {
@@ -183,10 +188,18 @@ exports.updateProduct = async (req, res) => {
         : [req.body.remove_images]
       : [];
 
-    
-    existingImages = existingImages.filter(img => !removeImages.includes(img.public_id));
 
-    
+      if (removeImages.length > 0) {
+        for(const public_id of removeImages) {
+          try {
+            await deleteFileFromCloudinary(public_id);
+            existingImages = existingImages.filter(img => img.public_id !== public_id);
+          } catch (e) {
+            console.error(`Failed to delete image ${public_id} from Cloudinary:`, e.message);
+          }
+        }
+      }
+   
     let finalImages = [...existingImages, ...uploadedImages];
     if (req.body.replace_images === 'true') {
       finalImages = uploadedImages;
@@ -198,10 +211,20 @@ exports.updateProduct = async (req, res) => {
         index === self.findIndex(i => i.public_id === img.public_id)
     );
 
-   
+    
     let setParts = [];
     let values = [];
     let idx = 1;
+
+    const castValue = (field, val) => {
+      if (['taxable', 'hasVariation'].includes(field)) {
+        return val === 'true' || val === true;
+      }
+      if (['threshold', 'category_id'].includes(field)) {
+        return val !== null ? parseInt(val, 10) : null;
+      }
+      return val;
+    };
 
     const fields = [
       'name', 'brand', 'description', 'base_sku', 'taxable', 'threshold',
@@ -210,35 +233,39 @@ exports.updateProduct = async (req, res) => {
 
     for (const field of fields) {
       if (req.body[field] !== undefined) {
-        setParts.push(`"${field}" = $${idx}`);
-        values.push(req.body[field]);
-        idx++;
+        const newVal = castValue(field, req.body[field]);
+        if (newVal !== currentProduct[field]) {
+          setParts.push(`"${field}" = $${idx}`);
+          values.push(newVal);
+          idx++;
+        }
       }
     }
 
-    setParts.push(`image_url = $${idx}`);
-    values.push(JSON.stringify(finalImages)); 
-    idx++;
-
-    setParts.push('updated_at = NOW()');
-
-    if (setParts.length === 1) {
-      return res.status(400).json({ message: 'No fields to update.' });
+   
+    if (JSON.stringify(currentProduct.image_url || []) !== JSON.stringify(finalImages)) {
+      setParts.push(`image_url = $${idx}`);
+      values.push(finalImages); 
+      idx++;
     }
 
+    if (setParts.length === 0) {
+      return res.status(400).json({ message: 'No changes detected.' });
+    }
+
+    setParts.push('updated_at = NOW()');
     values.push(id);
-    const setClause = setParts.join(', ');
-    const query = `UPDATE products SET ${setClause} WHERE id = $${idx} RETURNING *`;
 
+    const query = `UPDATE products SET ${setParts.join(', ')} WHERE id = $${idx} RETURNING *`;
     const result = await pool.query(query, values);
-    const updatedProduct = result.rows[0];
 
-    return res.status(200).json({ message: 'Product updated.', product: updatedProduct });
+    return res.status(200).json({ message: 'Product updated.', product: result.rows[0] });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.', details: err.message });
   }
 };
+
 
 
 
