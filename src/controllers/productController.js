@@ -43,12 +43,17 @@ exports.createProduct = async (req, res) => {
 const productFiles = (req.files || []).filter(f => f.fieldname === 'image_url');
 let productImages = [];
  if (productFiles.length > 0) {
-  productImages = await uploadFilesToCloudinary(productFiles);
+   productImages = await uploadFilesToCloudinary(productFiles); 
 } else if (req.body.image_url) {
-  productImages = Array.isArray(req.body.image_url) ? req.body.image_url : [req.body.image_url];
+   productImages = Array.isArray(req.body.image_url)
+    ? req.body.image_url
+    : [req.body.image_url];
 }
 
-productImages = [...new Set(productImages)];
+productImages = productImages.filter(
+  (img, index, self) =>
+    index === self.findIndex(i => i.public_id === img.public_id)
+);
 
     if (!business_id || !category_id || !name) {
       return res.status(400).json({ message: 'business_id, category_id, and name are required.' });
@@ -66,7 +71,7 @@ productImages = [...new Set(productImages)];
       `INSERT INTO products 
         (business_id, category_id, name, brand, description, base_sku, image_url, taxable, threshold, unit, "hasVariation") 
        VALUES 
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+        ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11) 
        RETURNING *`,
       [
         business_id,
@@ -75,7 +80,7 @@ productImages = [...new Set(productImages)];
         brand,
         description,
         base_sku,
-        productImages,
+       JSON.stringify(productImages),
         taxable,
         threshold,
         unit,
@@ -153,7 +158,7 @@ exports.updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
 
-   
+    
     const currentProductRes = await pool.query(
       'SELECT * FROM products WHERE id = $1',
       [id]
@@ -164,7 +169,7 @@ exports.updateProduct = async (req, res) => {
     const currentProduct = currentProductRes.rows[0];
     let existingImages = currentProduct.image_url || [];
 
-    
+   
     const uploadedFiles = (req.files || []).filter(f => f.fieldname === 'image_url');
     let uploadedImages = [];
     if (uploadedFiles.length > 0) {
@@ -179,18 +184,19 @@ exports.updateProduct = async (req, res) => {
       : [];
 
     
-    existingImages = existingImages.filter(img => !removeImages.includes(img));
+    existingImages = existingImages.filter(img => !removeImages.includes(img.public_id));
 
     
     let finalImages = [...existingImages, ...uploadedImages];
-
-   
     if (req.body.replace_images === 'true') {
       finalImages = uploadedImages;
     }
 
    
-    finalImages = [...new Set(finalImages)];
+    finalImages = finalImages.filter(
+      (img, index, self) =>
+        index === self.findIndex(i => i.public_id === img.public_id)
+    );
 
    
     let setParts = [];
@@ -210,12 +216,10 @@ exports.updateProduct = async (req, res) => {
       }
     }
 
-   
     setParts.push(`image_url = $${idx}`);
-    values.push(finalImages);
+    values.push(JSON.stringify(finalImages)); 
     idx++;
 
-    
     setParts.push('updated_at = NOW()');
 
     if (setParts.length === 1) {
@@ -235,6 +239,7 @@ exports.updateProduct = async (req, res) => {
     return res.status(500).json({ message: 'Server error.', details: err.message });
   }
 };
+
 
 
 exports.deleteProduct = async (req, res) => {
@@ -354,7 +359,7 @@ exports.createProductWithVariants = async (req, res) => {
       `INSERT INTO products 
         (business_id, category_id, name, brand, description, base_sku, image_url, taxable, threshold, unit, "hasVariation") 
        VALUES 
-        ($1, $2, $3, $4, $5, $6, $7::text[], $8, $9, $10, $11) 
+        ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11) 
        RETURNING *`,
       [
         business_id,
@@ -363,7 +368,7 @@ exports.createProductWithVariants = async (req, res) => {
         brand,
         description,
         base_sku,
-        productImages,
+        JSON.stringify(productImages),
         taxable,
         threshold,
         unit,
