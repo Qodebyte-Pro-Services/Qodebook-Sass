@@ -665,6 +665,7 @@ exports.getStockMovements = async (req, res) => {
     const result = await pool.query(`
        SELECT 
         il.*, 
+        v.sku,
         COALESCE(
           CASE 
             WHEN il.recorded_by_type = 'staff' THEN s.full_name
@@ -672,7 +673,8 @@ exports.getStockMovements = async (req, res) => {
           END, 'Unknown'
         ) AS recorded_by_name
       FROM inventory_logs il
-       LEFT JOIN staff s 
+      LEFT JOIN variants v ON il.variant_id = v.id
+      LEFT JOIN staff s 
         ON il.recorded_by_type = 'staff' 
        AND s.staff_id = il.recorded_by
       LEFT JOIN users u 
@@ -868,7 +870,8 @@ exports.getStockMovementsByVariant = async (req, res) => {
 
     const logs = await pool.query(`
       SELECT 
-        il.*, 
+        il.*,
+        v.sku, 
         COALESCE(
           CASE 
             WHEN il.recorded_by_type = 'staff' THEN s.full_name
@@ -876,6 +879,7 @@ exports.getStockMovementsByVariant = async (req, res) => {
           END, 'Unknown'
         ) AS recorded_by_name
       FROM inventory_logs il
+      LEFT JOIN variants v ON il.variant_id = v.id
       LEFT JOIN staff s 
         ON il.recorded_by_type = 'staff' 
        AND s.staff_id = il.recorded_by
