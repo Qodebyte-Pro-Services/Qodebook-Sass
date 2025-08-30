@@ -3,50 +3,33 @@ const pool = require('../config/db');
 
 exports.createOrder = async (req, res) => {
   try {
-    const { business_id, branch_id, customer_id, items, total_amount, status } = req.body;
+  const { business_id, branch_id, customer_id, items, total_amount, status, order_type } = req.body;
     if (!business_id || !branch_id || !items || !Array.isArray(items) || items.length === 0 || !total_amount || !status) {
       return res.status(400).json({ message: 'Missing required fields.' });
     }
 
-    const orderRes = await pool.query(
-      'INSERT INTO orders (business_id, branch_id, customer_id, total_amount, status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [business_id, branch_id, customer_id, total_amount, status]
+    if (!items.every(item => item.variant_id && item.quantity && item.unit_price)) {
+  return res.status(400).json({ message: 'Each item must have variant_id, quantity, and unit_price.' });
+}
+
+     const orderStatus = status || 'pending';
+    const orderType = order_type || 'online_order';
+
+ const orderRes = await pool.query(
+      `INSERT INTO orders (business_id, branch_id, customer_id, total_amount, status, order_type)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [business_id, branch_id, customer_id || null, total_amount, orderStatus, orderType]
     );
     const order = orderRes.rows[0];
 
-    const isStaff = !!req.user?.staff_id;
-    const recorded_by = isStaff ? String(req.user.staff_id) : String(req.user.user_id || req.user.id);
-    const recorded_by_type = isStaff ? 'staff' : 'user';
+    
 
     for (const item of items) {
     
       await pool.query(
         'INSERT INTO order_items (order_id, variant_id, quantity, unit_price, total_price) VALUES ($1, $2, $3, $4, $5)',
         [order.id, item.variant_id, item.quantity, item.unit_price, item.total_price]
-      );
-
-      
-      await pool.query(
-        'UPDATE variants SET quantity = quantity - $1 WHERE id = $2',
-        [item.quantity, item.variant_id]
-      );
-
-      
-      await pool.query(
-        `INSERT INTO inventory_logs 
-         (variant_id, type, quantity, reason, note, business_id, branch_id, recorded_by, recorded_by_type) 
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [
-          item.variant_id,
-          'sale',                  
-          item.quantity,          
-          'decrease',             
-          'Order sale',           
-          business_id,
-          branch_id,
-          recorded_by,
-          recorded_by_type
-        ]
       );
     }
 
@@ -89,13 +72,43 @@ exports.updateOrderStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
     if (!status) return res.status(400).json({ message: 'Status required.' });
-    const result = await pool.query('UPDATE orders SET status = $1 WHERE id = $2 RETURNING *', [status, id]);
-    return res.status(200).json({ order: result.rows[0] });
+
+    const orderRes = await pool.query('UPDATE orders SET status = $1 WHERE id = $2 RETURNING *', [status, id]);
+    const order = orderRes.rows[0];
+
+   
+    if (status === 'paid') {
+      const orderItemsRes = await pool.query('SELECT * FROM order_items WHERE order_id = $1', [order.id]);
+
+      for (const item of orderItemsRes.rows) {
+        await pool.query('UPDATE variants SET quantity = quantity - $1 WHERE id = $2', [item.quantity, item.variant_id]);
+
+        await pool.query(
+          `INSERT INTO inventory_logs 
+           (variant_id, type, quantity, reason, note, business_id, branch_id, recorded_by, recorded_by_type) 
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+          [
+            item.variant_id,
+            'sale',
+            item.quantity,
+            'decrease',
+            'Online Order Payment',
+            order.business_id,
+            order.branch_id,
+            req.user.id,
+            req.user.staff_id ? 'staff' : 'user'
+          ]
+        );
+      }
+    }
+
+    return res.status(200).json({ order });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+
 
 
 exports.cancelOrder = async (req, res) => {

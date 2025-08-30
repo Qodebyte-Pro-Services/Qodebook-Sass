@@ -3,13 +3,31 @@ const pool = require('../config/db');
 
 exports.createSale = async (req, res) => {
   try {
-    const { business_id, branch_id, staff_id, customer_id, items, total_amount, payment_mode, discount, coupon, taxes, note } = req.body;
+    const { business_id, branch_id, staff_id, created_by_user_id, customer_id, items, total_amount, payment_mode, discount, coupon, taxes, note } = req.body;
     if (!business_id || !branch_id || !items || !Array.isArray(items) || items.length === 0 || !total_amount || !payment_mode) {
       return res.status(400).json({ message: 'Missing required fields.' });
     }
 
-    let customerId = customer_id;
-    if (!customerId && req.body.customer) {
+      if (!staff_id && !created_by_user_id) {
+      return res.status(400).json({ message: 'Sale must be recorded by a staff or a user.' });
+    }
+
+
+if (customerId === 0) {
+      const existingCustomer = await pool.query(
+        'SELECT id FROM customers WHERE business_id = $1 AND id = 0 LIMIT 1',
+        [business_id]
+      );
+
+      if (existingCustomer.rows.length === 0) {
+        await pool.query(
+          'INSERT INTO customers (id, business_id, name, phone, email) VALUES (0, $1, $2, $3, $4)',
+          [business_id, 'Walk-in', null, null]
+        );
+      }
+
+      customerId = 0;
+    } else if (!customerId && req.body.customer) {
       const c = req.body.customer;
       const custRes = await pool.query(
         'INSERT INTO customers (business_id, name, phone, email) VALUES ($1, $2, $3, $4) RETURNING id',
@@ -19,15 +37,21 @@ exports.createSale = async (req, res) => {
     }
 
     const orderRes = await pool.query(
-      'INSERT INTO orders (business_id, branch_id, customer_id, total_amount, status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [business_id, branch_id, customerId, total_amount, 'completed']
+      'INSERT INTO orders (business_id, branch_id, customer_id, total_amount, status, order_type) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [business_id, branch_id, customerId, total_amount, 'completed', order_type || 'walk_in']
     );
     const order = orderRes.rows[0];
 
-    const isStaff = !!req.user?.staff_id;
-    const recorded_by = isStaff ? String(req.user.staff_id) : String(req.user.user_id || req.user.id);
-    const recorded_by_type = isStaff ? 'staff' : 'user';
+    let recorded_by, recorded_by_type;
+    if (staff_id) {
+      recorded_by = String(staff_id);
+      recorded_by_type = 'staff';
+    } else {
+      recorded_by = String(created_by_user_id);
+      recorded_by_type = 'user';
+    }
 
+    
     for (const item of items) {
      
       await pool.query(
@@ -54,8 +78,8 @@ exports.createSale = async (req, res) => {
           item.variant_id,
           'sale',                     
           quantity_change,            
-          reason,                     
-          note || 'Sale transaction',
+          'decrease' ,                    
+          note || 'POS Sale transaction',
           business_id,
           branch_id,
           recorded_by,
