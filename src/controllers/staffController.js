@@ -846,8 +846,8 @@ exports.getStaffByBusiness = async (req, res) => {
 
 exports.createRole = async (req, res) => {
   try {
-    const { role_id, business_id, role_name, permissions, created_by } = req.body;
-    if (!role_id || !business_id || !role_name || !permissions || !created_by) return res.status(400).json({ message: 'Missing required fields.' });
+    const {business_id, role_name, permissions, created_by } = req.body;
+    if (!business_id || !role_name || !permissions || !created_by) return res.status(400).json({ message: 'Missing required fields.' });
     const result = await pool.query('INSERT INTO staff_roles (role_id, business_id, role_name, permissions, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *', [role_id, business_id, role_name, permissions, created_by]);
     return res.status(201).json({ role: result.rows[0] });
   } catch (err) {
