@@ -10,6 +10,7 @@ const {
   sendPasswordChangeNotification,
   sendPasswordChangeRequestNotification
 } = require('../services/emailService');
+const { error } = require('console');
 
 
 exports.createStaffAction = async (req, res) => {
@@ -852,64 +853,154 @@ exports.createRole = async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields.' });
     }
 
+   
+    const permissionsJson = Array.isArray(permissions)
+      ? JSON.stringify(permissions)
+      : permissions;
+
     const role_id = uuidv4();
 
     const result = await pool.query(
-      'INSERT INTO staff_roles (role_id, business_id, role_name, permissions, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [role_id, business_id, role_name, permissions, created_by]
+      `INSERT INTO staff_roles (role_id, business_id, role_name, permissions, created_by) 
+       VALUES ($1, $2, $3, $4::jsonb, $5) 
+       RETURNING *`,
+      [role_id, business_id, role_name, permissionsJson, created_by]
     );
 
     return res.status(201).json({ role: result.rows[0] });
   } catch (err) {
     console.error(err);
 
-  
-    if (err.code === '23505') { 
-      return res.status(409).json({ 
-        message: `Role "${req.body.role_name}" already exists for this business.` 
+    if (err.code === '23505') {
+      return res.status(409).json({
+        message: `Role "${req.body.role_name}" already exists for this business.`,
       });
     }
 
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(500).json({ message: 'Server error.', error: err } );
   }
 };
 
 exports.listRoles = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM staff_roles');
-    return res.status(200).json({ roles: result.rows });
+    const { business_id } = req.query;
+    if (!business_id) {
+      return res.status(400).json({ message: 'business_id is required.' });
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM staff_roles WHERE business_id = $1',
+      [business_id]
+    );
+
+    const roles = result.rows.map(r => ({
+      ...r,
+      permissions: typeof r.permissions === 'string'
+        ? JSON.parse(r.permissions)
+        : r.permissions
+    }));
+
+    return res.status(200).json({ roles });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(500).json({ message: 'Server error.', error: err });
   }
 };
+
+exports.getRoleById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { business_id } = req.query;
+
+    if (!business_id) {
+      return res.status(400).json({ message: 'business_id is required.' });
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM staff_roles WHERE role_id = $1 AND business_id = $2',
+      [id, business_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Role not found for this business.' });
+    }
+
+    const role = result.rows[0];
+    role.permissions = typeof role.permissions === 'string'
+      ? JSON.parse(role.permissions)
+      : role.permissions;
+
+    return res.status(200).json({ role });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.', error: err });
+  }
+};
+
 
 exports.updateRole = async (req, res) => {
   try {
     const { id } = req.params;
     const { role_name, permissions } = req.body;
+
     let setParts = [];
     let values = [];
     let idx = 1;
-    if (role_name) { setParts.push('role_name = $' + idx); values.push(role_name); idx++; }
-    if (permissions) { setParts.push('permissions = $' + idx); values.push(permissions); idx++; }
-    if (setParts.length === 0) return res.status(400).json({ message: 'No fields to update.' });
+
+    if (role_name) {
+      setParts.push(`role_name = $${idx}`);
+      values.push(role_name);
+      idx++;
+    }
+
+    if (permissions) {
+     
+      const permissionsJson = Array.isArray(permissions)
+        ? JSON.stringify(permissions)
+        : permissions;
+      setParts.push(`permissions = $${idx}::jsonb`);
+      values.push(permissionsJson);
+      idx++;
+    }
+
+    if (setParts.length === 0) {
+      return res.status(400).json({ message: 'No fields to update.' });
+    }
+
     values.push(id);
     const setClause = setParts.join(', ');
     const query = `UPDATE staff_roles SET ${setClause} WHERE role_id = $${idx} RETURNING *`;
+
     const result = await pool.query(query, values);
-    return res.status(200).json({ role: result.rows[0] });
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Role not found.' });
+    }
+
+    const updatedRole = result.rows[0];
+    updatedRole.permissions = typeof updatedRole.permissions === 'string'
+      ? JSON.parse(updatedRole.permissions)
+      : updatedRole.permissions;
+
+    return res.status(200).json({ role: updatedRole });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
   }
 };
 
+
+
 exports.deleteRole = async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM staff_roles WHERE role_id = $1', [id]);
-    return res.status(200).json({ message: 'Role deleted.' });
+    const result = await pool.query('DELETE FROM staff_roles WHERE role_id = $1 RETURNING *', [id]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: 'Role not found.' });
+    }
+
+    return res.status(200).json({ message: 'Role deleted successfully.' });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });

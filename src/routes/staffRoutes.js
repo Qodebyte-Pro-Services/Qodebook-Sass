@@ -473,28 +473,13 @@ router.post('/subcharges', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_S
 router.get('/subcharges', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_SUBCHARGE), staffController.listStaffSubcharges);
 router.put('/subcharges/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SUBCHARGE), staffController.updateStaffSubcharge);
 router.delete('/subcharges/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SUBCHARGE), staffController.deleteStaffSubcharge);
+
 /**
  * @swagger
  * /api/staff/roles:
  *   post:
- *     summary: Create a new staff role with specific permissions
- *     description: |
- *       Creates a new role that can be assigned to staff members. Roles define what actions
- *       staff can perform within the business. Only business owners can create roles.
- *       
- *       **Business Logic:**
- *       - Validates business ownership
- *       - Ensures role name is unique within the business
- *       - Creates role with specified permissions
- *       - Logs role creation for audit purposes
- *       
- *       **Common Permission Examples:**
- *       - `view_products` - Can view product catalog
- *       - `create_sales` - Can create sales transactions
- *       - `manage_stock` - Can adjust inventory levels
- *       - `view_reports` - Can access business reports
- *       - `manage_staff` - Can manage other staff members
- *       - `manage_settings` - Can modify business settings
+ *     summary: Create a new staff role with permissions
+ *     description: Creates a new role for a business. Role names must be unique within the business.
  *     tags: [StaffRole]
  *     security:
  *       - bearerAuth: []
@@ -508,40 +493,22 @@ router.delete('/subcharges/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_S
  *               - business_id
  *               - role_name
  *               - permissions
+ *               - created_by
  *             properties:
  *               business_id:
  *                 type: integer
- *                 description: ID of the business creating the role
  *                 example: 1
  *               role_name:
  *                 type: string
- *                 description: Name of the role (must be unique within business)
  *                 example: "Sales Manager"
  *               permissions:
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: Array of permission strings that define what this role can do
- *                 example: ["view_products", "create_sales", "view_reports", "manage_stock"]
- *               description:
- *                 type: string
- *                 description: Optional description of the role's purpose
- *                 example: "Manages sales operations and inventory"
- *           examples:
- *             sales_manager:
- *               summary: Sales Manager Role
- *               value:
- *                 business_id: 1
- *                 role_name: "Sales Manager"
- *                 permissions: ["view_products", "create_sales", "view_reports", "manage_stock"]
- *                 description: "Manages sales operations and inventory"
- *             cashier:
- *               summary: Cashier Role
- *               value:
- *                 business_id: 1
- *                 role_name: "Cashier"
- *                 permissions: ["view_products", "create_sales"]
- *                 description: "Handles customer transactions"
+ *                 example: ["view_products", "create_sales"]
+ *               created_by:
+ *                 type: integer
+ *                 example: 1
  *     responses:
  *       201:
  *         description: Role created successfully
@@ -550,70 +517,14 @@ router.delete('/subcharges/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_S
  *             schema:
  *               type: object
  *               properties:
- *                 message:
- *                   type: string
- *                   example: "Role created successfully"
  *                 role:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: integer
- *                       example: 2
- *                     role_name:
- *                       type: string
- *                       example: "Sales Manager"
- *                     permissions:
- *                       type: array
- *                       items:
- *                         type: string
- *                       example: ["view_products", "create_sales", "view_reports", "manage_stock"]
- *                     business_id:
- *                       type: integer
- *                       example: 1
- *                     created_at:
- *                       type: string
- *                       format: date-time
- *                       example: "2024-01-15T10:30:00Z"
+ *                   $ref: '#/components/schemas/StaffRole'
  *       400:
- *         description: Invalid request data
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Role name is required"
+ *         description: Missing required fields
  *       409:
- *         description: Role name already exists
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Role name already exists for this business"
- *       403:
- *         description: Unauthorized - only business owners can create roles
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Only business owners can create roles"
+ *         description: Role already exists for this business
  *       500:
  *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Server error"
  */
 router.post('/roles', ...requirePermission(STAFF_PERMISSIONS.MANAGE_ROLES), staffController.createRole);
 /**
@@ -621,11 +532,16 @@ router.post('/roles', ...requirePermission(STAFF_PERMISSIONS.MANAGE_ROLES), staf
  * /api/staff/roles:
  *   get:
  *     summary: List all staff roles for a business
- *     description: |
- *       Retrieves all staff roles defined for the business, including their permissions.
  *     tags: [StaffRole]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the business
  *     responses:
  *       200:
  *         description: List of staff roles
@@ -638,6 +554,8 @@ router.post('/roles', ...requirePermission(STAFF_PERMISSIONS.MANAGE_ROLES), staf
  *                   type: array
  *                   items:
  *                     $ref: '#/components/schemas/StaffRole'
+ *       400:
+ *         description: business_id is required
  *       500:
  *         description: Server error
  */
@@ -645,11 +563,48 @@ router.get('/roles', ...requirePermission(STAFF_PERMISSIONS.VIEW_ROLES), staffCo
 /**
  * @swagger
  * /api/staff/roles/{id}:
+ *   get:
+ *     summary: Get a staff role by ID
+ *     tags: [StaffRole]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Role ID
+ *       - in: query
+ *         name: business_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Business ID
+ *     responses:
+ *       200:
+ *         description: Role found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 role:
+ *                   $ref: '#/components/schemas/StaffRole'
+ *       400:
+ *         description: business_id is required
+ *       404:
+ *         description: Role not found for this business
+ *       500:
+ *         description: Server error
+ */
+router.get('/roles/:id', ...requirePermission(STAFF_PERMISSIONS.VIEW_ROLES), staffController.getRoleById);
+
+/**
+ * @swagger
+ * /api/staff/roles/{id}:
  *   put:
  *     summary: Update a staff role's name or permissions
- *     description: |
- *       Updates the name or permissions of a staff role.
- *       If permissions are changed, all staff assigned to this role will have their permissions updated.
  *     tags: [StaffRole]
  *     security:
  *       - bearerAuth: []
@@ -669,17 +624,13 @@ router.get('/roles', ...requirePermission(STAFF_PERMISSIONS.VIEW_ROLES), staffCo
  *             properties:
  *               role_name:
  *                 type: string
- *                 description: New name for the role
- *                 example: "Supervisor"
  *               permissions:
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: Updated permissions
- *                 example: ["view_products", "manage_stock"]
  *     responses:
  *       200:
- *         description: Staff role updated successfully
+ *         description: Role updated successfully
  *         content:
  *           application/json:
  *             schema:
@@ -700,8 +651,6 @@ router.put('/roles/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_ROLES), s
  * /api/staff/roles/{id}:
  *   delete:
  *     summary: Delete a staff role
- *     description: |
- *       Deletes a staff role. If staff are assigned to this role, deletion may fail or require reassignment (business logic dependent).
  *     tags: [StaffRole]
  *     security:
  *       - bearerAuth: []
@@ -714,11 +663,9 @@ router.put('/roles/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_ROLES), s
  *         description: Role ID
  *     responses:
  *       200:
- *         description: Staff role deleted successfully
+ *         description: Role deleted successfully
  *       404:
  *         description: Role not found
- *       409:
- *         description: Cannot delete role while staff are assigned (if enforced)
  *       500:
  *         description: Server error
  */
