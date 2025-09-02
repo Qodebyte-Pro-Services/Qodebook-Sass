@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { v4: uuidv4 } = require('uuid');
 const { 
   sendStaffPasswordEmail, 
   sendOwnerPasswordNotification,
@@ -846,12 +847,29 @@ exports.getStaffByBusiness = async (req, res) => {
 
 exports.createRole = async (req, res) => {
   try {
-    const {business_id, role_name, permissions, created_by } = req.body;
-    if (!business_id || !role_name || !permissions || !created_by) return res.status(400).json({ message: 'Missing required fields.' });
-    const result = await pool.query('INSERT INTO staff_roles (role_id, business_id, role_name, permissions, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *', [role_id, business_id, role_name, permissions, created_by]);
+    const { business_id, role_name, permissions, created_by } = req.body;
+    if (!business_id || !role_name || !permissions || !created_by) {
+      return res.status(400).json({ message: 'Missing required fields.' });
+    }
+
+    const role_id = uuidv4();
+
+    const result = await pool.query(
+      'INSERT INTO staff_roles (role_id, business_id, role_name, permissions, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [role_id, business_id, role_name, permissions, created_by]
+    );
+
     return res.status(201).json({ role: result.rows[0] });
   } catch (err) {
     console.error(err);
+
+  
+    if (err.code === '23505') { 
+      return res.status(409).json({ 
+        message: `Role "${req.body.role_name}" already exists for this business.` 
+      });
+    }
+
     return res.status(500).json({ message: 'Server error.' });
   }
 };
