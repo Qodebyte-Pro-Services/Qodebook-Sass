@@ -298,13 +298,18 @@ const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
  * @swagger
  * /api/variants/business/variants:
  *   get:
- *     summary: Get all variants under the authenticated user's business
+ *     summary: Get all variants for a specific business
  *     tags: [Variant]
- *     security:
- *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the business to fetch variants for
  *     responses:
  *       200:
- *         description: List of variants for the business
+ *         description: List of variants for the given business
  *         content:
  *           application/json:
  *             schema:
@@ -314,7 +319,28 @@ const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
  *                   type: array
  *                   items:
  *                     $ref: '#/components/schemas/Variant'
+ *       400:
+ *         description: Missing or invalid business_id
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: business_id is required
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Server error
  */
+
 
 /**
  * @swagger

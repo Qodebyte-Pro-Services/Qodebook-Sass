@@ -1208,7 +1208,9 @@ router.post('/login', staffController.staffLogin);
  */
 router.post('/password/change', ...requirePermission(STAFF_PERMISSIONS.CHANGE_PASSWORD), staffController.requestPasswordChange);
 
-// Business Staff Settings Routes
+
+
+router.post('/settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_SETTINGS), staffController.updateBusinessStaffSettings);
 /**
  * @swagger
  * /api/staff/settings/{business_id}:

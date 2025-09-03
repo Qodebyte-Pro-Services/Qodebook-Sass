@@ -665,6 +665,41 @@ exports.rejectPasswordChangeRequest = async (req, res) => {
   }
 };
 
+exports.createBusinessStaffSettings = async (req, res) => {
+  try {
+    const { business_id } = req.params;
+    const { 
+      branch_id, password_delivery_method, password_change_policy, 
+      require_otp_for_login, otp_delivery_method, session_timeout_minutes,
+      max_login_attempts, lockout_duration_minutes 
+    } = req.body;
+    const existing = await pool.query('SELECT * FROM business_staff_settings WHERE business_id = $1 AND branch_id = $2', [business_id, branch_id]);
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ message: 'Settings for this business and branch already exist. Use update endpoint.' });
+    }
+    const result = await pool.query(`
+      INSERT INTO business_staff_settings (
+        business_id, branch_id, password_delivery_method, password_change_policy,
+        require_otp_for_login, otp_delivery_method, session_timeout_minutes,
+        max_login_attempts, lockout_duration_minutes, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+      RETURNING *
+    `, [
+      business_id, branch_id, password_delivery_method, password_change_policy,
+      require_otp_for_login, otp_delivery_method, session_timeout_minutes,
+      max_login_attempts, lockout_duration_minutes
+    ]);
+    return res.status(201).json({ 
+      message: 'Staff settings created successfully.',
+      settings: result.rows[0] 
+    });
+  }
+  catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+}
+
 
 exports.getBusinessStaffSettings = async (req, res) => {
   try {

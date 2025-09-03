@@ -191,15 +191,28 @@ exports.listVariants = async (req, res) => {
 
 
 exports.getVariantsByBusiness = async (req, res) => {
-  const user_id = req.user.user_id;
-  const result = await pool.query(`
-    SELECT v.* FROM variants v
-    JOIN products p ON v.product_id = p.id
-    JOIN businesses b ON p.business_id = b.id
-    WHERE b.user_id = $1 AND v.deleted_at IS NULL
-  `, [user_id]);
-  return res.status(200).json({ variants: result.rows });
+  try {
+    const { business_id } = req.query;
+
+    if (!business_id) {
+      return res.status(400).json({ message: 'business_id is required' });
+    }
+
+    const result = await pool.query(`
+      SELECT v.*
+      FROM variants v
+      JOIN products p ON v.product_id = p.id
+      WHERE p.business_id = $1
+    `, [business_id]);
+
+    return res.status(200).json({ variants: result.rows });
+
+  } catch (err) {
+    console.error('Error fetching variants by business:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
 };
+
 
 exports.getVariantByProduct = async (req, res) => {
   try {
