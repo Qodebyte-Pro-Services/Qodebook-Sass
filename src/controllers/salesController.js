@@ -12,6 +12,7 @@ exports.createSale = async (req, res) => {
       return res.status(400).json({ message: 'Sale must be recorded by a staff or a user.' });
     }
 
+    let customerId = customer_id ? Number(customer_id) : null;
 
 if (customerId === 0) {
       const existingCustomer = await pool.query(
