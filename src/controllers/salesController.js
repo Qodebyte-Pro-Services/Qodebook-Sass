@@ -3,7 +3,7 @@ const pool = require('../config/db');
 
 exports.createSale = async (req, res) => {
   try {
-    const { business_id, branch_id, staff_id, created_by_user_id, customer_id, items, total_amount, payment_mode, discount, coupon, taxes, note } = req.body;
+    const { business_id, branch_id, staff_id, created_by_user_id, customer_id, items, total_amount, payment_mode, discount, coupon, taxes, note, order_type  } = req.body;
     if (!business_id || !branch_id || !items || !Array.isArray(items) || items.length === 0 || !total_amount || !payment_mode) {
       return res.status(400).json({ message: 'Missing required fields.' });
     }
