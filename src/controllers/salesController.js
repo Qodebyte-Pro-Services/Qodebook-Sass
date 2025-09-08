@@ -8,7 +8,7 @@ exports.createSale = async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields.' });
     }
 
-      if (!staff_id && !created_by_user_id) {
+      if (!staff_id || !created_by_user_id) {
       return res.status(400).json({ message: 'Sale must be recorded by a staff or a user.' });
     }
 
