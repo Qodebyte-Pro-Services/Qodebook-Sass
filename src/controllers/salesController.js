@@ -114,7 +114,31 @@ if (customerId === 0) {
       );
     }
 
-    return res.status(201).json({ sale: order });
+   const saleRes = await pool.query(`
+      SELECT o.*, 
+        c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
+        b.name AS branch_name,
+        COALESCE(s.full_name, CONCAT(u.first_name, ' ', u.last_name), '') AS recorded_by_name
+      FROM orders o
+      LEFT JOIN customers c ON o.customer_id = c.id
+      LEFT JOIN branches b ON o.branch_id = b.id
+      LEFT JOIN staff s ON o.staff_id = s.staff_id
+      LEFT JOIN users u ON o.created_by_user_id = u.id
+      WHERE o.id = $1
+    `, [order.id]);
+
+    const itemsRes = await pool.query(`
+      SELECT oi.*, 
+        v.sku, v.name AS variant_name, v.attributes, v.selling_price
+      FROM order_items oi
+      LEFT JOIN variants v ON oi.variant_id = v.id
+      WHERE oi.order_id = $1
+    `, [order.id]);
+
+    return res.status(201).json({
+      sale: saleRes.rows[0],
+      items: itemsRes.rows
+    });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.', details: err.message });
@@ -125,7 +149,37 @@ if (customerId === 0) {
 
 exports.listSales = async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM orders WHERE status = 'completed' ORDER BY created_at DESC");
+    const { business_id, branch_id } = req.query;
+    let whereClauses = [`o.status = 'completed'`];
+    let params = [];
+    let idx = 1;
+
+    if (business_id) {
+      whereClauses.push(`o.business_id = $${idx}`);
+      params.push(business_id);
+      idx++;
+    }
+    if (branch_id) {
+      whereClauses.push(`o.branch_id = $${idx}`);
+      params.push(branch_id);
+      idx++;
+    }
+
+    const query = `
+      SELECT o.*, 
+        c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
+        b.name AS branch_name,
+        COALESCE(s.full_name, CONCAT(u.first_name, ' ', u.last_name), '') AS recorded_by_name
+      FROM orders o
+      LEFT JOIN customers c ON o.customer_id = c.id
+      LEFT JOIN branches b ON o.branch_id = b.id
+      LEFT JOIN staff s ON o.staff_id = s.staff_id
+      LEFT JOIN users u ON o.created_by_user_id = u.id
+      WHERE ${whereClauses.join(' AND ')}
+      ORDER BY o.created_at DESC
+    `;
+
+    const result = await pool.query(query, params);
     return res.status(200).json({ sales: result.rows });
   } catch (err) {
     console.error(err);
@@ -137,10 +191,32 @@ exports.listSales = async (req, res) => {
 exports.getSale = async (req, res) => {
   try {
     const { id } = req.params;
-    const orderRes = await pool.query('SELECT * FROM orders WHERE id = $1', [id]);
-    if (orderRes.rows.length === 0) return res.status(404).json({ message: 'Sale not found.' });
-    const itemsRes = await pool.query('SELECT * FROM order_items WHERE order_id = $1', [id]);
-    return res.status(200).json({ sale: orderRes.rows[0], items: itemsRes.rows });
+    const saleRes = await pool.query(`
+      SELECT o.*, 
+        c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
+        b.name AS branch_name,
+        COALESCE(s.full_name, CONCAT(u.first_name, ' ', u.last_name), '') AS recorded_by_name
+      FROM orders o
+      LEFT JOIN customers c ON o.customer_id = c.id
+      LEFT JOIN branches b ON o.branch_id = b.id
+      LEFT JOIN staff s ON o.staff_id = s.staff_id
+      LEFT JOIN users u ON o.created_by_user_id = u.id
+      WHERE o.id = $1
+    `, [id]);
+    if (saleRes.rows.length === 0) return res.status(404).json({ message: 'Sale not found.' });
+
+    const itemsRes = await pool.query(`
+      SELECT oi.*, 
+        v.sku, v.name AS variant_name, v.attributes, v.selling_price
+      FROM order_items oi
+      LEFT JOIN variants v ON oi.variant_id = v.id
+      WHERE oi.order_id = $1
+    `, [id]);
+
+    return res.status(200).json({
+      sale: saleRes.rows[0],
+      items: itemsRes.rows
+    });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
