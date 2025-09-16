@@ -117,7 +117,7 @@ if (customerId === 0) {
    const saleRes = await pool.query(`
       SELECT o.*, 
         c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
-        b.name AS branch_name,
+        b.branch_name AS branch_name,
         COALESCE(s.full_name, CONCAT(u.first_name, ' ', u.last_name), '') AS recorded_by_name
       FROM orders o
       LEFT JOIN customers c ON o.customer_id = c.id
@@ -168,7 +168,7 @@ exports.listSales = async (req, res) => {
     const query = `
       SELECT o.*, 
         c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
-        b.name AS branch_name,
+        b.branch_name AS branch_name,
         COALESCE(s.full_name, CONCAT(u.first_name, ' ', u.last_name), '') AS recorded_by_name
       FROM orders o
       LEFT JOIN customers c ON o.customer_id = c.id
@@ -187,14 +187,13 @@ exports.listSales = async (req, res) => {
   }
 };
 
-
 exports.getSale = async (req, res) => {
   try {
     const { id } = req.params;
     const saleRes = await pool.query(`
       SELECT o.*, 
         c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
-        b.name AS branch_name,
+        b.branch_name AS branch_name,
         COALESCE(s.full_name, CONCAT(u.first_name, ' ', u.last_name), '') AS recorded_by_name
       FROM orders o
       LEFT JOIN customers c ON o.customer_id = c.id
