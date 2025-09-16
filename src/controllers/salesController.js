@@ -129,7 +129,7 @@ if (customerId === 0) {
 
     const itemsRes = await pool.query(`
       SELECT oi.*, 
-        v.sku, v.name AS variant_name, v.attributes, v.selling_price
+        v.sku AS variant_name, v.attributes, v.quantity, v.selling_price
       FROM order_items oi
       LEFT JOIN variants v ON oi.variant_id = v.id
       WHERE oi.order_id = $1
@@ -206,7 +206,7 @@ exports.getSale = async (req, res) => {
 
     const itemsRes = await pool.query(`
       SELECT oi.*, 
-        v.sku, v.name AS variant_name, v.attributes, v.selling_price
+        v.sku AS variant_name, v.attributes, v.quantity, v.selling_price
       FROM order_items oi
       LEFT JOIN variants v ON oi.variant_id = v.id
       WHERE oi.order_id = $1
