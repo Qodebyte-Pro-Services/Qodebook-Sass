@@ -13,7 +13,16 @@ exports.createDiscount = async (req, res) => {
 };
 exports.listDiscounts = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM discounts');
+    const { business_id } = req.query;
+    let query = 'SELECT * FROM discounts';
+    let params = [];
+
+    if (business_id) {
+      query += ' WHERE business_id = $1';
+      params.push(business_id);
+    }
+
+    const result = await pool.query(query, params);
     return res.status(200).json({ discounts: result.rows });
   } catch (err) {
     console.error(err);

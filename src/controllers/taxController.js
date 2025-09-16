@@ -13,7 +13,16 @@ exports.createTax = async (req, res) => {
 };
 exports.listTaxes = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM taxes');
+    const { business_id } = req.query;
+    let query = 'SELECT * FROM taxes';
+    let params = [];
+
+    if (business_id) {
+      query += ' WHERE business_id = $1';
+      params.push(business_id);
+    }
+
+    const result = await pool.query(query, params);
     return res.status(200).json({ taxes: result.rows });
   } catch (err) {
     console.error(err);
