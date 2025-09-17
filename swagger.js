@@ -11,7 +11,7 @@ const options = {
     },
     servers: [
       {
-        url: 'http://qodebook-sass.onrender.com',
+        url: 'https://qodebook-sass-api.qodebyte.com',
       },
     ],
     components: {
