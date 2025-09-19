@@ -79,4 +79,103 @@ router.get('/', authenticateToken, discountController.listDiscounts);
  */
 router.post('/link', authenticateToken, discountController.linkDiscountToProduct);
 
+
+/**
+ * @swagger
+ * /api/discounts/product/{product_id}:
+ *   get:
+ *     summary: Get discounts for a specific product
+ *     tags: [Discount]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: product_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of discounts for the product
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 discounts:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       business_id:
+ *                         type: integer
+ *                       name:
+ *                         type: string
+ *                       percentage:
+ *                         type: number
+ *                       amount:
+ *                         type: number
+ *                       start_date:
+ *                         type: string
+ *                         format: date
+ *                       end_date:
+ *                         type: string
+ *                         format: date
+ *                       description:
+ *                         type: string
+ */
+router.get('/product/:product_id', authenticateToken, discountController.getDiscountsForProduct);
+
+
+/**
+ * @swagger
+ * /api/discounts/variants/product/{product_id}:
+ *   get:
+ *     summary: Get discounts for all variants of a specific product
+ *     tags: [Discount]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: product_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of discounts for the product variants
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 discounts:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       business_id:
+ *                         type: integer
+ *                       name:
+ *                         type: string
+ *                       percentage:
+ *                         type: number
+ *                       amount:
+ *                         type: number
+ *                       start_date:
+ *                         type: string
+ *                         format: date
+ *                       end_date:
+ *                         type: string
+ *                         format: date
+ *                       description:
+ *                         type: string
+ */
+router.get('/product/:product_id/variants', authenticateToken, discountController.getDiscountsForVariantsBasedOnProduct);
+
+
 module.exports = router;

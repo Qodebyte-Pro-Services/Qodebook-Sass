@@ -74,4 +74,84 @@ router.get('/', authenticateToken, taxController.listTaxes);
  */
 router.post('/link', authenticateToken, taxController.linkTaxToProduct);
 
+/**
+ * @swagger
+ * /api/taxes/product/{product_id}:
+ *   get:
+ *     summary: Get taxes for a specific product
+ *     tags: [Tax]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: product_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of taxes for the product
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 taxes:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       name:
+ *                         type: string
+ *                       rate:
+ *                         type: number
+ *                       type:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ */
+router.get('/product/:product_id', authenticateToken, taxController.getTaxesForProduct);
+
+/**
+ * @swagger
+ * /api/taxes/variants/product/{product_id}:
+ *   get:
+ *     summary: Get taxes for all variants of a specific product
+ *     tags: [Tax]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: product_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of taxes for the product variants
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 taxes:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       name:
+ *                         type: string
+ *                       rate:
+ *                         type: number
+ *                       type:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ */
+router.get('/product/:product_id/variants', authenticateToken, taxController.getTaxesForVariantsBasedOnProduct);
+
 module.exports = router;

@@ -81,4 +81,60 @@ router.get('/', authenticateToken, couponController.listCoupons);
  */
 router.post('/link', authenticateToken, couponController.linkCouponToProduct);
 
+/**
+ * @swagger
+ * /api/coupons/product/{product_id}:
+ *   get:
+ *     summary: Get coupons for a specific product
+ *     tags: [Coupon]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: product_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of coupons for the product
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 coupons:
+ *                   type: array
+ */
+router.get('/product/:product_id', authenticateToken, couponController.getCouponsForProduct);
+
+
+/**
+ * @swagger
+ * /api/coupons/product/{product_id}/variants:
+ *   get:
+ *     summary: Get coupons for all variants of a specific product
+ *     tags: [Coupon]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: product_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of coupons for the product variants
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 coupons:
+ *                   type: array
+ */
+router.get('/product/:product_id/variants', authenticateToken, couponController.getCouponsForVariantsBasedOnProduct);
+
+
 module.exports = router;

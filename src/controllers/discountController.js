@@ -40,3 +40,40 @@ exports.linkDiscountToProduct = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+
+exports.getDiscountsForProduct = async (req, res) => {
+  try {
+    const { product_id } = req.params;
+    if (!product_id) return res.status(400).json({ message: 'Missing product_id parameter.' });
+    const result = await pool.query(
+      `SELECT d.* FROM discounts d
+       JOIN product_discounts pd ON d.id = pd.discount_id
+        WHERE pd.product_id = $1`,  
+      [product_id]
+    );
+    return res.status(200).json({ discounts: result.rows });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+}
+
+exports.getDiscountsForVariantsBasedOnProduct = async (req, res) => {
+  try {
+    const { product_id } = req.params;
+    if (!product_id) return res.status(400).json({ message: 'Missing product_id parameter.' });
+    const result = await pool.query(
+      `SELECT d.* FROM discounts d
+       JOIN product_discounts pd ON d.id = pd.discount_id
+       JOIN products p ON pd.product_id = p.id
+       JOIN variants v ON p.id = v.product_id
+       WHERE p.id = $1`,
+      [product_id]
+    );
+    return res.status(200).json({ discounts: result.rows });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+}
