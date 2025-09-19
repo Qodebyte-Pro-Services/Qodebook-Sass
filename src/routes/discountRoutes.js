@@ -131,7 +131,7 @@ router.get('/product/:product_id', authenticateToken, discountController.getDisc
 
 /**
  * @swagger
- * /api/discounts/variants/product/{product_id}:
+ * /api/discounts/product/{product_id}/variants:
  *   get:
  *     summary: Get discounts for all variants of a specific product
  *     tags: [Discount]

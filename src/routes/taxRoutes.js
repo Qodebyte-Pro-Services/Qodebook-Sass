@@ -116,7 +116,7 @@ router.get('/product/:product_id', authenticateToken, taxController.getTaxesForP
 
 /**
  * @swagger
- * /api/taxes/variants/product/{product_id}:
+ * /api/taxes/product/{product_id}/variants:
  *   get:
  *     summary: Get taxes for all variants of a specific product
  *     tags: [Tax]
