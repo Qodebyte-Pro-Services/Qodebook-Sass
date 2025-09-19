@@ -40,6 +40,27 @@ exports.linkCouponToProduct = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+
+exports.getListOfProductsAndTheirCoupons = async (req, res) =>  {
+  try {
+    const { business_id } = req.query;
+    if (!business_id) return res.status(400).json({ message: 'Missing business_id parameter.' });
+    const result = await pool.query(
+      `SELECT p.id AS product_id, p.name AS product_name, c.id AS coupon_id, c.code AS coupon_code, c.description, c.discount_percentage, c.discount_amount, c.start_date, c.end_date
+        FROM products p
+        LEFT JOIN product_coupons pc ON p.id = pc.product_id
+        LEFT JOIN coupons c ON pc.coupon_id = c.id
+        WHERE p.business_id = $1`,
+      [business_id]
+    );
+    return res.status(200).json({ products_with_coupons: result.rows });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+}
+
+
 exports.getCouponsForProduct = async (req, res) => {
   try {
     const { product_id } = req.params;

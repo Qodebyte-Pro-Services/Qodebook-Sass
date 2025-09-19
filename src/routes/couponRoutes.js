@@ -136,5 +136,77 @@ router.get('/product/:product_id', authenticateToken, couponController.getCoupon
  */
 router.get('/product/:product_id/variants', authenticateToken, couponController.getCouponsForVariantsBasedOnProduct);
 
+/**
+ * @swagger
+ * /api/coupons/products-with-coupons:
+ *   get:
+ *     summary: Get all products and their associated coupons for a business
+ *     tags: [Coupon]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: ID of the business to fetch products and their coupons for
+ *     responses:
+ *       200:
+ *         description: List of products with their associated coupons
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 products_with_coupons:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       product_id:
+ *                         type: integer
+ *                         example: 1
+ *                       product_name:
+ *                         type: string
+ *                         example: "Laptop"
+ *                       coupon_id:
+ *                         type: integer
+ *                         nullable: true
+ *                         example: 3
+ *                       coupon_code:
+ *                         type: string
+ *                         nullable: true
+ *                         example: "SAVE20"
+ *                       description:
+ *                         type: string
+ *                         nullable: true
+ *                         example: "20% off on electronics"
+ *                       discount_percentage:
+ *                         type: number
+ *                         format: float
+ *                         nullable: true
+ *                         example: 20
+ *                       discount_amount:
+ *                         type: number
+ *                         format: float
+ *                         nullable: true
+ *                         example: 50
+ *                       start_date:
+ *                         type: string
+ *                         format: date-time
+ *                         nullable: true
+ *                         example: "2025-09-01T00:00:00Z"
+ *                       end_date:
+ *                         type: string
+ *                         format: date-time
+ *                         nullable: true
+ *                         example: "2025-09-30T23:59:59Z"
+ *       400:
+ *         description: Missing business_id parameter
+ *       500:
+ *         description: Server error
+ */
+router.get('/products-with-coupons', authenticateToken, couponController.getListOfProductsAndTheirCoupons);
 
 module.exports = router;

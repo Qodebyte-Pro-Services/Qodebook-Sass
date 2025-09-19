@@ -154,4 +154,63 @@ router.get('/product/:product_id', authenticateToken, taxController.getTaxesForP
  */
 router.get('/product/:product_id/variants', authenticateToken, taxController.getTaxesForVariantsBasedOnProduct);
 
+/**
+ * @swagger
+ * /api/taxes/products-with-taxes:
+ *   get:
+ *     summary: Get all products and their associated taxes for a business
+ *     tags: [Tax]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: ID of the business to fetch products and their taxes for
+ *     responses:
+ *       200:
+ *         description: List of products with their associated taxes
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 products_with_taxes:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       product_id:
+ *                         type: integer
+ *                         example: 1
+ *                       product_name:
+ *                         type: string
+ *                         example: "Laptop"
+ *                       tax_id:
+ *                         type: integer
+ *                         nullable: true
+ *                         example: 2
+ *                       tax_name:
+ *                         type: string
+ *                         nullable: true
+ *                         example: "VAT"
+ *                       rate:
+ *                         type: number
+ *                         format: float
+ *                         nullable: true
+ *                         example: 7.5
+ *                       type:
+ *                         type: string
+ *                         nullable: true
+ *                         example: "percentage"
+ *       400:
+ *         description: Missing business_id parameter
+ *       500:
+ *         description: Server error
+ */
+
+router.get('/products-with-taxes', authenticateToken, taxController.getListOfProductsAndTheirTaxes);
+
 module.exports = router;

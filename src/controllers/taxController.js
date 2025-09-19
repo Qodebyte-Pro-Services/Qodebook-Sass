@@ -41,6 +41,25 @@ exports.linkTaxToProduct = async (req, res) => {
   }
 };
 
+exports.getListOfProductsAndTheirTaxes = async (req, res) =>  {
+  try {
+    const { business_id } = req.query;
+    if (!business_id) return res.status(400).json({ message: 'Missing business_id parameter.' });
+    const result = await pool.query(
+      `SELECT p.id AS product_id, p.name AS product_name, t.id AS tax_id, t.name AS tax_name, t.rate, t.type
+        FROM products p
+        LEFT JOIN product_taxes pt ON p.id = pt.product_id
+        LEFT JOIN taxes t ON pt.tax_id = t.id
+        WHERE p.business_id = $1`,
+      [business_id]
+    );
+    return res.status(200).json({ products_with_taxes: result.rows });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+}
+
 exports.getTaxesForProduct = async (req, res) => {
   try {
     const { product_id } = req.params;

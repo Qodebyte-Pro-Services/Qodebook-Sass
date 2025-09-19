@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middlewares/authMiddleware');
 const discountController = require('../controllers/discountController');
+const { route } = require('./couponRoutes');
 
 /**
  * @swagger
@@ -177,5 +178,78 @@ router.get('/product/:product_id', authenticateToken, discountController.getDisc
  */
 router.get('/product/:product_id/variants', authenticateToken, discountController.getDiscountsForVariantsBasedOnProduct);
 
+/**
+ * @swagger
+ * /api/discounts/products-with-discounts:
+ *   get:
+ *     summary: Get all products and their associated discounts for a business
+ *     tags: [Discount]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: ID of the business to fetch products and their discounts for
+ *     responses:
+ *       200:
+ *         description: List of products with their associated discounts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 products_with_discounts:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       product_id:
+ *                         type: integer
+ *                         example: 10
+ *                       product_name:
+ *                         type: string
+ *                         example: "Wireless Headphones"
+ *                       discount_id:
+ *                         type: integer
+ *                         nullable: true
+ *                         example: 5
+ *                       discount_name:
+ *                         type: string
+ *                         nullable: true
+ *                         example: "Holiday Sale"
+ *                       percentage:
+ *                         type: number
+ *                         format: float
+ *                         nullable: true
+ *                         example: 15
+ *                       amount:
+ *                         type: number
+ *                         format: float
+ *                         nullable: true
+ *                         example: 30
+ *                       start_date:
+ *                         type: string
+ *                         format: date-time
+ *                         nullable: true
+ *                         example: "2025-09-01T00:00:00Z"
+ *                       end_date:
+ *                         type: string
+ *                         format: date-time
+ *                         nullable: true
+ *                         example: "2025-09-15T23:59:59Z"
+ *                       description:
+ *                         type: string
+ *                         nullable: true
+ *                         example: "Limited time discount on audio products"
+ *       400:
+ *         description: Missing business_id parameter
+ *       500:
+ *         description: Server error
+ */
+
+router.get('/products-with-discounts', authenticateToken, discountController.getListOfProductsAndTheirDiscounts);
 
 module.exports = router;
