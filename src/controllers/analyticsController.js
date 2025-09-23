@@ -952,114 +952,209 @@ const serviceTrackingResult = await pool.query(
   };
 
   exports.salesReport = async (req, res) => {
-    try {
-      const { business_id, branch_id, period = 'day', start_date, end_date, summary = 'true', details = 'false', payment_methods = 'false', product_breakdown = 'false', page = 1, pageSize = 20 } = req.query;
-      if (!business_id) return res.status(400).json({ error: 'business_id is required' });
-      if (!['day', 'month', 'year', 'custom'].includes(period)) return res.status(400).json({ error: 'Invalid period parameter' });
-      if (period === 'custom' && (!start_date || !end_date)) return res.status(400).json({ error: 'start_date and end_date required for custom period' });
-      const pageInt = parseInt(page);
-      const pageSizeInt = parseInt(pageSize);
-      if (isNaN(pageInt) || isNaN(pageSizeInt) || pageInt < 1 || pageSizeInt < 1) return res.status(400).json({ error: 'Invalid pagination parameters' });
-      let dateWhere = '';
-      if (period === 'day') dateWhere = ` AND DATE(o.created_at) = CURRENT_DATE`;
-      else if (period === 'month') dateWhere = ` AND DATE_TRUNC('month', o.created_at) = DATE_TRUNC('month', CURRENT_DATE)`;
-      else if (period === 'year') dateWhere = ` AND DATE_TRUNC('year', o.created_at) = DATE_TRUNC('year', CURRENT_DATE)`;
-      else if (period === 'custom') dateWhere = ` AND o.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+  try {
+    const {
+      business_id,
+      branch_id,
+      period = "day",
+      start_date,
+      end_date,
+      summary = "true",
+      details = "false",
+      payment_methods = "false",
+      product_breakdown = "false",
+      page = 1,
+      pageSize = 20,
+    } = req.query;
 
-      
-      let where = `o.status = 'completed' AND o.business_id = $1`;
-      let params = [business_id];
-      let paramIdx = 2;
-      if (branch_id) {
-        where += ` AND o.branch_id = $${paramIdx}`;
-        params.push(branch_id);
-        paramIdx++;
-      }
-      where += dateWhere;
+    if (!business_id)
+      return res.status(400).json({ error: "business_id is required" });
 
-      let summaryData = {};
-      if (summary === 'true') {
-        const summaryResult = await pool.query(
-          `SELECT COUNT(*) as total_orders, COALESCE(SUM(oi.quantity * oi.selling_price),0) as total_sales, COALESCE(SUM(o.tax),0) as total_tax, COALESCE(SUM(o.discount),0) as total_discount
-           FROM orders o
-           JOIN order_items oi ON o.id = oi.order_id
-           WHERE ${where}`,
-          params
-        );
-        summaryData = summaryResult.rows[0];
-        const cogsResult = await pool.query(
-          `SELECT COALESCE(SUM(oi.quantity * oi.cost_price),0) as total_cogs
-           FROM orders o
-           JOIN order_items oi ON o.id = oi.order_id
-           WHERE ${where}`,
-          params
-        );
-        summaryData.total_cogs = Number(cogsResult.rows[0]?.total_cogs || 0);
-        summaryData.gross_profit = (Number(summaryData.total_sales) || 0) - summaryData.total_cogs;
-      }
+    if (!["day", "month", "year", "custom"].includes(period))
+      return res.status(400).json({ error: "Invalid period parameter" });
 
-      let orderDetails = [];
-      if (details === 'true') {
-        const offset = (pageInt - 1) * pageSizeInt;
-       
-        const detailsParams = [...params, pageSizeInt, offset];
-        const detailsResult = await pool.query(
-          `SELECT o.id as order_id, o.customer_name, o.order_method, o.total_amount, o.tax, o.discount, o.payment_method, o.created_at, o.status, oi.variant_id, oi.product_name, oi.quantity, oi.selling_price, oi.cost_price
-           FROM orders o
-           JOIN order_items oi ON o.id = oi.order_id
-           WHERE ${where}
-           ORDER BY o.created_at DESC
-           LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
-          detailsParams
-        );
-        orderDetails = detailsResult.rows;
-      }
+    if (period === "custom" && (!start_date || !end_date))
+      return res
+        .status(400)
+        .json({ error: "start_date and end_date required for custom period" });
 
-      let paymentStats = [];
-      if (payment_methods === 'true') {
-        const payResult = await pool.query(
-          `SELECT o.payment_method, COUNT(*) as count, COALESCE(SUM(o.total_amount),0) as total
-           FROM orders o
-           WHERE ${where}
-           GROUP BY o.payment_method`,
-          params
-        );
-        paymentStats = payResult.rows;
-      }
+    const pageInt = parseInt(page, 10);
+    const pageSizeInt = parseInt(pageSize, 10);
+    if (isNaN(pageInt) || isNaN(pageSizeInt) || pageInt < 1 || pageSizeInt < 1)
+      return res.status(400).json({ error: "Invalid pagination parameters" });
 
-      let productStats = [];
-      if (product_breakdown === 'true') {
-        const prodResult = await pool.query(
-          `SELECT oi.product_id, oi.product_name, oi.variant_id, SUM(oi.quantity) as total_qty, SUM(oi.quantity * oi.selling_price) as total_sales
-           FROM order_items oi
-           JOIN orders o ON oi.order_id = o.id
-           WHERE ${where}
-           GROUP BY oi.product_id, oi.product_name, oi.variant_id
-           ORDER BY total_sales DESC`,
-          params
-        );
-        productStats = prodResult.rows;
-      }
-      res.json({
-        period,
-        ...(period === 'custom' && { start_date, end_date }),
-        summary: summaryData,
-        order_details: orderDetails,
-        payment_methods: paymentStats,
-        product_breakdown: productStats,
-        ...(details === 'true' && {
-          pagination: {
-            page: pageInt,
-            pageSize: pageSizeInt,
-            total: orderDetails.length
-          }
-        })
-      });
-    } catch (err) {
-      console.error('Sales report error:', err);
-      res.status(500).json({ error: 'Failed to generate sales report', details: err.message });
+    // Build where clause safely with params
+    const whereParts = ["o.status = 'completed'", "o.business_id = $1"];
+    const params = [business_id];
+    let paramIdx = 2;
+
+    if (branch_id) {
+      whereParts.push(`o.branch_id = $${paramIdx}`);
+      params.push(branch_id);
+      paramIdx++;
     }
-  };
+
+    if (period === "day") {
+      whereParts.push(`DATE(o.created_at) = CURRENT_DATE`);
+    } else if (period === "month") {
+      whereParts.push(
+        `DATE_TRUNC('month', o.created_at) = DATE_TRUNC('month', CURRENT_DATE)`
+      );
+    } else if (period === "year") {
+      whereParts.push(
+        `DATE_TRUNC('year', o.created_at) = DATE_TRUNC('year', CURRENT_DATE)`
+      );
+    } else if (period === "custom") {
+      whereParts.push(`o.created_at::date BETWEEN $${paramIdx} AND $${paramIdx + 1}`);
+      params.push(start_date, end_date);
+      paramIdx += 2;
+    }
+
+    const whereClause = whereParts.join(" AND ");
+
+    // ---------- SUMMARY ----------
+    let summaryData = {};
+    if (String(summary) === "true") {
+      const summarySql = `
+        SELECT
+          COUNT(*)::int AS total_orders,
+          COALESCE(SUM(o.subtotal),0) AS subtotal,
+          COALESCE(SUM(o.tax_total),0) AS total_tax,
+          COALESCE(SUM(o.discount_total + o.coupon_total),0) AS total_discount,
+          COALESCE(SUM(o.total_amount),0) AS total_sales
+        FROM orders o
+        WHERE ${whereClause}
+      `;
+      const summaryResult = await pool.query(summarySql, params);
+      summaryData = summaryResult.rows[0] || {};
+
+      // COGS: sum quantity * v.cost_price (if variant.cost_price exists)
+      const cogsSql = `
+        SELECT COALESCE(SUM(oi.quantity * COALESCE(v.cost_price, 0)),0) AS total_cogs
+        FROM order_items oi
+        JOIN orders o ON oi.order_id = o.id
+        LEFT JOIN variants v ON oi.variant_id = v.id
+        WHERE ${whereClause}
+      `;
+      const cogsResult = await pool.query(cogsSql, params);
+      summaryData.total_cogs = Number(cogsResult.rows[0]?.total_cogs || 0);
+      summaryData.gross_profit =
+        (Number(summaryData.total_sales) || 0) - summaryData.total_cogs;
+    }
+
+    // ---------- DETAILS (paginate orders, then fetch items) ----------
+    let orderDetails = [];
+    let pagination = {};
+    if (String(details) === "true") {
+      const offset = (pageInt - 1) * pageSizeInt;
+
+      // total orders matching filters (for pagination)
+      const countSql = `SELECT COUNT(*)::int AS total FROM orders o WHERE ${whereClause}`;
+      const countResult = await pool.query(countSql, params);
+      const totalOrders = countResult.rows[0]?.total || 0;
+
+      // fetch paginated orders (order-level rows)
+      const ordersPageSql = `
+        SELECT o.*
+        FROM orders o
+        WHERE ${whereClause}
+        ORDER BY o.created_at DESC
+        LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
+      `;
+      const ordersPageParams = [...params, pageSizeInt, offset];
+      const ordersPageRes = await pool.query(ordersPageSql, ordersPageParams);
+      const ordersPage = ordersPageRes.rows || [];
+      const orderIds = ordersPage.map((r) => r.id);
+
+      // fetch items for those orders (if any)
+      let itemsByOrder = {};
+      if (orderIds.length > 0) {
+        const itemsSql = `
+          SELECT oi.*, v.sku AS variant_sku, v.attributes, v.selling_price AS variant_selling_price
+          FROM order_items oi
+          LEFT JOIN variants v ON oi.variant_id = v.id
+          WHERE oi.order_id = ANY($1)
+          ORDER BY oi.id
+        `;
+        const itemsRes = await pool.query(itemsSql, [orderIds]);
+        for (const row of itemsRes.rows) {
+          if (!itemsByOrder[row.order_id]) itemsByOrder[row.order_id] = [];
+          itemsByOrder[row.order_id].push(row);
+        }
+      }
+
+      // merge orders with their items
+      orderDetails = ordersPage.map((o) => ({
+        ...o,
+        items: itemsByOrder[o.id] || [],
+      }));
+
+      pagination = {
+        page: pageInt,
+        pageSize: pageSizeInt,
+        total: totalOrders,
+        totalPages: Math.ceil(totalOrders / pageSizeInt),
+      };
+    }
+
+    // ---------- PAYMENT METHODS BREAKDOWN (from order_payments) ----------
+    let paymentStats = [];
+    if (String(payment_methods) === "true") {
+      // aggregate payment amounts by method but restrict to orders matching whereClause
+      const paySql = `
+        SELECT p.method,
+               COUNT(DISTINCT p.order_id)::int AS orders_count,
+               COALESCE(SUM(p.amount),0) AS total_amount
+        FROM order_payments p
+        JOIN orders o ON p.order_id = o.id
+        WHERE ${whereClause}
+        GROUP BY p.method
+        ORDER BY total_amount DESC
+      `;
+      const payRes = await pool.query(paySql, params);
+      paymentStats = payRes.rows;
+    }
+
+    // ---------- PRODUCT BREAKDOWN ----------
+    let productStats = [];
+    if (String(product_breakdown) === "true") {
+      const prodSql = `
+        SELECT
+          oi.variant_id,
+          COALESCE(v.sku, '') AS variant_sku,
+          SUM(oi.quantity)::int AS total_qty,
+          SUM(oi.quantity * COALESCE(oi.unit_price, v.selling_price, 0)) AS total_sales
+        FROM order_items oi
+        JOIN orders o ON oi.order_id = o.id
+        LEFT JOIN variants v ON oi.variant_id = v.id
+        WHERE ${whereClause}
+        GROUP BY oi.variant_id, v.sku
+        ORDER BY total_sales DESC
+      `;
+      const prodRes = await pool.query(prodSql, params);
+      productStats = prodRes.rows;
+    }
+
+    // final response
+    res.json({
+      period,
+      ...(period === "custom" && { start_date, end_date }),
+      summary: summaryData,
+      order_details: orderDetails,
+      ...(String(details) === "true" && { pagination }),
+      payment_methods: paymentStats,
+      product_breakdown: productStats,
+    });
+  } catch (err) {
+    console.error("Sales report error:", err);
+    res.status(500).json({
+      error: "Failed to generate sales report",
+      details: err.message,
+    });
+  }
+};
+
+
   exports.customerAnalytics = async (req, res) => {
   try {
     const { business_id, branch_id, period = 'month', start_date, end_date } = req.query;
