@@ -5,6 +5,9 @@ const path = require('path');
 const PDFDocument = require('pdfkit');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const StockNotificationService = require('./src/services/stockNotificationService');
+
+
 
 async function processReports() {
   const client = await pool.connect();
@@ -74,4 +77,35 @@ async function generatePDF(data, filePath) {
   });
 }
 
-module.exports = { processReports };
+
+async function sendNotifications() {
+  try {
+    // Get all variants with their product and business info
+    const variantsRes = await pool.query(`
+      SELECT 
+        v.id AS variant_id, 
+        v.quantity, 
+        v.threshold, 
+        p.business_id
+      FROM variants v
+      JOIN products p ON v.product_id = p.id
+      WHERE v.deleted_at IS NULL
+    `);
+
+    for (const variant of variantsRes.rows) {
+      // Low stock: quantity <= threshold and > 0
+      if (variant.quantity <= variant.threshold && variant.quantity > 0) {
+        await StockNotificationService.checkLowStock(variant.variant_id, variant.business_id);
+      }
+      // Out of stock: quantity == 0
+      if (variant.quantity === 0) {
+        await StockNotificationService.checkOutOfStock(variant.variant_id, variant.business_id);
+      }
+    }
+    console.log('Stock notifications checked and sent.');
+  } catch (err) {
+    console.error('Error sending notifications:', err);
+  }
+}
+
+module.exports = { processReports, sendNotifications };

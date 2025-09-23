@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { processReports } = require('./worker');
+const { processReports, sendNotifications } = require('./worker');
 
 console.log('🚀 Report worker started...');
 
@@ -7,6 +7,7 @@ async function runReports() {
   try {
     console.log('⏳ Checking for pending reports...');
     await processReports();
+    await sendNotifications();
     console.log('✅ Finished processing reports.');
   } catch (err) {
     console.error('❌ Error processing reports:', err);
