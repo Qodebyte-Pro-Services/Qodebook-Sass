@@ -1107,15 +1107,40 @@ router.get('/sales-movement-analytics', ...requirePermission(REPORTS_ANALYTICS_P
  * /api/finance/sales-report:
  *   get:
  *     summary: Generate sales report for a period
+ *     description: >
+ *       Generates a sales report synchronously (for short ranges) or queues it for asynchronous
+ *       processing (for large ranges such as yearly or custom periods > 30 days).
+ *       When queued, a `report_id` and `status_url` are returned for polling.
  *     tags: [Analytics]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: business_id
+ *         required: true
  *         schema:
  *           type: string
- *         description: Business ID (required)
+ *         description: Business ID
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         description: Optional branch filter
+ *       - in: query
+ *         name: cashier
+ *         schema:
+ *           type: string
+ *         description: Staff/cashier filter
+ *       - in: query
+ *         name: order_method
+ *         schema:
+ *           type: string
+ *         description: Order method (maps to `order_type`)
+ *       - in: query
+ *         name: category_type
+ *         schema:
+ *           type: string
+ *         description: Filter by category name
  *       - in: query
  *         name: period
  *         schema:
@@ -1127,13 +1152,13 @@ router.get('/sales-movement-analytics', ...requirePermission(REPORTS_ANALYTICS_P
  *         schema:
  *           type: string
  *           format: date
- *         description: Custom start date (YYYY-MM-DD)
+ *         description: Required for `custom` period
  *       - in: query
  *         name: end_date
  *         schema:
  *           type: string
  *           format: date
- *         description: Custom end date (YYYY-MM-DD)
+ *         description: Required for `custom` period
  *       - in: query
  *         name: summary
  *         schema:
@@ -1145,7 +1170,7 @@ router.get('/sales-movement-analytics', ...requirePermission(REPORTS_ANALYTICS_P
  *         schema:
  *           type: string
  *           enum: [true, false]
- *         description: Include order details
+ *         description: Include order details (paginated)
  *       - in: query
  *         name: payment_methods
  *         schema:
@@ -1168,10 +1193,115 @@ router.get('/sales-movement-analytics', ...requirePermission(REPORTS_ANALYTICS_P
  *         schema:
  *           type: integer
  *         description: Page size for details
+ *       - in: query
+ *         name: format
+ *         schema:
+ *           type: string
+ *           enum: [json, pdf]
+ *         description: Output format
  *     responses:
  *       200:
- *         description: Sales report data
+ *         description: Report data (JSON or PDF stream)
+ *       202:
+ *         description: Report queued for async processing
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 report_id:
+ *                   type: string
+ *                 status_url:
+ *                   type: string
+ *
+ * /api/finance/reports/status/{reportId}:
+ *   get:
+ *     summary: Get report status
+ *     description: >
+ *       Check the status of a previously requested report.
+ *       Returns status (`pending`, `completed`, `failed`) and download link if available.
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: reportId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Report ID
+ *     responses:
+ *       200:
+ *         description: Report status information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 report_id:
+ *                   type: string
+ *                 status:
+ *                   type: string
+ *                   enum: [pending, completed, failed]
+ *                 format:
+ *                   type: string
+ *                 created_at:
+ *                   type: string
+ *                   format: date-time
+ *                 download_url:
+ *                   type: string
+ *                   nullable: true
+ *                 error:
+ *                   type: string
+ *                   nullable: true
+ *       404:
+ *         description: Report not found
+ *
+ * /api/finance/reports/download/{reportId}:
+ *   get:
+ *     summary: Download completed report
+ *     description: >
+ *       Download a completed report file (PDF or JSON export).
+ *       Only available once the report `status` is `completed`.
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: reportId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Report ID
+ *     responses:
+ *       200:
+ *         description: File download stream
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *           application/json:
+ *             schema:
+ *               type: object
+ *       400:
+ *         description: Report not ready
+ *       404:
+ *         description: Report not found
  */
+
 router.get('/sales-report', ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_SALES_REPORT), rateLimitMiddleware, controller.salesReport);
+router.get(
+  '/reports/status/:reportId',
+  requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_SALES_REPORT),
+  controller.reportStatus
+);
+router.get(
+  '/reports/download/:reportId',
+  requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_SALES_REPORT),
+  controller.downloadReport
+);
 
 module.exports = router;

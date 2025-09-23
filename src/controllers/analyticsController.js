@@ -2,6 +2,8 @@
 const pool = require('../config/db');
 const validator = require('validator');
 const PDFDocument = require('pdfkit');
+const path = require('path');
+const fs = require('fs');
 
 
 
@@ -1278,6 +1280,83 @@ exports.salesReport = async (req, res) => {
   } catch (err) {
     console.error('salesReport error:', err);
     return res.status(500).json({ error: 'Failed to generate sales report', details: err.message });
+  }
+};
+
+
+exports.reportStatus = async (req, res) => {
+  const { reportId } = req.params;
+
+  try {
+    const result = await pool.query(
+      `SELECT id, status, format, result_path, error, created_at
+       FROM reports
+       WHERE id = $1`,
+      [reportId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+
+    const report = result.rows[0];
+    const response = {
+      report_id: report.id,
+      status: report.status,
+      format: report.format,
+      created_at: report.created_at,
+    };
+
+    if (report.status === 'completed') {
+      response.download_url = `/reports/download/${report.id}`;
+    }
+
+    if (report.status === 'failed') {
+      response.error = report.error;
+    }
+
+    res.json(response);
+  } catch (err) {
+    console.error('Report status error:', err);
+    res.status(500).json({ error: 'Failed to fetch report status' });
+  }
+};
+
+// Download completed report
+exports.downloadReport = async (req, res) => {
+  const { reportId } = req.params;
+
+  try {
+    const result = await pool.query(
+      `SELECT id, status, format, result_path
+       FROM reports
+       WHERE id = $1`,
+      [reportId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+
+    const report = result.rows[0];
+
+    if (report.status !== 'completed') {
+      return res.status(400).json({ error: 'Report not ready for download' });
+    }
+
+    if (!report.result_path) {
+      return res.status(500).json({ error: 'No file path stored for this report' });
+    }
+
+    const filePath = path.resolve(report.result_path);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Report file not found on server' });
+    }
+
+    res.download(filePath, `sales-report-${report.id}.${report.format}`);
+  } catch (err) {
+    console.error('Report download error:', err);
+    res.status(500).json({ error: 'Failed to download report' });
   }
 };
 
