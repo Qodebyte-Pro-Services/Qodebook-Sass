@@ -1,5 +1,9 @@
 
 const pool = require('../config/db');
+const validator = require('validator');
+const PDFDocument = require('pdfkit');
+
+
 
 exports.incomeExpenseOverTime = async (req, res) => {
   try {
@@ -951,11 +955,29 @@ const serviceTrackingResult = await pool.query(
     }
   };
 
-  exports.salesReport = async (req, res) => {
+
+
+const isBooleanString = v => ['true','false', true, false].includes(v);
+
+const isValidDate = (s) => validator.isDate(String(s || ''), { format: 'YYYY-MM-DD', strictMode: true });
+
+// Utility to compute days between dates
+const daysBetween = (start, end) => {
+  const a = new Date(start);
+  const b = new Date(end);
+  return Math.ceil((b - a) / (1000 * 60 * 60 * 24));
+};
+
+
+exports.salesReport = async (req, res) => {
   try {
+    // read query
     const {
-      business_id,
+    business_id,
       branch_id,
+      cashier,
+      order_method,
+      category_type,
       period = "day",
       start_date,
       end_date,
@@ -963,112 +985,166 @@ const serviceTrackingResult = await pool.query(
       details = "false",
       payment_methods = "false",
       product_breakdown = "false",
-      page = 1,
-      pageSize = 20,
+      page = "1",
+      pageSize = "20",
+      format = "json"    // json | pdf
     } = req.query;
 
-    if (!business_id)
-      return res.status(400).json({ error: "business_id is required" });
+    // Basic validations
+       if (!business_id) return res.status(400).json({ error: "business_id is required" });
+    if (!['day','month','year','custom'].includes(period)) return res.status(400).json({ error: "Invalid period parameter" });
+    if (period === 'custom') {
+      if (!start_date || !end_date) return res.status(400).json({ error: "start_date and end_date required for custom period" });
+      if (!isValidDate(start_date) || !isValidDate(end_date)) return res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD" });
+      if (new Date(start_date) > new Date(end_date)) return res.status(400).json({ error: "start_date must be <= end_date" });
+    }
+    if (![summary, details, payment_methods, product_breakdown].every(isBooleanString)) {
+      return res.status(400).json({ error: "summary/details/payment_methods/product_breakdown must be true or false" });
+    }
+    if (!['json','pdf'].includes(String(format).toLowerCase())) return res.status(400).json({ error: "format must be json or pdf" });
 
-    if (!["day", "month", "year", "custom"].includes(period))
-      return res.status(400).json({ error: "Invalid period parameter" });
 
-    if (period === "custom" && (!start_date || !end_date))
-      return res
-        .status(400)
-        .json({ error: "start_date and end_date required for custom period" });
-
-    const pageInt = parseInt(page, 10);
+      const pageInt = parseInt(page, 10);
     const pageSizeInt = parseInt(pageSize, 10);
-    if (isNaN(pageInt) || isNaN(pageSizeInt) || pageInt < 1 || pageSizeInt < 1)
+    if (isNaN(pageInt) || isNaN(pageSizeInt) || pageInt < 1 || pageSizeInt < 1) {
       return res.status(400).json({ error: "Invalid pagination parameters" });
+    }
+    // If period large => async handling: year or custom > 30 days
+    const isLargeReport = period === 'year' || (period === 'custom' && daysBetween(start_date, end_date) > 30);
 
-    // Build where clause safely with params
+    // Build WHERE clause with paramized placeholders
     const whereParts = ["o.status = 'completed'", "o.business_id = $1"];
     const params = [business_id];
-    let paramIdx = 2;
+    let idx = 2;
 
     if (branch_id) {
-      whereParts.push(`o.branch_id = $${paramIdx}`);
-      params.push(branch_id);
-      paramIdx++;
+      whereParts.push(`o.branch_id = $${idx}`); params.push(branch_id); idx++;
     }
 
-    if (period === "day") {
+    // cashier filter: cashier may be staff_id OR created_by_user_id (the person who recorded sale)
+    if (cashier) {
+      whereParts.push(`(o.staff_id = $${idx} OR o.created_by_user_id = $${idx})`);
+      params.push(cashier);
+      idx++;
+    }
+
+    if (order_method) {
+      // map to order_type column
+      whereParts.push(`o.order_type = $${idx}`); params.push(order_method); idx++;
+    }
+
+    // category_type -> join conditions will be required later in queries that need it.
+    const needCategoryJoin = Boolean(category_type);
+    if (needCategoryJoin) {
+      // We'll add category filter placeholder; actual JOIN included on specific queries
+      whereParts.push(`LOWER(c.category_name) = $${idx}`); params.push(String(category_type).toLowerCase()); idx++;
+    }
+
+    // date filters
+    if (period === 'day') {
       whereParts.push(`DATE(o.created_at) = CURRENT_DATE`);
-    } else if (period === "month") {
-      whereParts.push(
-        `DATE_TRUNC('month', o.created_at) = DATE_TRUNC('month', CURRENT_DATE)`
-      );
-    } else if (period === "year") {
-      whereParts.push(
-        `DATE_TRUNC('year', o.created_at) = DATE_TRUNC('year', CURRENT_DATE)`
-      );
-    } else if (period === "custom") {
-      whereParts.push(`o.created_at::date BETWEEN $${paramIdx} AND $${paramIdx + 1}`);
-      params.push(start_date, end_date);
-      paramIdx += 2;
+    } else if (period === 'month') {
+      whereParts.push(`DATE_TRUNC('month', o.created_at) = DATE_TRUNC('month', CURRENT_DATE)`);
+    } else if (period === 'year') {
+      whereParts.push(`DATE_TRUNC('year', o.created_at) = DATE_TRUNC('year', CURRENT_DATE)`);
+    } else if (period === 'custom') {
+      // start_date and end_date are validated already
+      whereParts.push(`o.created_at::date BETWEEN $${idx} AND $${idx+1}`); params.push(start_date, end_date); idx += 2;
     }
 
-    const whereClause = whereParts.join(" AND ");
+    const whereClause = whereParts.join(' AND ');
+
+    // If large and async requested (pdf or json), create report row and return id immediately
+    if (isLargeReport) {
+      // Save the request parameters and return report id
+      const insertReportSQL = `INSERT INTO reports (business_id, branch_id, created_by, params, format, status) VALUES ($1,$2,$3,$4,$5,'pending') RETURNING id`;
+      // created_by can be from auth (req.user.id) - optional; use null if not available
+      const createdBy = (req.user && req.user.id) || null;
+      const paramsJson = {
+        query: req.query,
+        requested_at: new Date().toISOString()
+      };
+      const rptRes = await pool.query(insertReportSQL, [business_id, branch_id || null, createdBy, paramsJson, format]);
+      const reportId = rptRes.rows[0].id;
+      // Worker/cron should pick up this row and process it.
+      return res.status(202).json({
+        message: 'Large report requested. Report is queued and will be processed asynchronously.',
+        report_id: reportId,
+        status_url: `/reports/status/${reportId}`
+      });
+    }
+
+    // For small reports (<=30 days), compute synchronously. Use summary/details/payment/product options.
 
     // ---------- SUMMARY ----------
     let summaryData = {};
-    if (String(summary) === "true") {
-      const summarySql = `
+    if (String(summary) === 'true') {
+      // If category filter is needed, the query needs the JOIN chain: order_items -> variants -> products -> product_category pc
+      let summarySql = `
         SELECT
-          COUNT(*)::int AS total_orders,
-          COALESCE(SUM(o.subtotal),0) AS subtotal,
-          COALESCE(SUM(o.tax_total),0) AS total_tax,
-          COALESCE(SUM(o.discount_total + o.coupon_total),0) AS total_discount,
-          COALESCE(SUM(o.total_amount),0) AS total_sales
+          COUNT(DISTINCT o.id)::int AS total_orders,
+          COALESCE(SUM(o.subtotal),0)::numeric(12,2) AS subtotal,
+          COALESCE(SUM(o.tax_total),0)::numeric(12,2) AS total_tax,
+          COALESCE(SUM(o.discount_total + o.coupon_total),0)::numeric(12,2) AS total_discount,
+          COALESCE(SUM(o.total_amount),0)::numeric(12,2) AS total_sales
         FROM orders o
-        WHERE ${whereClause}
       `;
-      const summaryResult = await pool.query(summarySql, params);
-      summaryData = summaryResult.rows[0] || {};
+      if (needCategoryJoin) {
+        summarySql += ` JOIN order_items oi ON oi.order_id = o.id
+                        JOIN variants v ON v.id = oi.variant_id
+                        JOIN products p ON p.id = v.product_id
+                        JOIN categories c ON c.id = p.category_id
+                      `;
+      }
+      summarySql += ` WHERE ${whereClause}`;
+      const summaryRes = await pool.query(summarySql, params);
+      summaryData = summaryRes.rows[0] || { total_orders:0, subtotal:0, total_tax:0, total_discount:0, total_sales:0 };
 
-      // COGS: sum quantity * v.cost_price (if variant.cost_price exists)
-      const cogsSql = `
-        SELECT COALESCE(SUM(oi.quantity * COALESCE(v.cost_price, 0)),0) AS total_cogs
+      // COGS (use variant.cost_price if available)
+      let cogsSql = `
+        SELECT COALESCE(SUM(oi.quantity * COALESCE(v.cost_price, 0)),0)::numeric(12,2) AS total_cogs
         FROM order_items oi
         JOIN orders o ON oi.order_id = o.id
         LEFT JOIN variants v ON oi.variant_id = v.id
-        WHERE ${whereClause}
       `;
-      const cogsResult = await pool.query(cogsSql, params);
-      summaryData.total_cogs = Number(cogsResult.rows[0]?.total_cogs || 0);
-      summaryData.gross_profit =
-        (Number(summaryData.total_sales) || 0) - summaryData.total_cogs;
+      if (needCategoryJoin) {
+        cogsSql += ` JOIN products p ON p.id = v.product_id
+                     JOIN categories c ON c.id = p.category_id `;
+      }
+      cogsSql += ` WHERE ${whereClause}`;
+      const cogsRes = await pool.query(cogsSql, params);
+      const totalCogs = Number(cogsRes.rows[0]?.total_cogs || 0);
+      summaryData.total_cogs = totalCogs;
+      summaryData.gross_profit = (Number(summaryData.total_sales) || 0) - totalCogs;
     }
 
     // ---------- DETAILS (paginate orders, then fetch items) ----------
     let orderDetails = [];
     let pagination = {};
-    if (String(details) === "true") {
+    if (String(details) === 'true') {
+      // Count total orders (not order_items)
+      const countSql = `SELECT COUNT(*)::int AS total FROM orders o ${ needCategoryJoin ? ' JOIN order_items oi ON oi.order_id = o.id JOIN variants v ON v.id = oi.variant_id JOIN products p ON p.id = v.product_id JOIN categories c ON c.id = p.category_id ' : '' } WHERE ${whereClause}`;
+      const countRes = await pool.query(countSql, params);
+      const totalOrders = countRes.rows[0]?.total || 0;
+
+      // fetch orders page
       const offset = (pageInt - 1) * pageSizeInt;
-
-      // total orders matching filters (for pagination)
-      const countSql = `SELECT COUNT(*)::int AS total FROM orders o WHERE ${whereClause}`;
-      const countResult = await pool.query(countSql, params);
-      const totalOrders = countResult.rows[0]?.total || 0;
-
-      // fetch paginated orders (order-level rows)
       const ordersPageSql = `
         SELECT o.*
         FROM orders o
+        ${ needCategoryJoin ? ' JOIN order_items oi ON oi.order_id = o.id JOIN variants v ON v.id = oi.variant_id JOIN products p ON p.id = v.product_id JOIN categories c ON c.id = p.category_id ' : '' }
         WHERE ${whereClause}
+        GROUP BY o.id
         ORDER BY o.created_at DESC
-        LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
+        LIMIT $${params.length + 1} OFFSET $${params.length + 2}
       `;
       const ordersPageParams = [...params, pageSizeInt, offset];
       const ordersPageRes = await pool.query(ordersPageSql, ordersPageParams);
       const ordersPage = ordersPageRes.rows || [];
-      const orderIds = ordersPage.map((r) => r.id);
-
-      // fetch items for those orders (if any)
+      const orderIds = ordersPage.map(r => r.id);
+      // fetch items for those orders
       let itemsByOrder = {};
-      if (orderIds.length > 0) {
+      if (orderIds.length) {
         const itemsSql = `
           SELECT oi.*, v.sku AS variant_sku, v.attributes, v.selling_price AS variant_selling_price
           FROM order_items oi
@@ -1082,78 +1158,128 @@ const serviceTrackingResult = await pool.query(
           itemsByOrder[row.order_id].push(row);
         }
       }
-
-      // merge orders with their items
-      orderDetails = ordersPage.map((o) => ({
-        ...o,
-        items: itemsByOrder[o.id] || [],
-      }));
-
-      pagination = {
-        page: pageInt,
-        pageSize: pageSizeInt,
-        total: totalOrders,
-        totalPages: Math.ceil(totalOrders / pageSizeInt),
-      };
+      orderDetails = ordersPage.map(o => ({ ...o, items: itemsByOrder[o.id] || [] }));
+      pagination = { page: pageInt, pageSize: pageSizeInt, total: totalOrders, totalPages: Math.ceil(totalOrders / pageSizeInt) };
     }
 
     // ---------- PAYMENT METHODS BREAKDOWN (from order_payments) ----------
     let paymentStats = [];
-    if (String(payment_methods) === "true") {
-      // aggregate payment amounts by method but restrict to orders matching whereClause
-      const paySql = `
+    if (String(payment_methods) === 'true') {
+      // join orders to apply same whereClause, aggregate payments
+      // Note: if category filter present, add join chain into FROM
+      let paySql = `
         SELECT p.method,
                COUNT(DISTINCT p.order_id)::int AS orders_count,
-               COALESCE(SUM(p.amount),0) AS total_amount
+               COALESCE(SUM(p.amount),0)::numeric(12,2) AS total_amount
         FROM order_payments p
         JOIN orders o ON p.order_id = o.id
-        WHERE ${whereClause}
-        GROUP BY p.method
-        ORDER BY total_amount DESC
       `;
-      const payRes = await pool.query(paySql, params);
-      paymentStats = payRes.rows;
+      if (needCategoryJoin) {
+        paySql += ` JOIN order_items oi ON oi.order_id = o.id JOIN variants v ON v.id = oi.variant_id JOIN products p2 ON p2.id = v.product_id JOIN product_category pc ON pc.category_id = p2.category_id `;
+        // careful: we used alias p earlier for order_payments; rename product table alias to avoid conflict
+      }
+      paySql += ` WHERE ${whereClause} GROUP BY p.method ORDER BY total_amount DESC`;
+      paymentStats = (await pool.query(paySql, params)).rows;
     }
 
     // ---------- PRODUCT BREAKDOWN ----------
     let productStats = [];
-    if (String(product_breakdown) === "true") {
+    if (String(product_breakdown) === 'true') {
       const prodSql = `
         SELECT
           oi.variant_id,
           COALESCE(v.sku, '') AS variant_sku,
           SUM(oi.quantity)::int AS total_qty,
-          SUM(oi.quantity * COALESCE(oi.unit_price, v.selling_price, 0)) AS total_sales
+          SUM(oi.quantity * COALESCE(oi.unit_price, v.selling_price, 0))::numeric(12,2) AS total_sales
         FROM order_items oi
         JOIN orders o ON oi.order_id = o.id
         LEFT JOIN variants v ON oi.variant_id = v.id
+        LEFT JOIN products p ON v.product_id = p.id
+        LEFT JOIN categories c ON p.category_id = c.id
         WHERE ${whereClause}
         GROUP BY oi.variant_id, v.sku
         ORDER BY total_sales DESC
       `;
-      const prodRes = await pool.query(prodSql, params);
-      productStats = prodRes.rows;
+      productStats = (await pool.query(prodSql, params)).rows;
     }
 
-    // final response
-    res.json({
+    // Prepare final object
+    const reportObj = {
       period,
-      ...(period === "custom" && { start_date, end_date }),
+      ...(period === 'custom' && { start_date, end_date }),
       summary: summaryData,
       order_details: orderDetails,
-      ...(String(details) === "true" && { pagination }),
+      ...(String(details) === 'true' && { pagination }),
       payment_methods: paymentStats,
-      product_breakdown: productStats,
-    });
+      product_breakdown: productStats
+    };
+
+    // If PDF requested - render a small PDF and stream it.
+    if (String(format).toLowerCase() === 'pdf') {
+      // synchronous pdf for small report; if large reports we returned earlier
+      const doc = new PDFDocument({ margin: 30, size: 'A4' });
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="sales_report_${Date.now()}.pdf"`);
+
+      // pipe doc to response
+      doc.pipe(res);
+
+      // Title and meta
+      doc.fontSize(18).text('Sales Report', { align: 'center' });
+      doc.moveDown();
+      doc.fontSize(10).text(`Business: ${business_id}   Branch: ${branch_id || 'all'}`);
+      doc.text(`Period: ${period}${period === 'custom' ? ` (${start_date} to ${end_date})` : ''}`);
+      doc.moveDown();
+
+      // Summary block
+      doc.fontSize(12).text('Summary', { underline: true });
+      Object.entries(summaryData || {}).forEach(([k,v]) => {
+        doc.fontSize(10).text(`${k}: ${v}`);
+      });
+      doc.moveDown();
+
+      // Payment methods
+      if (paymentStats && paymentStats.length) {
+        doc.fontSize(12).text('Payments', { underline: true });
+        paymentStats.forEach(p => {
+          doc.fontSize(10).text(`${p.method}: ${p.orders_count} orders — ${p.total_amount}`);
+        });
+        doc.moveDown();
+      }
+
+      // Product breakdown
+      if (productStats && productStats.length) {
+        doc.fontSize(12).text('Top Products', { underline: true });
+        productStats.slice(0, 25).forEach(p => {
+          doc.fontSize(10).text(`${p.variant_sku || p.variant_id}: qty ${p.total_qty} — ${p.total_sales}`);
+        });
+        doc.moveDown();
+      }
+
+      // Optionally include details (first N orders)
+      if (orderDetails && orderDetails.length) {
+        doc.fontSize(12).text('Order Details (sample)', { underline: true });
+        orderDetails.slice(0, 20).forEach(o => {
+          doc.fontSize(10).text(`Order ${o.id} — ${o.total_amount} — ${o.created_at}`);
+          (o.items || []).forEach(it => {
+            doc.fontSize(9).text(`  - ${it.variant_id} x${it.quantity} @ ${it.unit_price}`);
+          });
+          doc.moveDown(0.2);
+        });
+      }
+
+      doc.end();
+      return;
+    }
+
+    // Default: return JSON
+    return res.json(reportObj);
+
   } catch (err) {
-    console.error("Sales report error:", err);
-    res.status(500).json({
-      error: "Failed to generate sales report",
-      details: err.message,
-    });
+    console.error('salesReport error:', err);
+    return res.status(500).json({ error: 'Failed to generate sales report', details: err.message });
   }
 };
-
 
   exports.customerAnalytics = async (req, res) => {
   try {

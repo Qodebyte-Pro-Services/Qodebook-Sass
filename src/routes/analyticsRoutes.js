@@ -6,6 +6,7 @@ const controller = require('../controllers/analyticsController');
 const auth = require('../middlewares/authMiddleware');
 const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
 const { REPORTS_ANALYTICS_PERMISSIONS, FINANCIAL_PERMISSIONS} = require('../constants/permissions');
+const rateLimitMiddleware = require('../middlewares/rateLimitMiddleware');
 
 /**
  * @swagger
@@ -1171,6 +1172,6 @@ router.get('/sales-movement-analytics', ...requirePermission(REPORTS_ANALYTICS_P
  *       200:
  *         description: Sales report data
  */
-router.get('/sales-report', ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_SALES_REPORT), controller.salesReport);
+router.get('/sales-report', ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_SALES_REPORT), rateLimitMiddleware, controller.salesReport);
 
 module.exports = router;
