@@ -1,7 +1,5 @@
-// Load environment variables
 require('dotenv').config();
-
-const { processReports } = require('./worker'); // Your existing workers.js logic
+const { processReports } = require('./worker');
 
 console.log('🚀 Report worker started...');
 
@@ -18,8 +16,5 @@ async function runReports() {
 // Run once immediately
 runReports();
 
-// Schedule to run every 5 minutes
-const interval = 5 * 60 * 1000;
-setInterval(() => {
-  runReports();
-}, interval);
+// Schedule every 5 minutes
+setInterval(runReports, 5 * 60 * 1000);
