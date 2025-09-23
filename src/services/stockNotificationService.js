@@ -1,6 +1,25 @@
 const pool = require('../config/db');
 const { sendNotificationEmail } = require('./emailService');
 
+async function getBusinessOwnerEmail(business_id) {
+  try {
+    const res = await pool.query(
+      `SELECT u.email
+       FROM businesses b
+       JOIN users u ON b.user_id = u.id
+       WHERE b.id = $1
+       LIMIT 1`,
+      [business_id]
+    );
+
+    if (res.rows.length > 0) return res.rows[0].email;
+    return null;
+  } catch (err) {
+    console.error("Error fetching business owner email:", err);
+    return null;
+  }
+}
+
 class StockNotificationService {
   // Check and create low stock notifications
   static async checkLowStock(variant_id, business_id) {
@@ -199,9 +218,16 @@ class StockNotificationService {
         WHERE s.business_id = $1 AND s.is_active = true
       `, [business_id]);
 
-      if (staffEmails.rows.length === 0) return;
+     
 
       const emails = staffEmails.rows.map(row => row.email);
+
+      if (emails.length === 0) {
+      const ownerEmail = await getBusinessOwnerEmail(business_id);
+      if (ownerEmail) emails = [ownerEmail];
+      else return; 
+    }
+
       const subject = `Low Stock Alert - ${variant.product_name}`;
       const message = `
         Low stock alert for ${variant.product_name} (${variant.sku}) in ${variant.branch_name}.
@@ -227,9 +253,17 @@ class StockNotificationService {
         WHERE s.business_id = $1 AND s.is_active = true
       `, [business_id]);
 
-      if (staffEmails.rows.length === 0) return;
+      
 
       const emails = staffEmails.rows.map(row => row.email);
+
+        if (emails.length === 0) {
+      const ownerEmail = await getBusinessOwnerEmail(business_id);
+      if (ownerEmail) emails = [ownerEmail];
+      else return;
+    }
+
+
       const subject = `URGENT: Out of Stock - ${variant.product_name}`;
       const message = `
         CRITICAL: ${variant.product_name} (${variant.sku}) is now OUT OF STOCK in ${variant.branch_name}.
@@ -253,9 +287,16 @@ class StockNotificationService {
         WHERE s.business_id = $1 AND s.branch_id = $2 AND s.is_active = true
       `, [business_id, transfer.to_branch_id]);
 
-      if (staffEmails.rows.length === 0) return;
+     
 
       const emails = staffEmails.rows.map(row => row.email);
+
+        if (emails.length === 0) {
+      const ownerEmail = await getBusinessOwnerEmail(business_id);
+      if (ownerEmail) emails = [ownerEmail];
+      else return;
+    }
+
       const subject = `Stock Transfer Pending - ${transfer.product_name}`;
       const message = `
         A stock transfer has been initiated for ${transfer.product_name} (${transfer.sku}).
