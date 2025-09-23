@@ -19,6 +19,12 @@ async function processReports() {
        LIMIT 5`
     );
 
+    if (res.rows.length === 0) {
+  console.log('No pending reports found.');
+  return;
+}
+
+
     for (const report of res.rows) {
       console.log(`Processing report ${report.id}`);
       try {
@@ -106,3 +112,6 @@ async function generatePDF(data, filePath) {
 
 // Run job every 5 minutes
 setInterval(processReports, 5 * 60 * 1000);
+
+
+module.exports = { processReports };
