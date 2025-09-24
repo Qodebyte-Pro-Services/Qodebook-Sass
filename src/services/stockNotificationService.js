@@ -25,10 +25,9 @@ class StockNotificationService {
   static async checkLowStock(variant_id, business_id) {
     try {
       const variant = await pool.query(`
-        SELECT v.*, p.name as product_name, b.name as branch_name
+        SELECT v.*, p.name as product_name
         FROM variants v
         JOIN products p ON v.product_id = p.id
-        JOIN branches b ON v.branch_id = b.id
         WHERE v.id = $1 AND v.business_id = $2
       `, [variant_id, business_id]);
 
@@ -69,10 +68,9 @@ class StockNotificationService {
   static async checkOutOfStock(variant_id, business_id) {
     try {
       const variant = await pool.query(`
-        SELECT v.*, p.name as product_name, b.name as branch_name
+        SELECT v.*, p.name as product_name
         FROM variants v
         JOIN products p ON v.product_id = p.id
-        JOIN branches b ON v.branch_id = b.id
         WHERE v.id = $1 AND v.business_id = $2
       `, [variant_id, business_id]);
 
