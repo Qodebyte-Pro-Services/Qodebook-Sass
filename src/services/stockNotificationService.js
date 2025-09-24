@@ -21,91 +21,91 @@ async function getBusinessOwnerEmail(business_id) {
 }
 
 class StockNotificationService {
-  // Check and create low stock notifications
-  static async checkLowStock(variant_id, business_id) {
-    try {
-      const variant = await pool.query(`
-        SELECT v.*, p.name as product_name
-        FROM variants v
-        JOIN products p ON v.product_id = p.id
-        WHERE v.id = $1 AND v.business_id = $2
-      `, [variant_id, business_id]);
+// Check and create low stock notifications
+static async checkLowStock(variant_id, business_id) {
+  try {
+    const variant = await pool.query(`
+      SELECT v.*, p.name as product_name
+      FROM variants v
+      JOIN products p ON v.product_id = p.id
+      WHERE v.id = $1 AND p.business_id = $2
+    `, [variant_id, business_id]);
 
-      if (variant.rows.length === 0) return;
+    if (variant.rows.length === 0) return;
 
-      const v = variant.rows[0];
-      
-      // Check if already has unread low stock notification
-      const existingNotification = await pool.query(`
-        SELECT id FROM stock_notifications 
-        WHERE variant_id = $1 AND notification_type = 'low_stock' AND is_read = false
-      `, [variant_id]);
+    const v = variant.rows[0];
 
-      if (existingNotification.rows.length > 0) return;
+    // Check if already has unread low stock notification
+    const existingNotification = await pool.query(`
+      SELECT id FROM stock_notifications 
+      WHERE variant_id = $1 AND notification_type = 'low_stock' AND is_read = false
+    `, [variant_id]);
 
-      // Create low stock notification
-      if (v.quantity <= v.threshold && v.quantity > 0) {
-        await pool.query(`
-          INSERT INTO stock_notifications (
-            business_id, variant_id, notification_type, message
-          ) VALUES ($1, $2, $3, $4)
-        `, [
-          business_id, 
-          variant_id, 
-          'low_stock',
-          `Low stock alert: ${v.product_name} (${v.sku}) in ${v.branch_name} - Current: ${v.quantity}, Threshold: ${v.threshold}`
-        ]);
+    if (existingNotification.rows.length > 0) return;
 
-        // Send email notification to relevant staff
-        await this.sendLowStockEmail(business_id, v);
-      }
-    } catch (error) {
-      console.error('Error checking low stock:', error);
+    // Create low stock notification
+    if (v.quantity <= v.threshold && v.quantity > 0) {
+      await pool.query(`
+        INSERT INTO stock_notifications (
+          business_id, variant_id, notification_type, message
+        ) VALUES ($1, $2, $3, $4)
+      `, [
+        business_id, 
+        variant_id, 
+        'low_stock',
+        `Low stock alert: ${v.product_name} (${v.sku}) - Current: ${v.quantity}, Threshold: ${v.threshold}`
+      ]);
+
+      // Send email notification to relevant staff
+      await this.sendLowStockEmail(business_id, v);
     }
+  } catch (error) {
+    console.error('Error checking low stock:', error);
   }
+}
 
-  // Check and create out of stock notifications
-  static async checkOutOfStock(variant_id, business_id) {
-    try {
-      const variant = await pool.query(`
-        SELECT v.*, p.name as product_name
-        FROM variants v
-        JOIN products p ON v.product_id = p.id
-        WHERE v.id = $1 AND v.business_id = $2
-      `, [variant_id, business_id]);
+// Check and create out of stock notifications
+static async checkOutOfStock(variant_id, business_id) {
+  try {
+    const variant = await pool.query(`
+      SELECT v.*, p.name as product_name
+      FROM variants v
+      JOIN products p ON v.product_id = p.id
+      WHERE v.id = $1 AND p.business_id = $2
+    `, [variant_id, business_id]);
 
-      if (variant.rows.length === 0) return;
+    if (variant.rows.length === 0) return;
 
-      const v = variant.rows[0];
-      
-      // Check if already has unread out of stock notification
-      const existingNotification = await pool.query(`
-        SELECT id FROM stock_notifications 
-        WHERE variant_id = $1 AND notification_type = 'out_of_stock' AND is_read = false
-      `, [variant_id]);
+    const v = variant.rows[0];
 
-      if (existingNotification.rows.length > 0) return;
+    // Check if already has unread out of stock notification
+    const existingNotification = await pool.query(`
+      SELECT id FROM stock_notifications 
+      WHERE variant_id = $1 AND notification_type = 'out_of_stock' AND is_read = false
+    `, [variant_id]);
 
-      // Create out of stock notification
-      if (v.quantity === 0) {
-        await pool.query(`
-          INSERT INTO stock_notifications (
-            business_id, variant_id, notification_type, message
-          ) VALUES ($1, $2, $3, $4)
-        `, [
-          business_id, 
-          variant_id, 
-          'out_of_stock',
-          `Out of stock: ${v.product_name} (${v.sku}) in ${v.branch_name}`
-        ]);
+    if (existingNotification.rows.length > 0) return;
 
-        // Send email notification
-        await this.sendOutOfStockEmail(business_id, v);
-      }
-    } catch (error) {
-      console.error('Error checking out of stock:', error);
+    // Create out of stock notification
+    if (v.quantity === 0) {
+      await pool.query(`
+        INSERT INTO stock_notifications (
+          business_id, variant_id, notification_type, message
+        ) VALUES ($1, $2, $3, $4)
+      `, [
+        business_id, 
+        variant_id, 
+        'out_of_stock',
+        `Out of stock: ${v.product_name} (${v.sku})`
+      ]);
+
+      // Send email notification
+      await this.sendOutOfStockEmail(business_id, v);
     }
+  } catch (error) {
+    console.error('Error checking out of stock:', error);
   }
+}
 
   // Create transfer notification
   static async createTransferNotification(transfer_id, business_id) {
