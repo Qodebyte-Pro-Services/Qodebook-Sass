@@ -213,7 +213,7 @@ static async checkOutOfStock(variant_id, business_id) {
       const staffEmails = await pool.query(`
         SELECT DISTINCT s.email 
         FROM staff s
-        WHERE s.business_id = $1 AND s.is_active = true
+        WHERE s.business_id = $1 AND s.assigned_position = 'manager' AND s.position_name = 'manager'
       `, [business_id]);
 
      
@@ -248,7 +248,7 @@ static async checkOutOfStock(variant_id, business_id) {
       const staffEmails = await pool.query(`
         SELECT DISTINCT s.email 
         FROM staff s
-        WHERE s.business_id = $1 AND s.is_active = true
+        WHERE s.business_id = $1 AND s.assigned_position = 'manager' AND s.position_name = 'manager'
       `, [business_id]);
 
       
@@ -282,7 +282,7 @@ static async checkOutOfStock(variant_id, business_id) {
       const staffEmails = await pool.query(`
         SELECT DISTINCT s.email 
         FROM staff s
-        WHERE s.business_id = $1 AND s.branch_id = $2 AND s.is_active = true
+        WHERE s.business_id = $1 AND s.branch_id = $2 AND s.assigned_position = 'manager' AND s.position_name = 'manager'
       `, [business_id, transfer.to_branch_id]);
 
      
