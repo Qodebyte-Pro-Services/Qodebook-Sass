@@ -89,7 +89,6 @@ async function sendNotifications() {
         p.business_id
       FROM variants v
       JOIN products p ON v.product_id = p.id
-      WHERE v.deleted_at IS NULL
     `);
 
     for (const variant of variantsRes.rows) {
