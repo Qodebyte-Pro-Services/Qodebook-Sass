@@ -794,7 +794,27 @@ exports.getFastMoving = async (req, res) => {
   try {
     const business_id = req.business_id;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
-    const result = await pool.query("SELECT variant_id, SUM(quantity) as total_sold FROM inventory_logs WHERE type = 'sale' AND business_id = $1 AND created_at > NOW() - INTERVAL '30 days' GROUP BY variant_id ORDER BY total_sold DESC LIMIT 20", [business_id]);
+
+    const result = await pool.query(`
+      SELECT 
+        il.variant_id, 
+        SUM(il.quantity) AS total_sold,
+        v.cost_price,
+        v.selling_price,
+        v.quantity,
+        v.threshold,
+        v.sku,
+        v.image_url
+      FROM inventory_logs il
+      JOIN variants v ON il.variant_id = v.id
+      WHERE il.type = 'sale' 
+        AND il.business_id = $1 
+        AND il.created_at > NOW() - INTERVAL '30 days'
+      GROUP BY il.variant_id, v.cost_price, v.selling_price, v.quantity, v.threshold, v.sku, v.image_url
+      ORDER BY total_sold DESC
+      LIMIT 20
+    `, [business_id]);
+
     return res.status(200).json({ fast_moving: result.rows });
   } catch (err) {
     console.error(err);
@@ -807,7 +827,27 @@ exports.getSlowMoving = async (req, res) => {
   try {
     const business_id = req.business_id;
     if (!business_id) return res.status(400).json({ message: 'business_id is required.' });
-    const result = await pool.query("SELECT variant_id, SUM(quantity) as total_sold FROM inventory_logs WHERE type = 'sale' AND business_id = $1 AND created_at > NOW() - INTERVAL '30 days' GROUP BY variant_id ORDER BY total_sold ASC LIMIT 20", [business_id]);
+
+    const result = await pool.query(`
+      SELECT 
+        il.variant_id, 
+        SUM(il.quantity) AS total_sold,
+        v.cost_price,
+        v.selling_price,
+        v.quantity,
+        v.threshold,
+        v.sku,
+        v.image_url
+      FROM inventory_logs il
+      JOIN variants v ON il.variant_id = v.id
+      WHERE il.type = 'sale' 
+        AND il.business_id = $1 
+        AND il.created_at > NOW() - INTERVAL '30 days'
+      GROUP BY il.variant_id, v.cost_price, v.selling_price, v.quantity, v.threshold, v.sku, v.image_url
+      ORDER BY total_sold ASC
+      LIMIT 20
+    `, [business_id]);
+
     return res.status(200).json({ slow_moving: result.rows });
   } catch (err) {
     console.error(err);

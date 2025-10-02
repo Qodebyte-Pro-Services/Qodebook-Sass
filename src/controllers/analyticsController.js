@@ -719,10 +719,17 @@ const serviceTrackingResult = await pool.query(
         `SELECT COUNT(*) AS low_stock FROM variants v JOIN products p ON v.product_id = p.id WHERE v.quantity <= v.threshold AND v.quantity > 0${wheres.length > 0 ? ' AND ' + wheres.map((w, i) => 'p.' + w.split('=')[0] + ' = $' + (i + 1)).join(' AND ') : ''}`,
         params
       );
+
+      const inStockResult = await pool.query(
+        `SELECT COUNT(*) AS in_stock FROM variants v JOIN products p ON v.product_id = p.id WHERE v.quantity > v.threshold${wheres.length > 0 ? ' AND ' + wheres.map((w, i) => 'p.' + w.split('=')[0] + ' = $' + (i + 1)).join(' AND ') : ''}`,
+        params
+      );
+
       res.json({
         totalStock: Number(totalStockResult.rows[0]?.total_stock || 0),
         outOfStock: Number(outOfStockResult.rows[0]?.out_of_stock || 0),
-        lowStock: Number(lowStockResult.rows[0]?.low_stock || 0)
+        lowStock: Number(lowStockResult.rows[0]?.low_stock || 0),
+        inStock: Number(inStockResult.rows[0]?.in_stock || 0)
       });
     } catch (err) {
       console.error('Stock analytics error:', err);
