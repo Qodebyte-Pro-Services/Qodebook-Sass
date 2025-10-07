@@ -607,19 +607,38 @@ exports.variationAnalytics = async (req, res) => {
     let dateWhere = '';
     if (date_filter) {
       if (date_filter === 'today') {
-        dateWhere = ` AND o.created_at::date = CURRENT_DATE`;
+        dateWhere = ` AND v.updated_at::date = CURRENT_DATE`;
       } else if (date_filter === 'yesterday') {
-        dateWhere = ` AND o.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+        dateWhere = ` AND v.updated_at::date = CURRENT_DATE - INTERVAL '1 day'`;
       } else if (date_filter === 'this_week') {
-        dateWhere = ` AND o.created_at >= date_trunc('week', CURRENT_DATE)`;
+        dateWhere = ` AND v.updated_at >= date_trunc('week', CURRENT_DATE)`;
       } else if (date_filter === 'last_7_days') {
-        dateWhere = ` AND o.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
+        dateWhere = ` AND v.updated_at >= CURRENT_DATE - INTERVAL '7 days'`;
       } else if (date_filter === 'this_month') {
-        dateWhere = ` AND o.created_at >= date_trunc('month', CURRENT_DATE)`;
+        dateWhere = ` AND v.updated_at >= date_trunc('month', CURRENT_DATE)`;
       } else if (date_filter === 'this_year') {
-        dateWhere = ` AND o.created_at >= date_trunc('year', CURRENT_DATE)`;
+        dateWhere = ` AND v.updated_at >= date_trunc('year', CURRENT_DATE)`;
       } else if (date_filter === 'custom' && start_date && end_date) {
-        dateWhere = ` AND o.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+        dateWhere = ` AND v.updated_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+      }
+    }
+
+    let orderDateWhere = '';
+    if (date_filter) {
+      if (date_filter === 'today') {
+        orderDateWhere = ` AND o.created_at::date = CURRENT_DATE`;
+      } else if (date_filter === 'yesterday') {
+        orderDateWhere = ` AND o.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+      } else if (date_filter === 'this_week') {
+        orderDateWhere = ` AND o.created_at >= date_trunc('week', CURRENT_DATE)`;
+      } else if (date_filter === 'last_7_days') {
+        orderDateWhere = ` AND o.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
+      } else if (date_filter === 'this_month') {
+        orderDateWhere = ` AND o.created_at >= date_trunc('month', CURRENT_DATE)`;
+      } else if (date_filter === 'this_year') {
+        orderDateWhere = ` AND o.created_at >= date_trunc('year', CURRENT_DATE)`;
+      } else if (date_filter === 'custom' && start_date && end_date) {
+        orderDateWhere = ` AND o.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
       }
     }
 
@@ -650,9 +669,11 @@ exports.variationAnalytics = async (req, res) => {
        JOIN orders o ON oi.order_id = o.id
        WHERE o.status = 'completed'
        ${wheres.length > 0 ? ' AND ' + wheres.join(' AND ') : ''}
-       ${dateWhere}`,
+       ${orderDateWhere}`,
       params
     );
+
+     
 
     res.json({
       inventory_value: Number(inventoryValueResult.rows[0]?.inventory_value || 0),
@@ -705,15 +726,16 @@ exports.productAnalytics = async (req, res) => {
     }
 };
 
+
 exports.stockAnalytics = async (req, res) => {
   try {
-    const { business_id, branch_id } = req.query;
+    const { business_id, branch_id, date_filter, start_date, end_date } = req.query;
 
     let params = [];
     let wheres = [];
     let idx = 1;
 
-    // Strictly scoped filters
+    
     if (business_id) {
       wheres.push(`p.business_id = $${idx}`);
       params.push(business_id);
@@ -726,52 +748,76 @@ exports.stockAnalytics = async (req, res) => {
       idx++;
     }
 
-    const whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+    
+    let dateWhere = '';
+    if (date_filter) {
+      if (date_filter === 'today') {
+        dateWhere = ` AND v.updated_at::date = CURRENT_DATE`;
+      } else if (date_filter === 'yesterday') {
+        dateWhere = ` AND v.updated_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+      } else if (date_filter === 'this_week') {
+        dateWhere = ` AND v.updated_at >= date_trunc('week', CURRENT_DATE)`;
+      } else if (date_filter === 'last_7_days') {
+        dateWhere = ` AND v.updated_at >= CURRENT_DATE - INTERVAL '7 days'`;
+      } else if (date_filter === 'this_month') {
+        dateWhere = ` AND v.updated_at >= date_trunc('month', CURRENT_DATE)`;
+      } else if (date_filter === 'this_year') {
+        dateWhere = ` AND v.updated_at >= date_trunc('year', CURRENT_DATE)`;
+      } else if (date_filter === 'custom' && start_date && end_date) {
+        dateWhere = ` AND v.updated_at::date BETWEEN $${idx} AND $${idx + 1}`;
+        params.push(start_date, end_date);
+        idx += 2;
+      }
+    }
 
-    // ✅ total stock
+    const whereClause =
+      wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+
+    // ✅ Total Stock
     const totalStockResult = await pool.query(
       `
       SELECT COALESCE(SUM(v.quantity), 0) AS total_stock
       FROM variants v
       JOIN products p ON v.product_id = p.id
-      ${whereClause}
+      ${whereClause} ${dateWhere}
       `,
       params
     );
 
-    // ✅ out of stock
+    // ✅ Out of Stock
     const outOfStockResult = await pool.query(
       `
       SELECT COUNT(*) AS out_of_stock
       FROM variants v
       JOIN products p ON v.product_id = p.id
-      ${whereClause ? whereClause + ' AND' : 'WHERE'} v.quantity = 0
+      ${whereClause ? whereClause + ' AND' : 'WHERE'} v.quantity = 0 ${dateWhere}
       `,
       params
     );
 
-    // ✅ low stock
+    // ✅ Low Stock
     const lowStockResult = await pool.query(
       `
       SELECT COUNT(*) AS low_stock
       FROM variants v
       JOIN products p ON v.product_id = p.id
-      ${whereClause ? whereClause + ' AND' : 'WHERE'} v.quantity <= v.threshold AND v.quantity > 1
+      ${whereClause ? whereClause + ' AND' : 'WHERE'} v.quantity <= v.threshold AND v.quantity > 1 ${dateWhere}
       `,
       params
     );
 
-    // ✅ in stock
+    // ✅ In Stock
     const inStockResult = await pool.query(
       `
       SELECT COUNT(*) AS in_stock
       FROM variants v
       JOIN products p ON v.product_id = p.id
-      ${whereClause ? whereClause + ' AND' : 'WHERE'} v.quantity > 0
+      ${whereClause ? whereClause + ' AND' : 'WHERE'} v.quantity > 0 ${dateWhere}
       `,
       params
     );
 
+    // ✅ Response
     res.json({
       totalStock: Number(totalStockResult.rows[0]?.total_stock || 0),
       outOfStock: Number(outOfStockResult.rows[0]?.out_of_stock || 0),
@@ -783,6 +829,7 @@ exports.stockAnalytics = async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch stock analytics.' });
   }
 };
+
 
 
 
