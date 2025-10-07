@@ -658,14 +658,17 @@ exports.deleteSupplyOrder = async (req, res) => {
 exports.getStockMovements = async (req, res) => {
   try {
     const business_id = req.business_id;
+    const { product_id } = req.query;
+
     if (!business_id) {
       return res.status(400).json({ message: 'business_id is required.' });
     }
 
-    const result = await pool.query(`
-       SELECT 
+    let query = `
+      SELECT 
         il.*, 
         v.sku,
+        v.product_id,
         COALESCE(
           CASE 
             WHEN il.recorded_by_type = 'staff' THEN s.full_name
@@ -681,8 +684,19 @@ exports.getStockMovements = async (req, res) => {
         ON il.recorded_by_type = 'user' 
        AND u.id::text = il.recorded_by
       WHERE il.business_id = $1
-      ORDER BY il.created_at DESC
-    `, [business_id]);
+    `;
+    const params = [business_id];
+    let idx = 2;
+
+    if (product_id) {
+      query += ` AND v.product_id = $${idx}`;
+      params.push(product_id);
+      idx++;
+    }
+
+    query += ` ORDER BY il.created_at DESC`;
+
+    const result = await pool.query(query, params);
 
     return res.status(200).json({ logs: result.rows });
   } catch (err) {

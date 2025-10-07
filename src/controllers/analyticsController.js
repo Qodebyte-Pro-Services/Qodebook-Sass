@@ -657,7 +657,7 @@ const serviceTrackingResult = await pool.query(
     }
   };
 
-  exports.productAnalytics = async (req, res) => {
+exports.productAnalytics = async (req, res) => {
     try {
       const { business_id, date_filter, start_date, end_date } = req.query;
       let params = [];
@@ -693,51 +693,90 @@ const serviceTrackingResult = await pool.query(
       console.error('Product analytics error:', err);
       res.status(500).json({ message: 'Failed to fetch product analytics.' });
     }
-  };
+};
 
-  exports.stockAnalytics = async (req, res) => {
-    try {
-      const { business_id, branch_id } = req.query;
-      let params = [];
-      let wheres = [];
-      let idx = 1;
-      if (business_id) { wheres.push(`p.business_id = $${idx}`); params.push(business_id); idx++; }
-      if (branch_id) { wheres.push(`p.branch_id = $${idx}`); params.push(branch_id); idx++; }
-      let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
-     
-      const totalStockResult = await pool.query(
-        `SELECT COALESCE(SUM(v.quantity),0) AS total_stock FROM variants v JOIN products p ON v.product_id = p.id ${whereClause}`,
-        params
-      );
-      
-      const outOfStockResult = await pool.query(
-        `SELECT COUNT(*) AS out_of_stock FROM variants v JOIN products p ON v.product_id = p.id WHERE v.quantity = 0${wheres.length > 0 ? ' AND ' + wheres.map((w, i) => 'p.' + w.split('=')[0] + ' = $' + (i + 1)).join(' AND ') : ''}`,
-        params
-      );
-     
-      const lowStockResult = await pool.query(
-        `SELECT COUNT(*) AS low_stock FROM variants v JOIN products p ON v.product_id = p.id WHERE v.quantity <= v.threshold AND v.quantity > 0${wheres.length > 0 ? ' AND ' + wheres.map((w, i) => 'p.' + w.split('=')[0] + ' = $' + (i + 1)).join(' AND ') : ''}`,
-        params
-      );
+exports.stockAnalytics = async (req, res) => {
+  try {
+    const { business_id, branch_id } = req.query;
 
-      const inStockResult = await pool.query(
-        `SELECT COUNT(*) AS in_stock FROM variants v JOIN products p ON v.product_id = p.id WHERE v.quantity > v.threshold${wheres.length > 0 ? ' AND ' + wheres.map((w, i) => 'p.' + w.split('=')[0] + ' = $' + (i + 1)).join(' AND ') : ''}`,
-        params
-      );
+    let params = [];
+    let wheres = [];
+    let idx = 1;
 
-      res.json({
-        totalStock: Number(totalStockResult.rows[0]?.total_stock || 0),
-        outOfStock: Number(outOfStockResult.rows[0]?.out_of_stock || 0),
-        lowStock: Number(lowStockResult.rows[0]?.low_stock || 0),
-        inStock: Number(inStockResult.rows[0]?.in_stock || 0)
-      });
-    } catch (err) {
-      console.error('Stock analytics error:', err);
-      res.status(500).json({ message: 'Failed to fetch stock analytics.' });
+    // Strictly scoped filters
+    if (business_id) {
+      wheres.push(`p.business_id = $${idx}`);
+      params.push(business_id);
+      idx++;
     }
-  };
 
-  exports.salesAnalytics = async (req, res) => {
+    if (branch_id) {
+      wheres.push(`p.branch_id = $${idx}`);
+      params.push(branch_id);
+      idx++;
+    }
+
+    const whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+
+    // ✅ total stock
+    const totalStockResult = await pool.query(
+      `
+      SELECT COALESCE(SUM(v.quantity), 0) AS total_stock
+      FROM variants v
+      JOIN products p ON v.product_id = p.id
+      ${whereClause}
+      `,
+      params
+    );
+
+    // ✅ out of stock
+    const outOfStockResult = await pool.query(
+      `
+      SELECT COUNT(*) AS out_of_stock
+      FROM variants v
+      JOIN products p ON v.product_id = p.id
+      ${whereClause ? whereClause + ' AND' : 'WHERE'} v.quantity = 0
+      `,
+      params
+    );
+
+    // ✅ low stock
+    const lowStockResult = await pool.query(
+      `
+      SELECT COUNT(*) AS low_stock
+      FROM variants v
+      JOIN products p ON v.product_id = p.id
+      ${whereClause ? whereClause + ' AND' : 'WHERE'} v.quantity <= v.threshold AND v.quantity > 0
+      `,
+      params
+    );
+
+    // ✅ in stock
+    const inStockResult = await pool.query(
+      `
+      SELECT COUNT(*) AS in_stock
+      FROM variants v
+      JOIN products p ON v.product_id = p.id
+      ${whereClause ? whereClause + ' AND' : 'WHERE'} v.quantity > v.threshold
+      `,
+      params
+    );
+
+    res.json({
+      totalStock: Number(totalStockResult.rows[0]?.total_stock || 0),
+      outOfStock: Number(outOfStockResult.rows[0]?.out_of_stock || 0),
+      lowStock: Number(lowStockResult.rows[0]?.low_stock || 0),
+      inStock: Number(inStockResult.rows[0]?.in_stock || 0),
+    });
+  } catch (err) {
+    console.error('Stock analytics error:', err);
+    res.status(500).json({ message: 'Failed to fetch stock analytics.' });
+  }
+};
+
+
+
+exports.salesAnalytics = async (req, res) => {
     try {
       const { business_id, branch_id, date_filter, start_date, end_date } = req.query;
       let params = [];
@@ -803,44 +842,84 @@ const serviceTrackingResult = await pool.query(
   };
 
   exports.stockMovementAnalytics = async (req, res) => {
-    try {
-      const { business_id, branch_id, variant_id, product_id, period, start_date, end_date } = req.query;
-      let params = [];
-      let wheres = [];
-      let idx = 1;
-      if (business_id) { wheres.push(`p.business_id = $${idx}`); params.push(business_id); idx++; }
-      if (branch_id) { wheres.push(`p.branch_id = $${idx}`); params.push(branch_id); idx++; }
-      if (variant_id) { wheres.push(`v.id = $${idx}`); params.push(variant_id); idx++; }
-      if (product_id) { wheres.push(`p.id = $${idx}`); params.push(product_id); idx++; }
-      let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
-      let dateGroup = 'day';
-      let dateSelect = `DATE(il.created_at)`;
-      if (period === 'hour') { dateGroup = 'hour'; dateSelect = `DATE_TRUNC('hour', il.created_at)`; }
-      else if (period === 'day') { dateGroup = 'day'; dateSelect = `DATE(il.created_at)`; }
-      else if (period === 'week') { dateGroup = 'week'; dateSelect = `DATE_TRUNC('week', il.created_at)`; }
-      else if (period === 'month') { dateGroup = 'month'; dateSelect = `DATE_TRUNC('month', il.created_at)`; }
-      else if (period === 'year') { dateGroup = 'year'; dateSelect = `DATE_TRUNC('year', il.created_at)`; }
-      let dateWhere = '';
-      if (start_date && end_date) {
-        dateWhere = ` AND il.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
-      }
+  try {
+    const { business_id, branch_id, variant_id, product_id, period, start_date, end_date } = req.query;
 
-      const movementResult = await pool.query(
-        `SELECT ${dateSelect} AS period, SUM(il.quantity) AS total_moved, COUNT(*) AS movement_count, MIN(il.created_at) AS first_movement, MAX(il.created_at) AS last_movement
-         FROM inventory_logs il
-         JOIN variants v ON il.variant_id = v.id
-         JOIN products p ON v.product_id = p.id
-         ${whereClause}${dateWhere}
-         GROUP BY period
-         ORDER BY period ASC`,
-        params
-      );
-      res.json({ movements: movementResult.rows });
-    } catch (err) {
-      console.error('Stock movement analytics error:', err);
-      res.status(500).json({ message: 'Failed to fetch stock movement analytics.' });
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+
+    if (business_id) {
+      wheres.push(`p.business_id = $${idx}`);
+      params.push(business_id);
+      idx++;
     }
-  };
+
+    if (branch_id) {
+      wheres.push(`p.branch_id = $${idx}`);
+      params.push(branch_id);
+      idx++;
+    }
+
+    if (variant_id) {
+      wheres.push(`v.id = $${idx}`);
+      params.push(variant_id);
+      idx++;
+    }
+
+    if (product_id) {
+      wheres.push(`p.id = $${idx}`);
+      params.push(product_id);
+      idx++;
+    }
+
+    const whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+
+    // Dynamic time grouping
+    let dateSelect = `DATE(il.created_at)`;
+    if (period === 'hour') dateSelect = `DATE_TRUNC('hour', il.created_at)`;
+    else if (period === 'week') dateSelect = `DATE_TRUNC('week', il.created_at)`;
+    else if (period === 'month') dateSelect = `DATE_TRUNC('month', il.created_at)`;
+    else if (period === 'year') dateSelect = `DATE_TRUNC('year', il.created_at)`;
+
+    // Optional date filter
+    let dateWhere = '';
+    if (start_date && end_date) {
+      dateWhere = ` AND il.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    }
+
+    // Query: signed movement totals by reason (increase/decrease)
+    const movementResult = await pool.query(
+      `
+      SELECT 
+        ${dateSelect} AS period,
+        il.reason,
+        SUM(
+          CASE 
+            WHEN il.reason = 'decrease' THEN -ABS(il.quantity)
+            ELSE ABS(il.quantity)
+          END
+        ) AS total_moved,
+        COUNT(*) AS movement_count,
+        MIN(il.created_at) AS first_movement,
+        MAX(il.created_at) AS last_movement
+      FROM inventory_logs il
+      JOIN variants v ON il.variant_id = v.id
+      JOIN products p ON v.product_id = p.id
+      ${whereClause}${dateWhere}
+      GROUP BY period, il.reason
+      ORDER BY period ASC, il.reason
+      `,
+      params
+    );
+
+    res.json({ movements: movementResult.rows });
+  } catch (err) {
+    console.error('Stock movement analytics error:', err);
+    res.status(500).json({ message: 'Failed to fetch stock movement analytics.' });
+  }
+};
+
 
   exports.productVariantStockMovement = async (req, res) => {
   try {
