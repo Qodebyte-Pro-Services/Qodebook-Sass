@@ -588,7 +588,7 @@ const serviceTrackingResult = await pool.query(
   }
 };
 
-exports.variationAnalytics = async (req, res) => {
+  exports.variationAnalytics = async (req, res) => {
   try {
     const { business_id, date_filter, start_date, end_date } = req.query;
 
@@ -596,88 +596,65 @@ exports.variationAnalytics = async (req, res) => {
     let wheres = [];
     let idx = 1;
 
+    // Always filter by business_id to prevent data spill
     if (business_id) {
       wheres.push(`p.business_id = $${idx}`);
       params.push(business_id);
       idx++;
+    } else {
+      return res.status(400).json({ message: 'Business ID is required' });
     }
 
-    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
-
+    // Build date filter for inventory logs (using created_at for inventory changes)
     let dateWhere = '';
     if (date_filter) {
       if (date_filter === 'today') {
-        dateWhere = ` AND v.updated_at::date = CURRENT_DATE`;
+        dateWhere = ` AND il.created_at::date = CURRENT_DATE`;
       } else if (date_filter === 'yesterday') {
-        dateWhere = ` AND v.updated_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+        dateWhere = ` AND il.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
       } else if (date_filter === 'this_week') {
-        dateWhere = ` AND v.updated_at >= date_trunc('week', CURRENT_DATE)`;
+        dateWhere = ` AND il.created_at >= date_trunc('week', CURRENT_DATE)`;
       } else if (date_filter === 'last_7_days') {
-        dateWhere = ` AND v.updated_at >= CURRENT_DATE - INTERVAL '7 days'`;
+        dateWhere = ` AND il.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
       } else if (date_filter === 'this_month') {
-        dateWhere = ` AND v.updated_at >= date_trunc('month', CURRENT_DATE)`;
+        dateWhere = ` AND il.created_at >= date_trunc('month', CURRENT_DATE)`;
       } else if (date_filter === 'this_year') {
-        dateWhere = ` AND v.updated_at >= date_trunc('year', CURRENT_DATE)`;
+        dateWhere = ` AND il.created_at >= date_trunc('year', CURRENT_DATE)`;
       } else if (date_filter === 'custom' && start_date && end_date) {
-        dateWhere = ` AND v.updated_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+        dateWhere = ` AND il.created_at::date BETWEEN $${idx} AND $${idx + 1}`;
+        params.push(start_date, end_date);
+        idx += 2;
       }
     }
 
-    let orderDateWhere = '';
-    if (date_filter) {
-      if (date_filter === 'today') {
-        orderDateWhere = ` AND o.created_at::date = CURRENT_DATE`;
-      } else if (date_filter === 'yesterday') {
-        orderDateWhere = ` AND o.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
-      } else if (date_filter === 'this_week') {
-        orderDateWhere = ` AND o.created_at >= date_trunc('week', CURRENT_DATE)`;
-      } else if (date_filter === 'last_7_days') {
-        orderDateWhere = ` AND o.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
-      } else if (date_filter === 'this_month') {
-        orderDateWhere = ` AND o.created_at >= date_trunc('month', CURRENT_DATE)`;
-      } else if (date_filter === 'this_year') {
-        orderDateWhere = ` AND o.created_at >= date_trunc('year', CURRENT_DATE)`;
-      } else if (date_filter === 'custom' && start_date && end_date) {
-        orderDateWhere = ` AND o.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
-      }
-    }
+    const whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
 
-    // Inventory value
+    // Get current inventory value and potential sale value
     const inventoryValueResult = await pool.query(
-      `SELECT COALESCE(SUM(v.cost_price * v.quantity), 0) AS inventory_value
+      `SELECT 
+        COALESCE(SUM(v.cost_price * v.quantity), 0) AS inventory_value,
+        COALESCE(SUM(v.selling_price * v.quantity), 0) AS potential_sale_value
        FROM variants v
        JOIN products p ON v.product_id = p.id
        ${whereClause}`,
       params
     );
 
-    // Potential sale value
-    const potentialSaleValueResult = await pool.query(
-      `SELECT COALESCE(SUM(v.selling_price * v.quantity), 0) AS potential_sale_value
-       FROM variants v
-       JOIN products p ON v.product_id = p.id
-       ${whereClause}`,
-      params
-    );
-
-    // Cost of goods sold (COGS)
+    // Get COGS from inventory logs (more accurate than order_items)
     const cogsResult = await pool.query(
-      `SELECT COALESCE(SUM(v.cost_price * oi.quantity), 0) AS cogs
-       FROM order_items oi
-       JOIN variants v ON oi.variant_id = v.id
+      `SELECT COALESCE(SUM(il.quantity * v.cost_price), 0) AS cogs
+       FROM inventory_logs il
+       JOIN variants v ON il.variant_id = v.id
        JOIN products p ON v.product_id = p.id
-       JOIN orders o ON oi.order_id = o.id
-       WHERE o.status = 'completed'
-       ${wheres.length > 0 ? ' AND ' + wheres.join(' AND ') : ''}
-       ${orderDateWhere}`,
-      params
+       WHERE il.type = 'sale' 
+       AND p.business_id = $1
+       ${dateWhere}`,
+      [business_id]
     );
-
-     
 
     res.json({
       inventory_value: Number(inventoryValueResult.rows[0]?.inventory_value || 0),
-      potential_sale_value: Number(potentialSaleValueResult.rows[0]?.potential_sale_value || 0),
+      potential_sale_value: Number(inventoryValueResult.rows[0]?.potential_sale_value || 0),
       cogs: Number(cogsResult.rows[0]?.cogs || 0)
     });
 
@@ -727,7 +704,7 @@ exports.productAnalytics = async (req, res) => {
 };
 
 
-exports.stockAnalytics = async (req, res) => {
+  exports.stockAnalytics = async (req, res) => {
   try {
     const { business_id, branch_id, date_filter, start_date, end_date } = req.query;
 
@@ -735,12 +712,14 @@ exports.stockAnalytics = async (req, res) => {
     let wheres = [];
     let idx = 1;
 
-    
-    if (business_id) {
-      wheres.push(`p.business_id = $${idx}`);
-      params.push(business_id);
-      idx++;
+    // Always require business_id to prevent data spill
+    if (!business_id) {
+      return res.status(400).json({ message: 'Business ID is required' });
     }
+
+    wheres.push(`p.business_id = $${idx}`);
+    params.push(business_id);
+    idx++;
 
     if (branch_id) {
       wheres.push(`p.branch_id = $${idx}`);
@@ -748,7 +727,7 @@ exports.stockAnalytics = async (req, res) => {
       idx++;
     }
 
-    
+    // Build date filter for variants (using updated_at)
     let dateWhere = '';
     if (date_filter) {
       if (date_filter === 'today') {
@@ -770,13 +749,18 @@ exports.stockAnalytics = async (req, res) => {
       }
     }
 
-    const whereClause =
-      wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+    const whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
 
-    // ✅ Total Stock
-    const totalStockResult = await pool.query(
+    // Single query to get all stock metrics (more efficient)
+    const stockMetricsResult = await pool.query(
       `
-      SELECT COALESCE(SUM(v.quantity), 0) AS total_stock
+      SELECT 
+        COALESCE(SUM(v.quantity), 0) AS total_stock,
+        COUNT(CASE WHEN v.quantity = 0 THEN 1 END) AS out_of_stock,
+        COUNT(CASE WHEN v.quantity <= COALESCE(v.threshold, 0) AND v.quantity > 1 THEN 1 END) AS low_stock,
+        COUNT(CASE WHEN v.quantity > 0 THEN 1 END) AS in_stock,
+        COALESCE(SUM(v.cost_price * v.quantity), 0) AS inventory_value,
+        COALESCE(SUM(v.selling_price * v.quantity), 0) AS potential_sale_value
       FROM variants v
       JOIN products p ON v.product_id = p.id
       ${whereClause} ${dateWhere}
@@ -784,46 +768,17 @@ exports.stockAnalytics = async (req, res) => {
       params
     );
 
-    // ✅ Out of Stock
-    const outOfStockResult = await pool.query(
-      `
-      SELECT COUNT(*) AS out_of_stock
-      FROM variants v
-      JOIN products p ON v.product_id = p.id
-      ${whereClause ? whereClause + ' AND' : 'WHERE'} v.quantity = 0 ${dateWhere}
-      `,
-      params
-    );
+    const row = stockMetricsResult.rows[0];
 
-    // ✅ Low Stock
-    const lowStockResult = await pool.query(
-      `
-      SELECT COUNT(*) AS low_stock
-      FROM variants v
-      JOIN products p ON v.product_id = p.id
-      ${whereClause ? whereClause + ' AND' : 'WHERE'} v.quantity <= v.threshold AND v.quantity > 1 ${dateWhere}
-      `,
-      params
-    );
-
-    // ✅ In Stock
-    const inStockResult = await pool.query(
-      `
-      SELECT COUNT(*) AS in_stock
-      FROM variants v
-      JOIN products p ON v.product_id = p.id
-      ${whereClause ? whereClause + ' AND' : 'WHERE'} v.quantity > 0 ${dateWhere}
-      `,
-      params
-    );
-
-    // ✅ Response
     res.json({
-      totalStock: Number(totalStockResult.rows[0]?.total_stock || 0),
-      outOfStock: Number(outOfStockResult.rows[0]?.out_of_stock || 0),
-      lowStock: Number(lowStockResult.rows[0]?.low_stock || 0),
-      inStock: Number(inStockResult.rows[0]?.in_stock || 0),
+      totalStock: Number(row?.total_stock || 0),
+      outOfStock: Number(row?.out_of_stock || 0),
+      lowStock: Number(row?.low_stock || 0),
+      inStock: Number(row?.in_stock || 0),
+      inventoryValue: Number(row?.inventory_value || 0),
+      potentialSaleValue: Number(row?.potential_sale_value || 0)
     });
+
   } catch (err) {
     console.error('Stock analytics error:', err);
     res.status(500).json({ message: 'Failed to fetch stock analytics.' });
