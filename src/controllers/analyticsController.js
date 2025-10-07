@@ -588,74 +588,84 @@ const serviceTrackingResult = await pool.query(
   }
 };
 
-  exports.variationAnalytics = async (req, res) => {
-    try {
-      const business_id = req.query.business_id;
-      const date_filter = req.query.date_filter;
-      const start_date = req.query.start_date;
-      const end_date = req.query.end_date;
-      let params = [];
-      let wheres = [];
-      let idx = 1;
-      if (business_id) {
-        wheres.push(`p.business_id = $${idx}`);
-        params.push(business_id);
-        idx++;
-      }
-      let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
-      
-      let dateWhere = '';
-      if (date_filter) {
-        if (date_filter === 'today') {
-          dateWhere = ` AND o.created_at::date = CURRENT_DATE`;
-        } else if (date_filter === 'yesterday') {
-          dateWhere = ` AND o.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
-        } else if (date_filter === 'this_week') {
-          dateWhere = ` AND o.created_at >= date_trunc('week', CURRENT_DATE)`;
-        } else if (date_filter === 'last_7_days') {
-          dateWhere = ` AND o.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
-        } else if (date_filter === 'this_month') {
-          dateWhere = ` AND o.created_at >= date_trunc('month', CURRENT_DATE)`;
-        } else if (date_filter === 'this_year') {
-          dateWhere = ` AND o.created_at >= date_trunc('year', CURRENT_DATE)`;
-        } else if (date_filter === 'custom' && start_date && end_date) {
-          dateWhere = ` AND o.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
-        }
-      }
-     
-      const inventoryValueResult = await pool.query(
-        `SELECT COALESCE(SUM(v.cost_price * v.quantity), 0) AS inventory_value
-         FROM variants v JOIN products p ON v.product_id = p.id
-         ${whereClause}`,
-        params
-      );
-      
-      const potentialSaleValueResult = await pool.query(
-        `SELECT COALESCE(SUM(v.selling_price * v.quantity), 0) AS potential_sale_value
-         FROM variants v JOIN products p ON v.product_id = p.id
-         ${whereClause}`,
-        params
-      );
-      
-      const cogsResult = await pool.query(
-        `SELECT COALESCE(SUM(v.cost_price * oi.quantity), 0) AS cogs
-         FROM order_items oi
-         JOIN variants v ON oi.variant_id = v.id
-         JOIN products p ON v.product_id = p.id
-         JOIN orders o ON oi.order_id = o.id
-         WHERE o.status = 'completed'${wheres.length > 0 ? ' AND ' + wheres.map((w, i) => 'p.' + w.split('=')[0] + ' = $' + (i + 1)).join(' AND ') : ''}${dateWhere}`,
-        params
-      );
-      res.json({
-        inventory_value: Number(inventoryValueResult.rows[0]?.inventory_value || 0),
-        potential_sale_value: Number(potentialSaleValueResult.rows[0]?.potential_sale_value || 0),
-        cogs: Number(cogsResult.rows[0]?.cogs || 0)
-      });
-    } catch (err) {
-      console.error('Variation analytics error:', err);
-      res.status(500).json({ message: 'Failed to fetch variation analytics.' });
+exports.variationAnalytics = async (req, res) => {
+  try {
+    const { business_id, date_filter, start_date, end_date } = req.query;
+
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+
+    if (business_id) {
+      wheres.push(`p.business_id = $${idx}`);
+      params.push(business_id);
+      idx++;
     }
-  };
+
+    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+
+    let dateWhere = '';
+    if (date_filter) {
+      if (date_filter === 'today') {
+        dateWhere = ` AND o.created_at::date = CURRENT_DATE`;
+      } else if (date_filter === 'yesterday') {
+        dateWhere = ` AND o.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+      } else if (date_filter === 'this_week') {
+        dateWhere = ` AND o.created_at >= date_trunc('week', CURRENT_DATE)`;
+      } else if (date_filter === 'last_7_days') {
+        dateWhere = ` AND o.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
+      } else if (date_filter === 'this_month') {
+        dateWhere = ` AND o.created_at >= date_trunc('month', CURRENT_DATE)`;
+      } else if (date_filter === 'this_year') {
+        dateWhere = ` AND o.created_at >= date_trunc('year', CURRENT_DATE)`;
+      } else if (date_filter === 'custom' && start_date && end_date) {
+        dateWhere = ` AND o.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+      }
+    }
+
+    // Inventory value
+    const inventoryValueResult = await pool.query(
+      `SELECT COALESCE(SUM(v.cost_price * v.quantity), 0) AS inventory_value
+       FROM variants v
+       JOIN products p ON v.product_id = p.id
+       ${whereClause}`,
+      params
+    );
+
+    // Potential sale value
+    const potentialSaleValueResult = await pool.query(
+      `SELECT COALESCE(SUM(v.selling_price * v.quantity), 0) AS potential_sale_value
+       FROM variants v
+       JOIN products p ON v.product_id = p.id
+       ${whereClause}`,
+      params
+    );
+
+    // Cost of goods sold (COGS)
+    const cogsResult = await pool.query(
+      `SELECT COALESCE(SUM(v.cost_price * oi.quantity), 0) AS cogs
+       FROM order_items oi
+       JOIN variants v ON oi.variant_id = v.id
+       JOIN products p ON v.product_id = p.id
+       JOIN orders o ON oi.order_id = o.id
+       WHERE o.status = 'completed'
+       ${wheres.length > 0 ? ' AND ' + wheres.join(' AND ') : ''}
+       ${dateWhere}`,
+      params
+    );
+
+    res.json({
+      inventory_value: Number(inventoryValueResult.rows[0]?.inventory_value || 0),
+      potential_sale_value: Number(potentialSaleValueResult.rows[0]?.potential_sale_value || 0),
+      cogs: Number(cogsResult.rows[0]?.cogs || 0)
+    });
+
+  } catch (err) {
+    console.error('Variation analytics error:', err);
+    res.status(500).json({ message: 'Failed to fetch variation analytics.' });
+  }
+};
+
 
 exports.productAnalytics = async (req, res) => {
     try {
