@@ -468,7 +468,7 @@ router.get('/products/:id/variants', ...requirePermission(PRODUCT_PERMISSIONS.VI
 router.get('/product/:productId/variants/:variantId',...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT_VARIANTS),variantController.getVariantByProduct);
 router.get('/:id', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT_VARIANTS), variantController.getVariantById);
 router.get('/business/variants', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT_VARIANTS), variantController.getVariantsByBusiness);
-router.put('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT_VARIANTS), upload.any(),variantController.updateVariant);
+router.put('/:variant_id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT_VARIANTS), upload.any(),variantController.updateVariant);
 router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_PRODUCT_VARIANTS), variantController.deleteVariant);
 
 
