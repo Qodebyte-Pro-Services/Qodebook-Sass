@@ -756,7 +756,7 @@ exports.stockAnalytics = async (req, res) => {
       SELECT COUNT(*) AS low_stock
       FROM variants v
       JOIN products p ON v.product_id = p.id
-      ${whereClause ? whereClause + ' AND' : 'WHERE'} v.quantity <= v.threshold AND v.quantity > 0
+      ${whereClause ? whereClause + ' AND' : 'WHERE'} v.quantity <= v.threshold AND v.quantity > 1
       `,
       params
     );
@@ -767,7 +767,7 @@ exports.stockAnalytics = async (req, res) => {
       SELECT COUNT(*) AS in_stock
       FROM variants v
       JOIN products p ON v.product_id = p.id
-      ${whereClause ? whereClause + ' AND' : 'WHERE'} v.quantity > v.threshold
+      ${whereClause ? whereClause + ' AND' : 'WHERE'} v.quantity > 0
       `,
       params
     );
@@ -786,39 +786,100 @@ exports.stockAnalytics = async (req, res) => {
 
 
 
-exports.salesAnalytics = async (req, res) => {
-    try {
-      const { business_id, branch_id, date_filter, start_date, end_date } = req.query;
-      let params = [];
-      let wheres = [];
-      let idx = 1;
-      if (business_id) { wheres.push(`business_id = $${idx}`); params.push(business_id); idx++; }
-      if (branch_id) { wheres.push(`branch_id = $${idx}`); params.push(branch_id); idx++; }
-      let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
-      let dateWhere = '';
-      if (date_filter) {
-        if (date_filter === 'today') dateWhere = ` AND created_at::date = CURRENT_DATE`;
-        else if (date_filter === 'yesterday') dateWhere = ` AND created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
-        else if (date_filter === 'this_week') dateWhere = ` AND created_at >= date_trunc('week', CURRENT_DATE)`;
-        else if (date_filter === 'last_7_days') dateWhere = ` AND created_at >= CURRENT_DATE - INTERVAL '7 days'`;
-        else if (date_filter === 'this_month') dateWhere = ` AND created_at >= date_trunc('month', CURRENT_DATE)`;
-        else if (date_filter === 'this_year') dateWhere = ` AND created_at >= date_trunc('year', CURRENT_DATE)`;
-        else if (date_filter === 'custom' && start_date && end_date) dateWhere = ` AND created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
-      }
-    
-      const salesResult = await pool.query(
-        `SELECT COUNT(*) AS total_orders, COALESCE(SUM(total_amount),0) AS total_sales FROM orders ${whereClause} AND status = 'completed'${dateWhere}`,
-        params
-      );
-      res.json({
-        totalOrders: Number(salesResult.rows[0]?.total_orders || 0),
-        totalSales: Number(salesResult.rows[0]?.total_sales || 0)
-      });
-    } catch (err) {
-      console.error('Sales analytics error:', err);
-      res.status(500).json({ message: 'Failed to fetch sales analytics.' });
+  exports.salesAnalytics = async (req, res) => {
+  try {
+    const { business_id, branch_id, date_filter, start_date, end_date } = req.query;
+
+    // ⛔ Mandatory enforcement
+    if (!business_id) {
+      return res.status(400).json({ message: "business_id is required" });
     }
-  };
+
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+
+    // Always enforce business
+    wheres.push(`o.business_id = $${idx}`);
+    params.push(business_id);
+    idx++;
+
+    if (branch_id) {
+      wheres.push(`o.branch_id = $${idx}`);
+      params.push(branch_id);
+      idx++;
+    }
+
+    // Common WHERE clause (base for all queries)
+    let whereClause = `WHERE ${wheres.join(' AND ')} AND o.status = 'completed'`;
+
+    // Dynamic date filter
+    let dateWhere = '';
+    if (date_filter) {
+      if (date_filter === 'today') dateWhere = ` AND o.created_at::date = CURRENT_DATE`;
+      else if (date_filter === 'yesterday') dateWhere = ` AND o.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+      else if (date_filter === 'this_week') dateWhere = ` AND o.created_at >= date_trunc('week', CURRENT_DATE)`;
+      else if (date_filter === 'last_7_days') dateWhere = ` AND o.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
+      else if (date_filter === 'this_month') dateWhere = ` AND o.created_at >= date_trunc('month', CURRENT_DATE)`;
+      else if (date_filter === 'this_year') dateWhere = ` AND o.created_at >= date_trunc('year', CURRENT_DATE)`;
+      else if (date_filter === 'custom' && start_date && end_date)
+        dateWhere = ` AND o.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    }
+
+    // 🧮 Total sales + orders
+    const salesResult = await pool.query(
+      `
+      SELECT COUNT(*) AS total_orders,
+             COALESCE(SUM(o.total_amount), 0) AS total_sales
+      FROM orders o
+      ${whereClause} ${dateWhere}
+      `,
+      params
+    );
+
+    // 💳 Payment method ratio
+    const paymentMethodResult = await pool.query(
+      `
+      SELECT op.method,
+             COUNT(*) AS count,
+             COALESCE(SUM(op.amount), 0) AS total
+      FROM order_payments op
+      JOIN orders o ON op.order_id = o.id
+      ${whereClause} ${dateWhere}
+      GROUP BY op.method
+      ORDER BY total DESC
+      `,
+      params
+    );
+
+    // 📦 Order type ratio
+    const orderTypeResult = await pool.query(
+      `
+      SELECT o.order_type,
+             COUNT(*) AS count,
+             COALESCE(SUM(o.total_amount), 0) AS total
+      FROM orders o
+      ${whereClause} ${dateWhere}
+      GROUP BY o.order_type
+      ORDER BY total DESC
+      `,
+      params
+    );
+
+    // ✅ Response
+    res.json({
+      totalOrders: Number(salesResult.rows[0]?.total_orders || 0),
+      totalSales: Number(salesResult.rows[0]?.total_sales || 0),
+      paymentMethodRatio: paymentMethodResult.rows,
+      orderTypeRatio: orderTypeResult.rows,
+    });
+
+  } catch (err) {
+    console.error('Sales analytics error:', err);
+    res.status(500).json({ message: 'Failed to fetch sales analytics.' });
+  }
+};
+
 
   exports.staffAnalytics = async (req, res) => {
     try {
