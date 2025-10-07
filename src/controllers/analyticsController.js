@@ -855,52 +855,46 @@ exports.salesAnalytics = async (req, res) => {
   try {
     const { business_id, branch_id, variant_id, product_id, period, start_date, end_date } = req.query;
 
-    let params = [];
-    let wheres = [];
+    const params = [];
+    const wheres = [];
     let idx = 1;
 
     if (business_id) {
-      wheres.push(`p.business_id = $${idx}`);
+      wheres.push(`p.business_id = $${idx++}`);
       params.push(business_id);
-      idx++;
     }
 
     if (branch_id) {
-      wheres.push(`p.branch_id = $${idx}`);
+      wheres.push(`p.branch_id = $${idx++}`);
       params.push(branch_id);
-      idx++;
     }
 
     if (variant_id) {
-      wheres.push(`v.id = $${idx}`);
+      wheres.push(`v.id = $${idx++}`);
       params.push(variant_id);
-      idx++;
     }
 
     if (product_id) {
-      wheres.push(`p.id = $${idx}`);
+      wheres.push(`p.id = $${idx++}`);
       params.push(product_id);
-      idx++;
     }
 
-    const whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+    // Optional date filter (safe and parameterized)
+    if (start_date && end_date) {
+      wheres.push(`il.created_at::date BETWEEN $${idx++} AND $${idx++}`);
+      params.push(start_date, end_date);
+    }
 
-    // Dynamic time grouping
+    const whereClause = wheres.length > 0 ? `WHERE ${wheres.join(' AND ')}` : '';
+
+    // Dynamic period grouping
     let dateSelect = `DATE(il.created_at)`;
     if (period === 'hour') dateSelect = `DATE_TRUNC('hour', il.created_at)`;
     else if (period === 'week') dateSelect = `DATE_TRUNC('week', il.created_at)`;
     else if (period === 'month') dateSelect = `DATE_TRUNC('month', il.created_at)`;
     else if (period === 'year') dateSelect = `DATE_TRUNC('year', il.created_at)`;
 
-    // Optional date filter
-    let dateWhere = '';
-    if (start_date && end_date) {
-      dateWhere = ` AND il.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
-    }
-
-    // Query: signed movement totals by reason (increase/decrease)
-    const movementResult = await pool.query(
-      `
+    const query = `
       SELECT 
         ${dateSelect} AS period,
         il.reason,
@@ -916,12 +910,12 @@ exports.salesAnalytics = async (req, res) => {
       FROM inventory_logs il
       JOIN variants v ON il.variant_id = v.id
       JOIN products p ON v.product_id = p.id
-      ${whereClause}${dateWhere}
+      ${whereClause}
       GROUP BY period, il.reason
       ORDER BY period ASC, il.reason
-      `,
-      params
-    );
+    `;
+
+    const movementResult = await pool.query(query, params);
 
     res.json({ movements: movementResult.rows });
   } catch (err) {
@@ -929,6 +923,7 @@ exports.salesAnalytics = async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch stock movement analytics.' });
   }
 };
+
 
 
   exports.productVariantStockMovement = async (req, res) => {
