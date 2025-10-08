@@ -170,7 +170,7 @@ router.get('/get-supply-orders', ...requirePermission(STOCK_PERMISSIONS.VIEW_STO
  *       200:
  *         description: Supply order details
  */
-router.get('/get-supply-order', ...requirePermission(STOCK_PERMISSIONS.VIEW_STOCK), stockController.getSupplyOrder);
+router.get('/get-supply-order/:id', ...requirePermission(STOCK_PERMISSIONS.VIEW_STOCK), stockController.getSupplyOrder);
 /**
  * @swagger
  * /api/stock/supply-status:
