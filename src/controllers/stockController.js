@@ -496,6 +496,12 @@ exports.editSupplyOrder = async (req, res) => {
       return res.status(404).json({ message: 'Supply order not found.' });
     }
 
+    const status = orderRes.rows[0]?.supply_status;
+
+if (['paid', 'delivered'].includes(status)) {
+  return res.status(403).json({ message: 'Cannot edit a finalized supply order (paid or delivered).' });
+}
+
     await client.query('BEGIN');
 
     /** ---------------------------
@@ -535,7 +541,7 @@ exports.editSupplyOrder = async (req, res) => {
 
       // ➕ Insert new items
       for (const v of variants) {
-        if (!v.variant_id || !v.quantity || !v.cost_price) continue;
+       if (!v.variant_id || v.quantity == null || v.cost_price == null) continue;
         if (!existingIds.includes(v.variant_id)) {
           await client.query(
             `INSERT INTO supply_order_items (supply_order_id, variant_id, quantity, cost_price)
@@ -587,20 +593,21 @@ exports.editSupplyOrder = async (req, res) => {
 
 
 exports.updateSupplyStatus = async (req, res) => {
+  const client = await pool.connect();
   try {
     const { business_id, supply_order_id, supply_status } = req.body;
-    
+
     if (!supply_order_id || !supply_status) {
       return res.status(400).json({ message: 'supply_order_id and supply_status are required.' });
     }
 
-    const allowed = ['awaiting_payment', 'paid', 'delivered', 'cancelled'];
-    if (!allowed.includes(supply_status)) {
+    const allowedStatuses = ['awaiting_payment', 'paid', 'delivered', 'cancelled'];
+    if (!allowedStatuses.includes(supply_status)) {
       return res.status(400).json({ message: 'Invalid supply_status.' });
     }
 
-   
-    const orderRes = await pool.query(
+    // Fetch order
+    const orderRes = await client.query(
       'SELECT * FROM supply_orders WHERE id = $1 AND business_id = $2',
       [supply_order_id, business_id]
     );
@@ -608,66 +615,120 @@ exports.updateSupplyStatus = async (req, res) => {
       return res.status(404).json({ message: 'Supply order not found.' });
     }
 
-    const itemsRes = await pool.query(
+    const currentStatus = orderRes.rows[0].supply_status;
+    const itemsRes = await client.query(
       'SELECT * FROM supply_order_items WHERE supply_order_id = $1',
       [supply_order_id]
     );
     const items = itemsRes.rows;
 
-   
-    if (supply_status === 'delivered') {
-    const isStaff = !!req.user?.staff_id;
-    const recorded_by = isStaff ? String(req.user.staff_id) : String(req.user.user_id || req.user.id);
-    const recorded_by_type = isStaff ? 'staff' : 'user';
+    // Begin transaction
+    await client.query('BEGIN');
 
-      for (const item of items) {
-        const variantRes = await pool.query('SELECT * FROM variants WHERE id = $1', [item.variant_id]);
-        if (variantRes.rows.length === 0) continue;
+    /**
+     * -----------------------------
+     * 🧾 1️⃣ Handle PAID status
+     * -----------------------------
+     * Only update cost price (if different)
+     */
+    if (supply_status === 'paid') {
+      await Promise.all(
+        items.map(async (item) => {
+          const variantRes = await client.query('SELECT * FROM variants WHERE id = $1', [item.variant_id]);
+          if (variantRes.rows.length === 0) return;
 
-        const variant = variantRes.rows[0];
-        const old_quantity = variant.quantity;
-        const new_quantity = old_quantity + item.quantity;
-        const quantity_change = item.quantity;
-        const reason = 'increase';
-        const newCostPrice = item.cost_price !== variant.cost_price ? item.cost_price : variant.cost_price;
+          const variant = variantRes.rows[0];
+          const newCostPrice =
+            item.cost_price !== variant.cost_price ? item.cost_price : variant.cost_price;
 
-       
-        await pool.query('UPDATE variants SET quantity = $1, cost_price = $2 WHERE id = $3',
-          [new_quantity, newCostPrice, variant.id]);
-
-       
-        await pool.query(
-          `INSERT INTO inventory_logs 
-           (variant_id, type, quantity, reason, note, business_id, branch_id, recorded_by, recorded_by_type) 
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-          [
-            variant.id,
-            'restock', 
-            quantity_change,
-            reason, 
-            `Supply delivered (order ID: ${supply_order_id})`,
-            business_id,
-            variant.branch_id || null,
-            recorded_by,
-            recorded_by_type
-          ]
-        );
-      }
+          await client.query(
+            'UPDATE variants SET cost_price = $1, updated_at = NOW() WHERE id = $2',
+            [newCostPrice, variant.id]
+          );
+        })
+      );
     }
 
-    // Update the supply order status
-    const updated = await pool.query(
-      'UPDATE supply_orders SET supply_status = $1 WHERE id = $2 RETURNING *',
+ /**
+ * -----------------------------
+ * 📦 2️⃣ Handle DELIVERED status
+ * -----------------------------
+ * Ensure cost price is updated (even if "paid" was skipped)
+ * Then increase quantity + insert inventory log
+ */
+if (supply_status === 'delivered') {
+  const isStaff = !!req.user?.staff_id;
+  const recorded_by = isStaff
+    ? String(req.user.staff_id)
+    : String(req.user.user_id || req.user.id);
+  const recorded_by_type = isStaff ? 'staff' : 'user';
+
+  await Promise.all(
+    items.map(async (item) => {
+      const variantRes = await client.query('SELECT * FROM variants WHERE id = $1', [item.variant_id]);
+      if (variantRes.rows.length === 0) return;
+
+      const variant = variantRes.rows[0];
+      const oldQty = Number(variant.quantity ?? 0);
+      const newQty = oldQty + Number(item.quantity);
+
+      // 🟡 Always update cost_price here too (if changed)
+      const newCostPrice =
+        item.cost_price !== variant.cost_price ? item.cost_price : variant.cost_price;
+
+      await client.query(
+        'UPDATE variants SET quantity = $1, cost_price = $2, updated_at = NOW() WHERE id = $3',
+        [newQty, newCostPrice, variant.id]
+      );
+
+      // 🧾 Insert inventory log
+      await client.query(
+        `INSERT INTO inventory_logs 
+         (variant_id, type, quantity, reason, note, business_id, branch_id, recorded_by, recorded_by_type, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())`,
+        [
+          variant.id,
+          'restock',
+          item.quantity,
+          'increase',
+          `Supply delivered (order ID: ${supply_order_id})`,
+          business_id,
+          variant.branch_id || null,
+          recorded_by,
+          recorded_by_type
+        ]
+      );
+    })
+  );
+}
+
+
+    /**
+     * -----------------------------
+     * 🧾 3️⃣ Update Supply Order status
+     * -----------------------------
+     */
+    const updated = await client.query(
+      'UPDATE supply_orders SET supply_status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
       [supply_status, supply_order_id]
     );
 
-    return res.status(200).json({ message: 'Supply status updated.', supply_order: updated.rows[0] });
+    await client.query('COMMIT');
+
+    return res.status(200).json({
+      message: `Supply order status updated to '${supply_status}'.`,
+      supply_order: updated.rows[0],
+    });
 
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(500).json({ message: 'Server error.', error: err.message });
+  } finally {
+    client.release();
   }
 };
+
 
 
 
