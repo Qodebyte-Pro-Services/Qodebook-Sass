@@ -475,26 +475,20 @@ exports.createSupplyOrder = async (req, res) => {
 };
 
 
-  exports.editSupplyOrder = async (req, res) => {
+exports.editSupplyOrder = async (req, res) => {
+  const client = await pool.connect();
   try {
-    const { business_id, supply_order_id, ...fields } = req.body;
+    const { business_id, supply_order_id, variants = [], ...fields } = req.body;
 
     if (!business_id || !supply_order_id) {
       return res.status(400).json({ message: 'business_id and supply_order_id are required.' });
     }
 
     // Exclude supply_status from being updated
-    if ('supply_status' in fields) {
-      delete fields.supply_status;
-    }
+    if ('supply_status' in fields) delete fields.supply_status;
 
-    // No fields to update
-    if (Object.keys(fields).length === 0) {
-      return res.status(400).json({ message: 'No editable fields provided.' });
-    }
-
-    // Check if supply order exists and belongs to business
-    const orderRes = await pool.query(
+    // Check if supply order exists
+    const orderRes = await client.query(
       'SELECT * FROM supply_orders WHERE id = $1 AND business_id = $2',
       [supply_order_id, business_id]
     );
@@ -502,34 +496,95 @@ exports.createSupplyOrder = async (req, res) => {
       return res.status(404).json({ message: 'Supply order not found.' });
     }
 
-    // Build dynamic SET clause
-    const setClauses = [];
-    const values = [];
-    let idx = 1;
-    for (const [key, value] of Object.entries(fields)) {
-      setClauses.push(`${key} = $${idx}`);
-      values.push(value);
-      idx++;
+    await client.query('BEGIN');
+
+    /** ---------------------------
+     * 1️⃣ Update the supply_orders table
+     * --------------------------- */
+    if (Object.keys(fields).length > 0) {
+      const setClauses = [];
+      const values = [];
+      let idx = 1;
+      for (const [key, value] of Object.entries(fields)) {
+        setClauses.push(`${key} = $${idx}`);
+        values.push(value);
+        idx++;
+      }
+      values.push(supply_order_id, business_id);
+      const updateQuery = `
+        UPDATE supply_orders
+        SET ${setClauses.join(', ')}
+        WHERE id = $${idx} AND business_id = $${idx + 1}
+      `;
+      await client.query(updateQuery, values);
     }
-    // Add supply_order_id and business_id for WHERE clause
-    values.push(supply_order_id, business_id);
 
-    const updateQuery = `
-      UPDATE supply_orders
-      SET ${setClauses.join(', ')}
-      WHERE id = $${idx} AND business_id = $${idx + 1}
-      RETURNING *
-    `;
+    /** ---------------------------
+     * 2️⃣ Update the items (supply_order_items)
+     * --------------------------- */
+    if (Array.isArray(variants)) {
+      // Get current items
+      const itemsRes = await client.query(
+        'SELECT id, variant_id FROM supply_order_items WHERE supply_order_id = $1',
+        [supply_order_id]
+      );
+      const existingItems = itemsRes.rows;
 
-    const updated = await pool.query(updateQuery, values);
+      const incomingIds = variants.map(v => v.variant_id);
+      const existingIds = existingItems.map(i => i.variant_id);
 
-    return res.status(200).json({ message: 'Supply order updated.', supply_order: updated.rows[0] });
+      // ➕ Insert new items
+      for (const v of variants) {
+        if (!v.variant_id || !v.quantity || !v.cost_price) continue;
+        if (!existingIds.includes(v.variant_id)) {
+          await client.query(
+            `INSERT INTO supply_order_items (supply_order_id, variant_id, quantity, cost_price)
+             VALUES ($1, $2, $3, $4)`,
+            [supply_order_id, v.variant_id, v.quantity, v.cost_price]
+          );
+        } else {
+          // 🔁 Update existing items (quantity/cost_price)
+          await client.query(
+            `UPDATE supply_order_items 
+             SET quantity = $1, cost_price = $2 
+             WHERE supply_order_id = $3 AND variant_id = $4`,
+            [v.quantity, v.cost_price, supply_order_id, v.variant_id]
+          );
+        }
+      }
+
+      // ❌ Remove items that no longer exist
+      for (const item of existingItems) {
+        if (!incomingIds.includes(item.variant_id)) {
+          await client.query(
+            'DELETE FROM supply_order_items WHERE supply_order_id = $1 AND variant_id = $2',
+            [supply_order_id, item.variant_id]
+          );
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+
+    // ✅ Return updated order and items
+    const updatedOrder = await client.query('SELECT * FROM supply_orders WHERE id = $1', [supply_order_id]);
+    const updatedItems = await client.query('SELECT * FROM supply_order_items WHERE supply_order_id = $1', [supply_order_id]);
+
+    return res.status(200).json({
+      message: 'Supply order updated successfully.',
+      supply_order: updatedOrder.rows[0],
+      items: updatedItems.rows
+    });
 
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(500).json({ message: 'Server error.', error: err.message });
+  } finally {
+    client.release();
   }
 };
+
 
 exports.updateSupplyStatus = async (req, res) => {
   try {
