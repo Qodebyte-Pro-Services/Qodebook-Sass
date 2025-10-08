@@ -474,6 +474,63 @@ exports.createSupplyOrder = async (req, res) => {
   }
 };
 
+
+  exports.editSupplyOrder = async (req, res) => {
+  try {
+    const { business_id, supply_order_id, ...fields } = req.body;
+
+    if (!business_id || !supply_order_id) {
+      return res.status(400).json({ message: 'business_id and supply_order_id are required.' });
+    }
+
+    // Exclude supply_status from being updated
+    if ('supply_status' in fields) {
+      delete fields.supply_status;
+    }
+
+    // No fields to update
+    if (Object.keys(fields).length === 0) {
+      return res.status(400).json({ message: 'No editable fields provided.' });
+    }
+
+    // Check if supply order exists and belongs to business
+    const orderRes = await pool.query(
+      'SELECT * FROM supply_orders WHERE id = $1 AND business_id = $2',
+      [supply_order_id, business_id]
+    );
+    if (orderRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Supply order not found.' });
+    }
+
+    // Build dynamic SET clause
+    const setClauses = [];
+    const values = [];
+    let idx = 1;
+    for (const [key, value] of Object.entries(fields)) {
+      setClauses.push(`${key} = $${idx}`);
+      values.push(value);
+      idx++;
+    }
+    // Add supply_order_id and business_id for WHERE clause
+    values.push(supply_order_id, business_id);
+
+    const updateQuery = `
+      UPDATE supply_orders
+      SET ${setClauses.join(', ')}
+      WHERE id = $${idx} AND business_id = $${idx + 1}
+      RETURNING *
+    `;
+
+    const updated = await pool.query(updateQuery, values);
+
+    return res.status(200).json({ message: 'Supply order updated.', supply_order: updated.rows[0] });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
 exports.updateSupplyStatus = async (req, res) => {
   try {
     const { business_id, supply_order_id, supply_status } = req.body;

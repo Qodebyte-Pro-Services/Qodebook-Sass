@@ -198,6 +198,55 @@ router.get('/get-supply-order', ...requirePermission(STOCK_PERMISSIONS.VIEW_STOC
 router.post('/supply-status', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK), stockController.updateSupplyStatus);
 
 /**
+ * @swagger
+ * /api/stock/supply-order/edit:
+ *   put:
+ *     summary: Edit a supply order (excluding supply_status)
+ *     tags: [Supplier]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - business_id
+ *               - supply_order_id
+ *             properties:
+ *               business_id:
+ *                 type: integer
+ *                 description: Business ID
+ *               supply_order_id:
+ *                 type: integer
+ *                 description: Supply Order ID
+ *               supplier_id:
+ *                 type: integer
+ *                 description: Supplier ID
+ *               expected_delivery_date:
+ *                 type: string
+ *                 format: date
+ *               supply_order_date:
+ *                 type: string
+ *                 format: date
+ *             example:
+ *               business_id: 1
+ *               supply_order_id: 10
+ *               supplier_id: 2
+ *               expected_delivery_date: "2025-10-10"
+ *               supply_order_date: "2025-10-01"
+ *     responses:
+ *       200:
+ *         description: Supply order updated
+ *       400:
+ *         description: Missing or invalid fields
+ *       404:
+ *         description: Supply order not found
+ */
+router.put('/supply-order/edit', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK), stockController.editSupplyOrder);
+
+/**
  *  @swagger
  * /api/stock/delete-supply-order:
  *  delete:
