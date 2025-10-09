@@ -96,3 +96,18 @@ exports.getCouponsForVariantsBasedOnProduct = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 } 
+
+exports.deleteCoupon = async (req, res) => {
+  try {
+    const { coupon_id } = req.params;
+    if (!coupon_id) return res.status(400).json({ message: 'Missing coupon_id parameter.' });
+    const couponRes = await pool.query('SELECT * FROM coupons WHERE id = $1', [coupon_id]);
+    if (couponRes.rows.length === 0) return res.status(404).json({ message: 'Coupon not found.' });
+    await pool.query('DELETE FROM product_coupons WHERE coupon_id = $1', [coupon_id]);
+    await pool.query('DELETE FROM coupons WHERE id = $1', [coupon_id]);
+    return res.status(200).json({ message: 'Coupon deleted successfully.' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Server error.', details: error.message });
+  }
+}

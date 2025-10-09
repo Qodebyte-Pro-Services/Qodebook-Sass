@@ -209,4 +209,62 @@ router.get('/product/:product_id/variants', authenticateToken, couponController.
  */
 router.get('/products-with-coupons', authenticateToken, couponController.getListOfProductsAndTheirCoupons);
 
+/**
+ * @swagger
+ * /api/coupons/{coupon_id}:
+ *   delete:
+ *     summary: Delete a coupon and unlink it from all products
+ *     tags: [Coupon]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: coupon_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the coupon to delete
+ *     responses:
+ *       200:
+ *         description: Coupon deleted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Coupon deleted successfully.
+ *       400:
+ *         description: Missing coupon_id parameter
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Missing coupon_id parameter
+ *       404:
+ *         description: Coupon not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Coupon not found
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Internal server error
+ */
+router.delete('/:coupon_id', authenticateToken, couponController.deleteCoupon);
 module.exports = router;

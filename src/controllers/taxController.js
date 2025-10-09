@@ -94,3 +94,26 @@ exports.getTaxesForVariantsBasedOnProduct = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 }
+
+exports.deleteTax = async (req, res) => {
+  try {
+    const { tax_id } = req.params;
+    if (!tax_id) return res.status(400).json({ message: 'Missing tax_id parameter.' });
+
+    // Check if tax exists
+    const taxRes = await pool.query('SELECT * FROM taxes WHERE id = $1', [tax_id]);
+    if (taxRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Tax not found.' });
+    }
+
+    // Remove tax from product_taxes first (to avoid FK constraint errors)
+    await pool.query('DELETE FROM product_taxes WHERE tax_id = $1', [tax_id]);
+    // Then delete the tax itself
+    await pool.query('DELETE FROM taxes WHERE id = $1', [tax_id]);
+
+    return res.status(200).json({ message: 'Tax deleted.' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+}

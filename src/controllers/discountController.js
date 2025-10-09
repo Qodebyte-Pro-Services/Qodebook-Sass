@@ -99,3 +99,24 @@ exports.getDiscountsForVariantsBasedOnProduct = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 }
+
+exports.deleteDiscount = async (req, res) => {
+  try {
+    const { discount_id } = req.params;
+    if (!discount_id) return res.status(400).json({ message: 'Missing discount_id parameter.' });
+
+
+    const discountRes = await pool.query('SELECT * FROM discounts WHERE id = $1', [discount_id]);
+    if (discountRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Discount not found.' });
+    } 
+    await pool.query('DELETE FROM product_discounts WHERE discount_id = $1', [discount_id]);
+
+    await pool.query('DELETE FROM discounts WHERE id = $1', [discount_id]);
+    
+    return res.status(200).json({ message: 'Discount deleted successfully.' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+}

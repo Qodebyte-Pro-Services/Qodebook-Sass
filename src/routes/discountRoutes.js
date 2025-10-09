@@ -252,4 +252,62 @@ router.get('/product/:product_id/variants', authenticateToken, discountControlle
 
 router.get('/products-with-discounts', authenticateToken, discountController.getListOfProductsAndTheirDiscounts);
 
+/**
+ * @swagger
+ * /api/discounts/{discount_id}:
+ *   delete:
+ *     summary: Delete a discount and unlink it from all products
+ *     tags: [Discount]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: discount_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the discount to delete
+ *     responses:
+ *       200:
+ *         description: Discount deleted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Discount deleted.
+ *       400:
+ *         description: Missing discount_id parameter
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Missing discount_id parameter.
+ *       404:
+ *         description: Discount not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Discount not found.
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Server error.
+ */
+router.delete('/:discount_id', authenticateToken, discountController.deleteDiscount);
 module.exports = router;

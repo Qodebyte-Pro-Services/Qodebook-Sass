@@ -213,4 +213,55 @@ router.get('/product/:product_id/variants', authenticateToken, taxController.get
 
 router.get('/products-with-taxes', authenticateToken, taxController.getListOfProductsAndTheirTaxes);
 
+/**
+ * @swagger
+ * /api/taxes/{tax_id}:
+ *   delete:
+ *     summary: Delete a tax and unlink it from all products
+ *     tags: [Tax]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tax_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the tax to delete
+ *     responses:
+ *       200:
+ *         description: Tax deleted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Tax deleted.
+ *       400:
+ *         description: Missing tax_id parameter
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Missing tax_id parameter.
+ *       404:
+ *         description: Tax not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Tax not found.
+ *       500:
+ *         description: Server error
+ */
+router.delete('/:tax_id', authenticateToken, taxController.deleteTax);
+
 module.exports = router;
