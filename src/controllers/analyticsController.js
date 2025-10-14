@@ -1212,16 +1212,41 @@ exports.salesReport = async (req, res) => {
     }
 
     // date filters
-    if (period === 'day') {
-      whereParts.push(`DATE(o.created_at) = CURRENT_DATE`);
-    } else if (period === 'month') {
-      whereParts.push(`DATE_TRUNC('month', o.created_at) = DATE_TRUNC('month', CURRENT_DATE)`);
-    } else if (period === 'year') {
-      whereParts.push(`DATE_TRUNC('year', o.created_at) = DATE_TRUNC('year', CURRENT_DATE)`);
-    } else if (period === 'custom') {
-      // start_date and end_date are validated already
-      whereParts.push(`o.created_at::date BETWEEN $${idx} AND $${idx+1}`); params.push(start_date, end_date); idx += 2;
-    }
+if (period === 'day') {
+  if (start_date && end_date) {
+    // Allow custom range for day, e.g., a specific date or 2-day span
+    whereParts.push(`o.created_at::date BETWEEN $${idx} AND $${idx + 1}`);
+    params.push(start_date, end_date);
+    idx += 2;
+  } else {
+    // Default to today
+    whereParts.push(`DATE(o.created_at) = CURRENT_DATE`);
+  }
+} 
+else if (period === 'month') {
+  if (start_date && end_date) {
+    whereParts.push(`o.created_at::date BETWEEN $${idx} AND $${idx + 1}`);
+    params.push(start_date, end_date);
+    idx += 2;
+  } else {
+    whereParts.push(`DATE_TRUNC('month', o.created_at) = DATE_TRUNC('month', CURRENT_DATE)`);
+  }
+} 
+else if (period === 'year') {
+  if (start_date && end_date) {
+    whereParts.push(`o.created_at::date BETWEEN $${idx} AND $${idx + 1}`);
+    params.push(start_date, end_date);
+    idx += 2;
+  } else {
+    whereParts.push(`DATE_TRUNC('year', o.created_at) = DATE_TRUNC('year', CURRENT_DATE)`);
+  }
+} 
+else if (period === 'custom') {
+  whereParts.push(`o.created_at::date BETWEEN $${idx} AND $${idx + 1}`);
+  params.push(start_date, end_date);
+  idx += 2;
+}
+
 
     const whereClause = whereParts.join(' AND ');
 
