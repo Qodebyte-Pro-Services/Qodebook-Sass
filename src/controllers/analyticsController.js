@@ -2283,3 +2283,71 @@ exports.categoryStockDistribution = async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch category stock distribution.' });
   }
 };
+
+
+exports.salesOverView = async (req, res) => {
+  try {
+    const { business_id, branch_id, page = 1, pageSize = 20 } = req.query;
+    if (!business_id) {
+      return res.status(400).json({ message: 'business_id is required.' });
+    }
+
+    const pageInt = parseInt(page, 10);
+    const pageSizeInt = parseInt(pageSize, 10);
+    const offset = (pageInt - 1) * pageSizeInt;
+
+    let params = [business_id];
+    let wheres = ['p.business_id = $1'];
+    let idx = 2;
+
+    if (branch_id) {
+      wheres.push(`p.branch_id = $${idx}`);
+      params.push(branch_id);
+      idx++;
+    }
+
+    // Count total variants for pagination
+    const countRes = await pool.query(
+      `SELECT COUNT(DISTINCT v.id) AS total
+       FROM variants v
+       JOIN products p ON v.product_id = p.id
+       JOIN order_items oi ON v.id = oi.variant_id
+       JOIN orders o ON oi.order_id = o.id
+       WHERE o.status = 'completed' AND ${wheres.join(' AND ')}`,
+      params
+    );
+    const total = Number(countRes.rows[0]?.total || 0);
+
+    // Main query: sales overview per variant
+    const result = await pool.query(
+      `SELECT
+          v.id AS variant_id,
+          v.sku,        
+          v.selling_price,
+          v.cost_price,
+          p.name AS product_name,
+          COALESCE(SUM(oi.quantity), 0) AS units_sold,
+          COALESCE(SUM(oi.total_price), 0) AS revenue
+        FROM variants v
+        JOIN products p ON v.product_id = p.id
+        JOIN order_items oi ON v.id = oi.variant_id
+        JOIN orders o ON oi.order_id = o.id
+        WHERE o.status = 'completed' AND ${wheres.join(' AND ')}
+        GROUP BY v.id, v.sku, v.selling_price, v.cost_price, p.name
+        ORDER BY revenue DESC
+        LIMIT $${idx} OFFSET $${idx + 1}`,
+      [...params, pageSizeInt, offset]
+    );
+
+    return res.status(200).json({
+      page: pageInt,
+      pageSize: pageSizeInt,
+      total,
+      totalPages: Math.ceil(total / pageSizeInt),
+      variants: result.rows
+    });
+  } catch (err) {
+    console.error('Sales overview error:', err);
+    return res.status(500).json({ message: 'Failed to fetch sales overview.', error: err.message });
+  }
+};
