@@ -699,7 +699,7 @@ exports.productAnalytics = async (req, res) => {
       res.json({ topProducts: topProductsResult.rows });
     } catch (err) {
       console.error('Product analytics error:', err);
-      res.status(500).json({ message: 'Failed to fetch product analytics.' });
+      res.status(500).json({ message: 'Failed to fetch product analytics.' , error: err.message });
     }
 };
 
