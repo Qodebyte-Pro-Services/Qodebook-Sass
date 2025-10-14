@@ -666,42 +666,57 @@ const serviceTrackingResult = await pool.query(
 
 
 exports.productAnalytics = async (req, res) => {
-    try {
-      const { business_id, date_filter, start_date, end_date } = req.query;
-      let params = [];
-      let wheres = [];
-      let idx = 1;
-      if (business_id) { wheres.push(`p.business_id = $${idx}`); params.push(business_id); idx++; }
-      let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
-      let dateWhere = '';
-      if (date_filter) {
-        if (date_filter === 'today') dateWhere = ` AND o.created_at::date = CURRENT_DATE`;
-        else if (date_filter === 'yesterday') dateWhere = ` AND o.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
-        else if (date_filter === 'this_week') dateWhere = ` AND o.created_at >= date_trunc('week', CURRENT_DATE)`;
-        else if (date_filter === 'last_7_days') dateWhere = ` AND o.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
-        else if (date_filter === 'this_month') dateWhere = ` AND o.created_at >= date_trunc('month', CURRENT_DATE)`;
-        else if (date_filter === 'this_year') dateWhere = ` AND o.created_at >= date_trunc('year', CURRENT_DATE)`;
-        else if (date_filter === 'custom' && start_date && end_date) dateWhere = ` AND o.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
-      }
-      
-      const topProductsResult = await pool.query(
-        `SELECT p.id, p.name, SUM(oi.quantity) AS units_sold, SUM(oi.total_price) AS total_sales
-         FROM order_items oi
-         JOIN orders o ON oi.order_id = o.id
-         JOIN variants v ON oi.variant_id = v.id
-         JOIN products p ON v.product_id = p.id
-         WHERE o.status = 'completed'${wheres.length > 0 ? ' AND ' + wheres.map((w, i) => 'p.' + w.split('=')[0] + ' = $' + (i + 1)).join(' AND ') : ''}${dateWhere}
-         GROUP BY p.id, p.name
-         ORDER BY total_sales DESC
-         LIMIT 10`,
-        params
-      );
-      res.json({ topProducts: topProductsResult.rows });
-    } catch (err) {
-      console.error('Product analytics error:', err);
-      res.status(500).json({ message: 'Failed to fetch product analytics.' , error: err.message });
+  try {
+    const { business_id, date_filter, start_date, end_date } = req.query;
+    let params = [];
+    let wheres = [];
+    let idx = 1;
+
+    if (business_id) {
+      wheres.push(`p.business_id = $${idx}`);
+      params.push(business_id);
+      idx++;
     }
+
+    let dateWhere = '';
+    if (date_filter) {
+      if (date_filter === 'today') dateWhere = ` AND o.created_at::date = CURRENT_DATE`;
+      else if (date_filter === 'yesterday') dateWhere = ` AND o.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+      else if (date_filter === 'this_week') dateWhere = ` AND o.created_at >= date_trunc('week', CURRENT_DATE)`;
+      else if (date_filter === 'last_7_days') dateWhere = ` AND o.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
+      else if (date_filter === 'this_month') dateWhere = ` AND o.created_at >= date_trunc('month', CURRENT_DATE)`;
+      else if (date_filter === 'this_year') dateWhere = ` AND o.created_at >= date_trunc('year', CURRENT_DATE)`;
+      else if (date_filter === 'custom' && start_date && end_date)
+        dateWhere = ` AND o.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    }
+
+    const topProductsResult = await pool.query(
+      `
+      SELECT p.id, p.name, SUM(oi.quantity) AS units_sold, SUM(oi.total_price) AS total_sales
+      FROM order_items oi
+      JOIN orders o ON oi.order_id = o.id
+      JOIN variants v ON oi.variant_id = v.id
+      JOIN products p ON v.product_id = p.id
+      WHERE o.status = 'completed'
+      ${wheres.length > 0 ? ' AND ' + wheres.join(' AND ') : ''}
+      ${dateWhere}
+      GROUP BY p.id, p.name
+      ORDER BY total_sales DESC
+      LIMIT 10
+      `,
+      params
+    );
+
+    res.json({ topProducts: topProductsResult.rows });
+  } catch (err) {
+    console.error('Product analytics error:', err);
+    res.status(500).json({
+      message: 'Failed to fetch product analytics.',
+      error: err.message,
+    });
+  }
 };
+
 
 
   exports.stockAnalytics = async (req, res) => {
