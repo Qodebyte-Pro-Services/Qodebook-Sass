@@ -1102,6 +1102,142 @@ router.get('/stock-movement-analytics', ...requirePermission(REPORTS_ANALYTICS_P
  */
 router.get('/sales-movement-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_SALES_MOVEMENT), controller.salesMovementAnalytics);
 
+
+/**
+ * @swagger
+ * /api/finance/sales-overview:
+ *   get:
+ *     tags:
+ *       - Financial Reports
+ *     summary: Get Sales Overview
+ *     description: >
+ *       Retrieves a paginated sales overview for all product variants under a specific business (and optionally branch).
+ *       Each variant includes its SKU, selling price, cost price, product name, total units sold, and total revenue.
+ *       Requires `VIEW_FINANCIAL_REPORTS` permission.
+ *     operationId: getSalesOverview
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: business_id
+ *         in: query
+ *         required: true
+ *         description: The unique ID of the business to fetch sales data for.
+ *         schema:
+ *           type: string
+ *           example: "1"
+ *       - name: branch_id
+ *         in: query
+ *         required: false
+ *         description: Filter results by a specific branch.
+ *         schema:
+ *           type: string
+ *           example: "12"
+ *       - name: page
+ *         in: query
+ *         required: false
+ *         description: "Page number for pagination (default: 1)"
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           example: 1
+ *       - name: pageSize
+ *         in: query
+ *         required: false
+ *         description: "Number of records per page (default: 20)"
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           example: 20
+ *     responses:
+ *       '200':
+ *         description: Successful response with sales overview data.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 page:
+ *                   type: integer
+ *                   example: 1
+ *                 pageSize:
+ *                   type: integer
+ *                   example: 20
+ *                 total:
+ *                   type: integer
+ *                   description: Total number of product variants.
+ *                   example: 145
+ *                 totalPages:
+ *                   type: integer
+ *                   example: 8
+ *                 variants:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       variant_id:
+ *                         type: string
+ *                         example: "v1234"
+ *                       sku:
+ *                         type: string
+ *                         example: "SKU-1234"
+ *                       selling_price:
+ *                         type: number
+ *                         format: float
+ *                         example: 29.99
+ *                       cost_price:
+ *                         type: number
+ *                         format: float
+ *                         example: 15.50
+ *                       product_name:
+ *                         type: string
+ *                         example: "Modern Landing Page Template"
+ *                       units_sold:
+ *                         type: integer
+ *                         example: 250
+ *                       revenue:
+ *                         type: number
+ *                         format: float
+ *                         example: 7497.50
+ *       '400':
+ *         description: Missing or invalid parameters.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "business_id is required."
+ *       '403':
+ *         description: Forbidden — user lacks `VIEW_FINANCIAL_REPORTS` permission.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Access denied. You do not have permission to view financial reports."
+ *       '500':
+ *         description: Internal server error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Failed to fetch sales overview."
+ *                 error:
+ *                   type: string
+ *                   example: "Database connection error"
+ */
+router.get(
+  '/sales-overview',
+  ...requirePermission(FINANCIAL_PERMISSIONS.VIEW_FINANCIAL_REPORTS),
+  controller.salesOverView
+);
+
 /**
  * @swagger
  * /api/finance/sales-report:
