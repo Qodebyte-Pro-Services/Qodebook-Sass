@@ -16,7 +16,14 @@ exports.addCustomer = async (req, res) => {
 
 exports.listCustomers = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM customers');
+    const { business_id } = req.query;
+    let query = 'SELECT * FROM customers';
+    let params = [];
+    if (business_id) {
+      query += ' WHERE business_id = $1';
+      params.push(business_id);
+    }
+    const result = await pool.query(query, params);
     return res.status(200).json({ customers: result.rows });
   } catch (err) {
     console.error(err);
