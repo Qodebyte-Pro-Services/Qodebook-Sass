@@ -719,13 +719,13 @@ exports.productAnalytics = async (req, res) => {
 
 
 
-exports.stockAnalytics = async (req, res) => {
+  exports.stockAnalytics = async (req, res) => {
   try {
     const { business_id, branch_id, date_filter, start_date, end_date } = req.query;
 
     if (!business_id) return res.status(400).json({ message: 'Business ID is required' });
 
-    
+    // If no date_filter -> current snapshot (fast, uses variants.quantity)
     if (!date_filter) {
       let params = [business_id];
       let wheres = ['p.business_id = $1'];
@@ -736,7 +736,6 @@ exports.stockAnalytics = async (req, res) => {
       }
 
       let dateWhere = '';
-      
       if (start_date && end_date) {
         dateWhere = ` AND v.updated_at::date BETWEEN $${idx} AND $${idx + 1}`;
         params.push(start_date, end_date);
@@ -777,27 +776,22 @@ exports.stockAnalytics = async (req, res) => {
       });
     }
 
-
+    // Historical / point-in-time snapshot using inventory_logs
+    // Determine as_of date (end of snapshot). For custom use end_date.
     let asOfDate = null;
     if (date_filter === 'custom') {
       if (!end_date) return res.status(400).json({ message: 'end_date is required for custom date_filter.' });
-      asOfDate = end_date;
+      asOfDate = end_date; // will be parameterized
     } else if (date_filter === 'yesterday') {
-      asOfDate = "(CURRENT_DATE - INTERVAL '1 day')";
+      asOfDate = "CURRENT_DATE - INTERVAL '1 day'";
     } else if (date_filter === 'today') {
       asOfDate = "CURRENT_DATE";
-    } else if (date_filter === 'last_7_days') {
-    
-      asOfDate = "CURRENT_DATE";
-    } else if (date_filter === 'this_week' || date_filter === 'this_month' || date_filter === 'this_year') {
-     
-      asOfDate = "CURRENT_DATE";
     } else {
-      
+      // default snapshot as of today for other named ranges (you can adapt)
       asOfDate = "CURRENT_DATE";
     }
 
-   
+    // Build params and product/branch where clause
     const params = [business_id];
     let idx = 2;
     let productWhere = `p.business_id = $1`;
@@ -805,27 +799,34 @@ exports.stockAnalytics = async (req, res) => {
       productWhere += ` AND p.branch_id = $${idx}`; params.push(branch_id); idx++;
     }
 
-    
-    let asOfBind = null;
-    let asOfExpr = null;
+    // Build "as of end" comparison: we subtract any inventory_logs that occurred AFTER the end-of-asOfDate
+    // Use a start-of-next-day expression so comparisons are timestamp-safe across timezones.
+    let asOfStartExpr;
     if (date_filter === 'custom') {
-      asOfBind = idx;
+      // param index holds end_date
+      const asOfBind = idx;
       params.push(asOfDate);
       idx++;
-      asOfExpr = `$${asOfBind}::date`;
+      asOfStartExpr = `$${asOfBind}::date + INTERVAL '1 day'`; // movements >= this are AFTER the as-of date
     } else {
-     
-      asOfExpr = asOfDate;
+      // sql expression (e.g. CURRENT_DATE => start of next day is CURRENT_DATE + 1)
+      if (date_filter === 'yesterday') {
+        asOfStartExpr = `CURRENT_DATE`; // start of today => movements >= today are after yesterday
+      } else if (date_filter === 'today') {
+        asOfStartExpr = `CURRENT_DATE + INTERVAL '1 day'`; // start of tomorrow
+      } else {
+        asOfStartExpr = `CURRENT_DATE + INTERVAL '1 day'`;
+      }
     }
 
-    
+    // net_after: net movements that happened AFTER the as-of date (>= asOfStartExpr)
     const query = `
       WITH net_after AS (
         SELECT
           v.id AS variant_id,
           COALESCE(SUM(
             CASE
-              WHEN il.created_at::date > ${asOfExpr} THEN
+              WHEN il.created_at >= ${asOfStartExpr} THEN
                 CASE WHEN il.reason = 'increase' THEN il.quantity
                      WHEN il.reason = 'decrease' THEN -il.quantity
                      ELSE 0 END
@@ -854,9 +855,7 @@ exports.stockAnalytics = async (req, res) => {
       WHERE ${productWhere}
     `;
 
-   
-    let finalParams = params;
-    
+    const finalParams = params;
     const metricsRes = await pool.query(query, finalParams);
 
     const row = metricsRes.rows[0] || {};
@@ -867,7 +866,7 @@ exports.stockAnalytics = async (req, res) => {
       inStock: Number(row.in_stock || 0),
       inventoryValue: Number(row.inventory_value || 0),
       potentialSaleValue: Number(row.potential_sale_value || 0),
-      as_of: date_filter === 'custom' ? end_date : (date_filter || 'current')
+      as_of: date_filter === 'custom' ? end_date : date_filter
     });
   } catch (err) {
     console.error('Stock analytics error:', err);
@@ -1005,7 +1004,7 @@ exports.stockAnalytics = async (req, res) => {
   };
 
 
-  exports.stockMovementAnalytics = async (req, res) => {
+exports.stockMovementAnalytics = async (req, res) => {
   try {
     const { business_id, branch_id, variant_id, product_id, period, start_date, end_date } = req.query;
 
@@ -1033,7 +1032,6 @@ exports.stockAnalytics = async (req, res) => {
       params.push(product_id);
     }
 
-    // Optional date filter (safe and parameterized)
     if (start_date && end_date) {
       wheres.push(`il.created_at::date BETWEEN $${idx++} AND $${idx++}`);
       params.push(start_date, end_date);
@@ -1041,7 +1039,6 @@ exports.stockAnalytics = async (req, res) => {
 
     const whereClause = wheres.length > 0 ? `WHERE ${wheres.join(' AND ')}` : '';
 
-    // Dynamic period grouping
     let dateSelect = `DATE(il.created_at)`;
     let dateTrunc = `DATE(il.created_at)`;
     if (period === 'hour') {
@@ -1058,27 +1055,33 @@ exports.stockAnalytics = async (req, res) => {
       dateTrunc = `DATE_TRUNC('year', il.created_at)`;
     }
 
+    // Group only by period (not by reason). Return ordered movement list per period
     const query = `
-      SELECT 
+      SELECT
         ${dateSelect} AS period,
-        il.reason,
-        SUM(
-          CASE 
-            WHEN il.reason = 'decrease' THEN -ABS(il.quantity)
-            ELSE ABS(il.quantity)
-          END
-        ) AS total_moved,
+        -- separate totals
+        COALESCE(SUM(CASE WHEN il.reason = 'increase' THEN il.quantity ELSE 0 END),0) AS total_increased,
+        COALESCE(SUM(CASE WHEN il.reason = 'decrease' THEN il.quantity ELSE 0 END),0) AS total_decreased,
+        -- net movement (increase - decrease)
+        COALESCE(SUM(CASE WHEN il.reason = 'decrease' THEN -ABS(il.quantity) ELSE ABS(il.quantity) END),0) AS net_moved,
         COUNT(*) AS movement_count,
         MIN(il.created_at) AS first_movement,
         MAX(il.created_at) AS last_movement,
-        -- Add actual timestamps for proper ordering
-        ARRAY_AGG(il.created_at ORDER BY il.created_at) AS movement_timestamps
+        -- full chronological list for the period
+        ARRAY_AGG(
+          JSON_BUILD_OBJECT(
+            'created_at', il.created_at,
+            'reason', il.reason,
+            'quantity', il.quantity,
+            'note', il.note
+          ) ORDER BY il.created_at
+        ) AS movements
       FROM inventory_logs il
       JOIN variants v ON il.variant_id = v.id
       JOIN products p ON v.product_id = p.id
       ${whereClause}
-      GROUP BY ${dateTrunc}, il.reason
-      ORDER BY MIN(il.created_at) ASC, il.reason
+      GROUP BY ${dateTrunc}
+      ORDER BY MIN(il.created_at) ASC
     `;
 
     const movementResult = await pool.query(query, params);
