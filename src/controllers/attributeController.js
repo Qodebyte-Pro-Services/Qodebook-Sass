@@ -167,13 +167,14 @@ exports.deleteAttributeValue = async (req, res) => {
 
 
 exports.updateAttribute = async (req, res) => {
+  const client = await pool.connect();
   try {
     const { id } = req.params;
     const {
       name,
-      values_to_add = [],        
-      values_to_update = [],    
-      values_to_remove = []      
+      values_to_add = [],        // array of strings
+      values_to_update = [],     // array of { id: valueId, value: 'newName' }
+      values_to_remove = []      // array of valueIds
     } = req.body;
 
     if (!name && !values_to_add.length && !values_to_update.length && !values_to_remove.length) {
