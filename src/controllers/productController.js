@@ -103,35 +103,60 @@ exports.listProducts = async (req, res) => {
     const attributeFilters = Array.isArray(req.query.attribute)
       ? req.query.attribute
       : req.query.attribute
-        ? [req.query.attribute]
-        : [];
+      ? [req.query.attribute]
+      : [];
 
-    let query = 'SELECT DISTINCT p.*, c.name as category_name FROM products p JOIN categories c ON p.category_id = c.id';
     let params = [];
     let joins = '';
     let wheres = [];
     let idx = 1;
 
+    // Base query — now also selecting total_variant_qty
+    let query = `
+      SELECT DISTINCT 
+        p.*, 
+        c.name AS category_name,
+        COALESCE(SUM(v.quantity), 0) AS total_variant_qty
+      FROM products p
+      JOIN categories c ON p.category_id = c.id
+      LEFT JOIN variants v ON v.product_id = p.id
+    `;
+
+    // Attribute filters
     if (attributeFilters.length > 0) {
-      joins += ' JOIN variants v ON v.product_id = p.id';
       for (const filter of attributeFilters) {
         const [attrName, attrValue] = filter.split(':');
         if (attrName && attrValue) {
-          wheres.push(`EXISTS (SELECT 1 FROM jsonb_array_elements(v.attributes) elem WHERE elem->>'name' = $${idx} AND elem->>'value' = $${idx + 1})`);
+          wheres.push(`
+            EXISTS (
+              SELECT 1 
+              FROM jsonb_array_elements(v.attributes) elem 
+              WHERE elem->>'name' = $${idx} AND elem->>'value' = $${idx + 1}
+            )
+          `);
           params.push(attrName, attrValue);
           idx += 2;
         }
       }
     }
 
+    // Business filter
     if (business_id) {
       wheres.push(`p.business_id = $${idx}`);
       params.push(business_id);
       idx++;
     }
 
-    if (joins) query += joins;
-    if (wheres.length > 0) query += ' WHERE ' + wheres.join(' AND ');
+    // Add WHERE if needed
+    if (wheres.length > 0) {
+      query += ` WHERE ${wheres.join(' AND ')}`;
+    }
+
+    // Group by product to aggregate variant quantities
+    query += `
+      GROUP BY p.id, c.name
+      ORDER BY p.id DESC
+    `;
 
     const result = await pool.query(query, params);
     return res.status(200).json({ products: result.rows });
@@ -140,6 +165,7 @@ exports.listProducts = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+
 
 
 exports.getProduct = async (req, res) => {
