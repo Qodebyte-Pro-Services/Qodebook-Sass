@@ -719,33 +719,23 @@ exports.productAnalytics = async (req, res) => {
 
 
 
-  exports.stockAnalytics = async (req, res) => {
+exports.stockAnalytics = async (req, res) => {
   try {
     const { business_id, branch_id, date_filter, start_date, end_date } = req.query;
 
     if (!business_id) return res.status(400).json({ message: 'Business ID is required' });
 
-    // If no date_filter -> current snapshot (fast, uses variants.quantity)
-    if (!date_filter) {
+    // For current stock (no date filter or today) - use variants table for performance
+    if (!date_filter || date_filter === 'today') {
       let params = [business_id];
       let wheres = ['p.business_id = $1'];
       let idx = 2;
 
       if (branch_id) {
-        wheres.push(`p.branch_id = $${idx}`); params.push(branch_id); idx++;
+        wheres.push(`p.branch_id = $${idx}`); 
+        params.push(branch_id); 
+        idx++;
       }
-
-      let dateWhere = '';
-      if (start_date && end_date) {
-        dateWhere = ` AND v.updated_at::date BETWEEN $${idx} AND $${idx + 1}`;
-        params.push(start_date, end_date);
-        idx += 2;
-      } else if (date_filter === 'today') dateWhere = ` AND v.updated_at::date = CURRENT_DATE`;
-      else if (date_filter === 'yesterday') dateWhere = ` AND v.updated_at::date = CURRENT_DATE - INTERVAL '1 day'`;
-      else if (date_filter === 'this_week') dateWhere = ` AND v.updated_at >= date_trunc('week', CURRENT_DATE)`;
-      else if (date_filter === 'last_7_days') dateWhere = ` AND v.updated_at >= CURRENT_DATE - INTERVAL '7 days'`;
-      else if (date_filter === 'this_month') dateWhere = ` AND v.updated_at >= date_trunc('month', CURRENT_DATE)`;
-      else if (date_filter === 'this_year') dateWhere = ` AND v.updated_at >= date_trunc('year', CURRENT_DATE)`;
 
       const whereClause = 'WHERE ' + wheres.join(' AND ');
 
@@ -760,7 +750,7 @@ exports.productAnalytics = async (req, res) => {
           COALESCE(SUM(v.selling_price * v.quantity), 0) AS potential_sale_value
         FROM variants v
         JOIN products p ON v.product_id = p.id
-        ${whereClause} ${dateWhere}
+        ${whereClause}
         `,
         params
       );
@@ -776,98 +766,105 @@ exports.productAnalytics = async (req, res) => {
       });
     }
 
-    // Historical / point-in-time snapshot using inventory_logs
-    // Determine as_of date (end of snapshot). For custom use end_date.
-    let asOfDate = null;
-    if (date_filter === 'custom') {
-      if (!end_date) return res.status(400).json({ message: 'end_date is required for custom date_filter.' });
-      asOfDate = end_date; // will be parameterized
-    } else if (date_filter === 'yesterday') {
-      asOfDate = "CURRENT_DATE - INTERVAL '1 day'";
-    } else if (date_filter === 'today') {
-      asOfDate = "CURRENT_DATE";
-    } else {
-      // default snapshot as of today for other named ranges (you can adapt)
-      asOfDate = "CURRENT_DATE";
-    }
-
-    // Build params and product/branch where clause
-    const params = [business_id];
+    // For historical data - reconstruct from inventory_logs
+    let params = [business_id];
     let idx = 2;
     let productWhere = `p.business_id = $1`;
+    
     if (branch_id) {
-      productWhere += ` AND p.branch_id = $${idx}`; params.push(branch_id); idx++;
-    }
-
-    // Build "as of end" comparison: we subtract any inventory_logs that occurred AFTER the end-of-asOfDate
-    // Use a start-of-next-day expression so comparisons are timestamp-safe across timezones.
-    let asOfStartExpr;
-    if (date_filter === 'custom') {
-      // param index holds end_date
-      const asOfBind = idx;
-      params.push(asOfDate);
+      productWhere += ` AND p.branch_id = $${idx}`; 
+      params.push(branch_id); 
       idx++;
-      asOfStartExpr = `$${asOfBind}::date + INTERVAL '1 day'`; // movements >= this are AFTER the as-of date
-    } else {
-      // sql expression (e.g. CURRENT_DATE => start of next day is CURRENT_DATE + 1)
-      if (date_filter === 'yesterday') {
-        asOfStartExpr = `CURRENT_DATE`; // start of today => movements >= today are after yesterday
-      } else if (date_filter === 'today') {
-        asOfStartExpr = `CURRENT_DATE + INTERVAL '1 day'`; // start of tomorrow
-      } else {
-        asOfStartExpr = `CURRENT_DATE + INTERVAL '1 day'`;
-      }
     }
 
-    // net_after: net movements that happened AFTER the as-of date (>= asOfStartExpr)
+    // Determine the cutoff date for historical reconstruction
+    let cutoffCondition = '';
+    if (date_filter === 'yesterday') {
+      cutoffCondition = `AND il.created_at < CURRENT_DATE`;
+    } else if (date_filter === 'this_week') {
+      cutoffCondition = `AND il.created_at >= date_trunc('week', CURRENT_DATE)`;
+    } else if (date_filter === 'last_7_days') {
+      // For last 7 days, we want the state at the end of each day, but since this is analytics,
+      // let's get the state as of the end of the 7-day period
+      cutoffCondition = `AND il.created_at < CURRENT_DATE - INTERVAL '7 days' + INTERVAL '7 days'`;
+    } else if (date_filter === 'this_month') {
+      cutoffCondition = `AND il.created_at >= date_trunc('month', CURRENT_DATE)`;
+    } else if (date_filter === 'this_year') {
+      cutoffCondition = `AND il.created_at >= date_trunc('year', CURRENT_DATE)`;
+    } else if (date_filter === 'custom' && start_date && end_date) {
+      // For custom range, get stock levels at the END of the end_date
+      cutoffCondition = `AND il.created_at <= $${idx}::timestamp + INTERVAL '1 day' - INTERVAL '1 second'`;
+      params.push(end_date);
+      idx++;
+    }
+
+    // Reconstruct historical stock levels from inventory logs
     const query = `
-      WITH net_after AS (
-        SELECT
-          v.id AS variant_id,
-          COALESCE(SUM(
-            CASE
-              WHEN il.created_at >= ${asOfStartExpr} THEN
-                CASE WHEN il.reason = 'increase' THEN il.quantity
-                     WHEN il.reason = 'decrease' THEN -il.quantity
-                     ELSE 0 END
-              ELSE 0
-            END
-          ),0) AS net_after
+      WITH variant_initial_states AS (
+        -- Get initial state for each variant (assuming initial quantity was 0)
+        SELECT 
+          v.id as variant_id,
+          v.cost_price,
+          v.selling_price,
+          v.threshold,
+          0 as initial_quantity
         FROM variants v
         JOIN products p ON v.product_id = p.id
-        LEFT JOIN inventory_logs il
-          ON il.variant_id = v.id
+        WHERE ${productWhere}
+      ),
+      variant_movements AS (
+        -- Sum all movements up to the cutoff date
+        SELECT 
+          v.id as variant_id,
+          COALESCE(SUM(
+            CASE 
+              WHEN il.reason = 'increase' THEN il.quantity
+              WHEN il.reason = 'decrease' THEN -il.quantity
+              ELSE 0
+            END
+          ), 0) as net_movement
+        FROM variants v
+        JOIN products p ON v.product_id = p.id
+        LEFT JOIN inventory_logs il ON v.id = il.variant_id 
           AND il.business_id = $1
           ${branch_id ? `AND il.branch_id = $2` : ''}
+          ${cutoffCondition}
         WHERE ${productWhere}
         GROUP BY v.id
+      ),
+      historical_stock AS (
+        -- Calculate historical quantity for each variant
+        SELECT 
+          vis.variant_id,
+          vis.cost_price,
+          vis.selling_price,
+          vis.threshold,
+          GREATEST(vis.initial_quantity + COALESCE(vm.net_movement, 0), 0) as historical_quantity
+        FROM variant_initial_states vis
+        LEFT JOIN variant_movements vm ON vis.variant_id = vm.variant_id
       )
-      SELECT
-        COALESCE(SUM(GREATEST(v.quantity - COALESCE(na.net_after,0), 0)), 0) AS total_stock,
-        COUNT(*) FILTER (WHERE GREATEST(v.quantity - COALESCE(na.net_after,0),0) = 0) AS out_of_stock,
-        COUNT(*) FILTER (WHERE GREATEST(v.quantity - COALESCE(na.net_after,0),0) <= COALESCE(v.threshold,0) AND GREATEST(v.quantity - COALESCE(na.net_after,0),0) > 0) AS low_stock,
-        COUNT(*) FILTER (WHERE GREATEST(v.quantity - COALESCE(na.net_after,0),0) > 0) AS in_stock,
-        COALESCE(SUM(v.cost_price * GREATEST(v.quantity - COALESCE(na.net_after,0),0)),0) AS inventory_value,
-        COALESCE(SUM(v.selling_price * GREATEST(v.quantity - COALESCE(na.net_after,0),0)),0) AS potential_sale_value
-      FROM variants v
-      JOIN products p ON v.product_id = p.id
-      LEFT JOIN net_after na ON na.variant_id = v.id
-      WHERE ${productWhere}
+      SELECT 
+        COALESCE(SUM(historical_quantity), 0) AS total_stock,
+        COUNT(CASE WHEN historical_quantity = 0 THEN 1 END) AS out_of_stock,
+        COUNT(CASE WHEN historical_quantity <= COALESCE(threshold, 0) AND historical_quantity > 0 THEN 1 END) AS low_stock,
+        COUNT(CASE WHEN historical_quantity > 0 THEN 1 END) AS in_stock,
+        COALESCE(SUM(cost_price * historical_quantity), 0) AS inventory_value,
+        COALESCE(SUM(selling_price * historical_quantity), 0) AS potential_sale_value
+      FROM historical_stock
     `;
 
-    const finalParams = params;
-    const metricsRes = await pool.query(query, finalParams);
-
+    const metricsRes = await pool.query(query, params);
     const row = metricsRes.rows[0] || {};
+
     return res.json({
       totalStock: Number(row.total_stock || 0),
       outOfStock: Number(row.out_of_stock || 0),
       lowStock: Number(row.low_stock || 0),
       inStock: Number(row.in_stock || 0),
       inventoryValue: Number(row.inventory_value || 0),
-      potentialSaleValue: Number(row.potential_sale_value || 0),
-      as_of: date_filter === 'custom' ? end_date : date_filter
+      potentialSaleValue: Number(row.potential_sale_value || 0)
     });
+
   } catch (err) {
     console.error('Stock analytics error:', err);
     res.status(500).json({ message: 'Failed to fetch stock analytics.' });
