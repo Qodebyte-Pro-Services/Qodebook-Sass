@@ -216,6 +216,39 @@ router.get('/products-with-taxes', authenticateToken, taxController.getListOfPro
 /**
  * @swagger
  * /api/taxes/{tax_id}:
+ *   patch:
+ *     summary: Update an existing tax
+ *     tags: [Taxes]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tax_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Tax ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/TaxUpdate'
+ *     responses:
+ *       200:
+ *         description: Tax successfully updated
+ *       400:
+ *         description: Missing or invalid parameters
+ *       404:
+ *         description: Tax not found
+ *       500:
+ *         description: Server error
+ */
+router.patch('/:tax_id', authenticateToken, taxController.updateTax);
+
+/**
+ * @swagger
+ * /api/taxes/{tax_id}:
  *   delete:
  *     summary: Delete a tax and unlink it from all products
  *     tags: [Tax]

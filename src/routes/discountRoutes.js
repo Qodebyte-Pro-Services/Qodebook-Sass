@@ -255,6 +255,38 @@ router.get('/products-with-discounts', authenticateToken, discountController.get
 /**
  * @swagger
  * /api/discounts/{discount_id}:
+ *   patch:
+ *     summary: Update an existing discount
+ *     tags: [Discounts]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: discount_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Discount ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/DiscountUpdate'
+ *     responses:
+ *       200:
+ *         description: Discount successfully updated
+ *       404:
+ *         description: Discount not found
+ *       500:
+ *         description: Server error
+ */
+router.patch('/:discount_id', authenticateToken, discountController.updateDiscount);
+router.patch('/:discount_id', authenticateToken, discountController.updateDiscount);
+
+/**
+ * @swagger
+ * /api/discounts/{discount_id}:
  *   delete:
  *     summary: Delete a discount and unlink it from all products
  *     tags: [Discount]

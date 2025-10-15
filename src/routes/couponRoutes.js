@@ -209,6 +209,40 @@ router.get('/product/:product_id/variants', authenticateToken, couponController.
  */
 router.get('/products-with-coupons', authenticateToken, couponController.getListOfProductsAndTheirCoupons);
 
+
+/**
+ * @swagger
+ * /api/coupons/{coupon_id}:
+ *   patch:
+ *     summary: Update an existing coupon
+ *     tags: [Coupons]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: coupon_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Coupon ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CouponUpdate'
+ *     responses:
+ *       200:
+ *         description: Coupon successfully updated
+ *       400:
+ *         description: Missing or invalid parameters
+ *       404:
+ *         description: Coupon not found
+ *       500:
+ *         description: Server error
+ */
+router.patch('/:coupon_id', authenticateToken, couponController.updateCoupon);
+
 /**
  * @swagger
  * /api/coupons/{coupon_id}:

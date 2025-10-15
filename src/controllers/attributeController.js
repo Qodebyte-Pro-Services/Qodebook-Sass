@@ -164,3 +164,132 @@ exports.deleteAttributeValue = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+
+
+exports.updateAttribute = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      values_to_add = [],        
+      values_to_update = [],    
+      values_to_remove = []      
+    } = req.body;
+
+    if (!name && !values_to_add.length && !values_to_update.length && !values_to_remove.length) {
+      return res.status(400).json({ message: 'Nothing to update. Provide name and/or values_to_add/values_to_update/values_to_remove.' });
+    }
+
+    await client.query('BEGIN');
+
+    // Ensure attribute exists and get business_id
+    const attrRes = await client.query('SELECT * FROM attributes WHERE id = $1', [id]);
+    if (attrRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Attribute not found.' });
+    }
+    const attribute = attrRes.rows[0];
+    const business_id = attribute.business_id;
+
+    // If changing name, ensure no conflict within same business
+    if (name) {
+      const nameCheck = await client.query(
+        'SELECT 1 FROM attributes WHERE business_id = $1 AND LOWER(name) = LOWER($2) AND id != $3',
+        [business_id, name, id]
+      );
+      if (nameCheck.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ message: 'Attribute name already exists for this business.' });
+      }
+      await client.query('UPDATE attributes SET name = $1 WHERE id = $2', [name, id]);
+    }
+
+    const added = [];
+    const updated = [];
+    const removed = [];
+    const skipped = [];
+
+    // Remove values (if any)
+    if (Array.isArray(values_to_remove) && values_to_remove.length > 0) {
+      // delete only values that belong to this attribute
+      const delRes = await client.query(
+        'DELETE FROM attribute_values WHERE attribute_id = $1 AND id = ANY($2::int[]) RETURNING id',
+        [id, values_to_remove]
+      );
+      for (const r of delRes.rows) removed.push(r.id);
+    }
+
+    // Update existing values (rename)
+    if (Array.isArray(values_to_update) && values_to_update.length > 0) {
+      for (const v of values_to_update) {
+        if (!v || !v.id || !v.value) {
+          skipped.push({ reason: 'invalid_payload', item: v });
+          continue;
+        }
+        // ensure the value belongs to this attribute
+        const belong = await client.query('SELECT 1 FROM attribute_values WHERE id = $1 AND attribute_id = $2', [v.id, id]);
+        if (belong.rows.length === 0) {
+          skipped.push({ reason: 'not_found_or_mismatch_attribute', item: v });
+          continue;
+        }
+        // check duplicate (case-insensitive) within attribute excluding this id
+        const dup = await client.query(
+          'SELECT 1 FROM attribute_values WHERE attribute_id = $1 AND LOWER(value) = LOWER($2) AND id != $3',
+          [id, v.value, v.id]
+        );
+        if (dup.rows.length > 0) {
+          skipped.push({ reason: 'duplicate_value', item: v });
+          continue;
+        }
+        const upd = await client.query(
+          'UPDATE attribute_values SET value = $1 WHERE id = $2 AND attribute_id = $3 RETURNING *',
+          [v.value, v.id, id]
+        );
+        updated.push(upd.rows[0]);
+      }
+    }
+
+    // Add new values
+    if (Array.isArray(values_to_add) && values_to_add.length > 0) {
+      for (const val of values_to_add) {
+        if (!val || typeof val !== 'string') {
+          skipped.push({ reason: 'invalid_value', item: val });
+          continue;
+        }
+        // prevent duplicate (case-insensitive) within this attribute
+        const exist = await client.query(
+          'SELECT 1 FROM attribute_values WHERE attribute_id = $1 AND LOWER(value) = LOWER($2)',
+          [id, val]
+        );
+        if (exist.rows.length > 0) {
+          skipped.push({ reason: 'duplicate_value', item: val });
+          continue;
+        }
+        const ins = await client.query(
+          'INSERT INTO attribute_values (attribute_id, value) VALUES ($1, $2) RETURNING *',
+          [id, val]
+        );
+        added.push(ins.rows[0]);
+      }
+    }
+
+    await client.query('COMMIT');
+
+    // Fetch latest attribute and its values
+    const freshAttrRes = await client.query('SELECT * FROM attributes WHERE id = $1', [id]);
+    const valuesRes = await client.query('SELECT * FROM attribute_values WHERE attribute_id = $1 ORDER BY id', [id]);
+
+    return res.status(200).json({
+      message: 'Attribute updated.',
+      attribute: freshAttrRes.rows[0],
+      values: valuesRes.rows,
+      summary: { added, updated, removed, skipped }
+    });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (e) { /* ignore */ }
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  } finally {
+    client.release();
+  }
+}

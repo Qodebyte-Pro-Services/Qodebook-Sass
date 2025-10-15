@@ -146,6 +146,145 @@ router.post('/:id/values', ...requirePermission(PRODUCT_PERMISSIONS.MANAGE_ATTRI
  */
 router.get('/:id', ...requireAuthOnly(), attributeController.getAttribute);
 
+
+
+/**
+ * @swagger
+ * /api/attributes/{id}:
+ *   patch:
+ *     tags:
+ *       - Attribute
+ *     summary: Update attribute and its values
+ *     description: >
+ *       Update attribute name and manage attribute values in a single request.
+ *       You can rename the attribute, add new values, rename existing values, and remove values.
+ *       Requires PRODUCT_PERMISSIONS.UPDATE_PRODUCT_ATTRIBUTES.
+ *     operationId: updateAttribute
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Attribute ID to update
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: New attribute name (optional)
+ *               values_to_add:
+ *                 type: array
+ *                 description: List of new values to add (strings)
+ *                 items:
+ *                   type: string
+ *               values_to_update:
+ *                 type: array
+ *                 description: List of existing values to rename. Each item must include id and value.
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       description: Attribute value id
+ *                     value:
+ *                       type: string
+ *                       description: New value text
+ *               values_to_remove:
+ *                 type: array
+ *                 description: List of attribute value ids to delete
+ *                 items:
+ *                   type: integer
+ *           example:
+ *             name: "Color"
+ *             values_to_add: ["Olive", "Teal"]
+ *             values_to_update:
+ *               - id: 12
+ *                 value: "Navy"
+ *             values_to_remove: [15, 16]
+ *     responses:
+ *       '200':
+ *         description: Attribute updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Attribute updated."
+ *                 attribute:
+ *                   type: object
+ *                   description: Updated attribute record
+ *                 values:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                   description: Current list of attribute values
+ *                 summary:
+ *                   type: object
+ *                   properties:
+ *                     added:
+ *                       type: array
+ *                       items: { type: object }
+ *                     updated:
+ *                       type: array
+ *                       items: { type: object }
+ *                     removed:
+ *                       type: array
+ *                       items: { type: integer }
+ *                     skipped:
+ *                       type: array
+ *                       items: { type: object }
+ *       '400':
+ *         description: Bad request / nothing to update
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Nothing to update. Provide name and/or values_to_add/values_to_update/values_to_remove."
+ *       '404':
+ *         description: Attribute not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Attribute not found."
+ *       '409':
+ *         description: Conflict - attribute name already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Attribute name already exists for this business."
+ *       '500':
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Server error."
+ */
+router.patch('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT_ATTRIBUTES), attributeController.updateAttribute);
+
 /**
  * @swagger
  * /api/attributes/{id}:

@@ -120,3 +120,27 @@ exports.deleteDiscount = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 }
+
+exports.updateDiscount = async (req, res) => {
+  try {
+    const { discount_id } = req.params;
+    const { name, percentage, amount, start_date, end_date, description } = req.body;
+    if (!discount_id) return res.status(400).json({ message: 'Missing discount_id parameter.' });
+    const discountRes = await pool.query('SELECT * FROM discounts WHERE id = $1', [discount_id]);
+    if (discountRes.rows.length === 0) return res.status(404).json({ message: 'Discount not found.' });
+    const updatedDiscount = {
+      name: name || discountRes.rows[0].name,
+      percentage: percentage || discountRes.rows[0].percentage,
+      amount: amount || discountRes.rows[0].amount,
+      start_date: start_date || discountRes.rows[0].start_date,
+      end_date: end_date || discountRes.rows[0].end_date,
+      description: description || discountRes.rows[0].description,
+    };
+    await pool.query('UPDATE discounts SET name = $1, percentage = $2, amount = $3, start_date = $4, end_date = $5, description = $6 WHERE id = $7', 
+      [updatedDiscount.name, updatedDiscount.percentage, updatedDiscount.amount, updatedDiscount.start_date, updatedDiscount.end_date, updatedDiscount.description, discount_id]);
+    return res.status(200).json({ discount: { id: discount_id, ...updatedDiscount } });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Server error.', details: error.message });
+  }
+}

@@ -111,3 +111,30 @@ exports.deleteCoupon = async (req, res) => {
     return res.status(500).json({ message: 'Server error.', details: error.message });
   }
 }
+
+  exports.updateCoupon = async (req, res) => {
+    try {
+      const { coupon_id } = req.params;
+      const { code, description, discount_percentage, discount_amount, start_date, end_date, usage_limit } = req.body;
+      if (!coupon_id) return res.status(400).json({ message: 'Missing coupon_id parameter.' });
+      const couponRes = await pool.query('SELECT * FROM coupons WHERE id = $1', [coupon_id]);
+      if (couponRes.rows.length === 0) return res.status(404).json({ message: 'Coupon not found.' });
+      const updatedCoupon = {
+        code: code || couponRes.rows[0].code,
+        description: description || couponRes.rows[0].description,
+        discount_percentage: discount_percentage !== undefined ? discount_percentage : couponRes.rows[0].discount_percentage,
+        discount_amount: discount_amount !== undefined ? discount_amount : couponRes.rows[0].discount_amount,
+        start_date: start_date || couponRes.rows[0].start_date,
+        end_date: end_date || couponRes.rows[0].end_date,
+        usage_limit: usage_limit !== undefined ? usage_limit : couponRes.rows[0].usage_limit,
+      };
+      const result = await pool.query(
+        `UPDATE coupons SET code = $1, description = $2, discount_percentage = $3, discount_amount = $4, start_date = $5, end_date = $6, usage_limit = $7 WHERE id = $8 RETURNING *`,
+        [updatedCoupon.code, updatedCoupon.description, updatedCoupon.discount_percentage, updatedCoupon.discount_amount, updatedCoupon.start_date, updatedCoupon.end_date, updatedCoupon.usage_limit, coupon_id]
+      );
+      return res.status(200).json({ coupon: result.rows[0] });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ message: 'Server error.', details: error.message });
+    }
+  }

@@ -117,3 +117,26 @@ exports.deleteTax = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 }
+
+exports.updateTax = async (req, res) => {
+  try {
+    const { tax_id } = req.params;
+    const { name, rate, type, description } = req.body;
+    if (!tax_id) return res.status(400).json({ message: 'Missing tax_id parameter.' });
+    const fields = [];
+    const values = [];
+    let idx = 1;  
+    if (name) { fields.push(`name = $${idx++}`); values.push(name); }
+    if (rate) { fields.push(`rate = $${idx++}`); values.push(rate); }
+    if (type) { fields.push(`type = $${idx++}`); values.push(type); }
+    if (description) { fields.push(`description = $${idx++}`); values.push(description); }
+    if (fields.length === 0) return res.status(400).json({ message: 'No fields to update.' });
+    values.push(tax_id);
+    const query = `UPDATE taxes SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`;
+    const result = await pool.query(query, values);
+    return res.status(200).json({ tax: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+}
