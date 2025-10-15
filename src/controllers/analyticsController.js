@@ -723,51 +723,34 @@ exports.stockAnalytics = async (req, res) => {
   try {
     const { business_id, branch_id, date_filter, start_date, end_date } = req.query;
 
-    let params = [];
-    let wheres = [];
-    let idx = 1;
+    if (!business_id) return res.status(400).json({ message: 'Business ID is required' });
 
-    if (!business_id) {
-      return res.status(400).json({ message: 'Business ID is required' });
-    }
+    
+    if (!date_filter) {
+      let params = [business_id];
+      let wheres = ['p.business_id = $1'];
+      let idx = 2;
 
-    wheres.push(`il.business_id = $${idx}`);
-    params.push(business_id);
-    idx++;
+      if (branch_id) {
+        wheres.push(`p.branch_id = $${idx}`); params.push(branch_id); idx++;
+      }
 
-    if (branch_id) {
-      wheres.push(`il.branch_id = $${idx}`);
-      params.push(branch_id);
-      idx++;
-    }
-
-    // Date filter for inventory logs
-    let dateWhere = '';
-    if (date_filter) {
-      if (date_filter === 'today') {
-        dateWhere = ` AND il.created_at::date = CURRENT_DATE`;
-      } else if (date_filter === 'yesterday') {
-        dateWhere = ` AND il.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
-      } else if (date_filter === 'this_week') {
-        dateWhere = ` AND il.created_at >= date_trunc('week', CURRENT_DATE)`;
-      } else if (date_filter === 'last_7_days') {
-        dateWhere = ` AND il.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
-      } else if (date_filter === 'this_month') {
-        dateWhere = ` AND il.created_at >= date_trunc('month', CURRENT_DATE)`;
-      } else if (date_filter === 'this_year') {
-        dateWhere = ` AND il.created_at >= date_trunc('year', CURRENT_DATE)`;
-      } else if (date_filter === 'custom' && start_date && end_date) {
-        dateWhere = ` AND il.created_at::date BETWEEN $${idx} AND $${idx + 1}`;
+      let dateWhere = '';
+      
+      if (start_date && end_date) {
+        dateWhere = ` AND v.updated_at::date BETWEEN $${idx} AND $${idx + 1}`;
         params.push(start_date, end_date);
         idx += 2;
-      }
-    }
+      } else if (date_filter === 'today') dateWhere = ` AND v.updated_at::date = CURRENT_DATE`;
+      else if (date_filter === 'yesterday') dateWhere = ` AND v.updated_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+      else if (date_filter === 'this_week') dateWhere = ` AND v.updated_at >= date_trunc('week', CURRENT_DATE)`;
+      else if (date_filter === 'last_7_days') dateWhere = ` AND v.updated_at >= CURRENT_DATE - INTERVAL '7 days'`;
+      else if (date_filter === 'this_month') dateWhere = ` AND v.updated_at >= date_trunc('month', CURRENT_DATE)`;
+      else if (date_filter === 'this_year') dateWhere = ` AND v.updated_at >= date_trunc('year', CURRENT_DATE)`;
 
-    const whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+      const whereClause = 'WHERE ' + wheres.join(' AND ');
 
-    // For current stock (no date filter) - use variants table
-    if (!date_filter || date_filter === 'today') {
-      const currentStockResult = await pool.query(
+      const stockMetricsResult = await pool.query(
         `
         SELECT 
           COALESCE(SUM(v.quantity), 0) AS total_stock,
@@ -778,12 +761,12 @@ exports.stockAnalytics = async (req, res) => {
           COALESCE(SUM(v.selling_price * v.quantity), 0) AS potential_sale_value
         FROM variants v
         JOIN products p ON v.product_id = p.id
-        ${whereClause.replace(/il\./g, 'p.')}
+        ${whereClause} ${dateWhere}
         `,
-        params.slice(0, branch_id ? 2 : 1)
+        params
       );
 
-      const row = currentStockResult.rows[0];
+      const row = stockMetricsResult.rows[0];
       return res.json({
         totalStock: Number(row?.total_stock || 0),
         outOfStock: Number(row?.out_of_stock || 0),
@@ -794,55 +777,98 @@ exports.stockAnalytics = async (req, res) => {
       });
     }
 
-    // For historical data - use inventory logs to calculate stock at that time
-    const historicalStockResult = await pool.query(
-      `
-      WITH initial_stock AS (
-        SELECT 
-          v.id as variant_id,
+
+    let asOfDate = null;
+    if (date_filter === 'custom') {
+      if (!end_date) return res.status(400).json({ message: 'end_date is required for custom date_filter.' });
+      asOfDate = end_date;
+    } else if (date_filter === 'yesterday') {
+      asOfDate = "(CURRENT_DATE - INTERVAL '1 day')";
+    } else if (date_filter === 'today') {
+      asOfDate = "CURRENT_DATE";
+    } else if (date_filter === 'last_7_days') {
+    
+      asOfDate = "CURRENT_DATE";
+    } else if (date_filter === 'this_week' || date_filter === 'this_month' || date_filter === 'this_year') {
+     
+      asOfDate = "CURRENT_DATE";
+    } else {
+      
+      asOfDate = "CURRENT_DATE";
+    }
+
+   
+    const params = [business_id];
+    let idx = 2;
+    let productWhere = `p.business_id = $1`;
+    if (branch_id) {
+      productWhere += ` AND p.branch_id = $${idx}`; params.push(branch_id); idx++;
+    }
+
+    
+    let asOfBind = null;
+    let asOfExpr = null;
+    if (date_filter === 'custom') {
+      asOfBind = idx;
+      params.push(asOfDate);
+      idx++;
+      asOfExpr = `$${asOfBind}::date`;
+    } else {
+     
+      asOfExpr = asOfDate;
+    }
+
+    
+    const query = `
+      WITH net_after AS (
+        SELECT
+          v.id AS variant_id,
           COALESCE(SUM(
-            CASE 
-              WHEN il.reason = 'increase' THEN il.quantity
-              WHEN il.reason = 'decrease' THEN -il.quantity
+            CASE
+              WHEN il.created_at::date > ${asOfExpr} THEN
+                CASE WHEN il.reason = 'increase' THEN il.quantity
+                     WHEN il.reason = 'decrease' THEN -il.quantity
+                     ELSE 0 END
               ELSE 0
             END
-          ), 0) as historical_quantity,
-          v.cost_price,
-          v.selling_price,
-          v.threshold
+          ),0) AS net_after
         FROM variants v
-        LEFT JOIN inventory_logs il ON v.id = il.variant_id 
-          AND il.created_at < $${idx}
-          ${branch_id ? `AND (il.branch_id = $2 OR il.branch_id IS NULL)` : ''}
-        WHERE v.id IN (
-          SELECT DISTINCT variant_id FROM inventory_logs 
-          WHERE business_id = $1
-          ${branch_id ? `AND branch_id = $2` : ''}
-        )
-        GROUP BY v.id, v.cost_price, v.selling_price, v.threshold
+        JOIN products p ON v.product_id = p.id
+        LEFT JOIN inventory_logs il
+          ON il.variant_id = v.id
+          AND il.business_id = $1
+          ${branch_id ? `AND il.branch_id = $2` : ''}
+        WHERE ${productWhere}
+        GROUP BY v.id
       )
-      SELECT 
-        COALESCE(SUM(historical_quantity), 0) AS total_stock,
-        COUNT(CASE WHEN historical_quantity = 0 THEN 1 END) AS out_of_stock,
-        COUNT(CASE WHEN historical_quantity <= COALESCE(threshold, 0) AND historical_quantity > 0 THEN 1 END) AS low_stock,
-        COUNT(CASE WHEN historical_quantity > 0 THEN 1 END) AS in_stock,
-        COALESCE(SUM(cost_price * historical_quantity), 0) AS inventory_value,
-        COALESCE(SUM(selling_price * historical_quantity), 0) AS potential_sale_value
-      FROM initial_stock
-      `,
-      params
-    );
+      SELECT
+        COALESCE(SUM(GREATEST(v.quantity - COALESCE(na.net_after,0), 0)), 0) AS total_stock,
+        COUNT(*) FILTER (WHERE GREATEST(v.quantity - COALESCE(na.net_after,0),0) = 0) AS out_of_stock,
+        COUNT(*) FILTER (WHERE GREATEST(v.quantity - COALESCE(na.net_after,0),0) <= COALESCE(v.threshold,0) AND GREATEST(v.quantity - COALESCE(na.net_after,0),0) > 0) AS low_stock,
+        COUNT(*) FILTER (WHERE GREATEST(v.quantity - COALESCE(na.net_after,0),0) > 0) AS in_stock,
+        COALESCE(SUM(v.cost_price * GREATEST(v.quantity - COALESCE(na.net_after,0),0)),0) AS inventory_value,
+        COALESCE(SUM(v.selling_price * GREATEST(v.quantity - COALESCE(na.net_after,0),0)),0) AS potential_sale_value
+      FROM variants v
+      JOIN products p ON v.product_id = p.id
+      LEFT JOIN net_after na ON na.variant_id = v.id
+      WHERE ${productWhere}
+    `;
 
-    const row = historicalStockResult.rows[0];
-    res.json({
-      totalStock: Number(row?.total_stock || 0),
-      outOfStock: Number(row?.out_of_stock || 0),
-      lowStock: Number(row?.low_stock || 0),
-      inStock: Number(row?.in_stock || 0),
-      inventoryValue: Number(row?.inventory_value || 0),
-      potentialSaleValue: Number(row?.potential_sale_value || 0)
+   
+    let finalParams = params;
+    
+    const metricsRes = await pool.query(query, finalParams);
+
+    const row = metricsRes.rows[0] || {};
+    return res.json({
+      totalStock: Number(row.total_stock || 0),
+      outOfStock: Number(row.out_of_stock || 0),
+      lowStock: Number(row.low_stock || 0),
+      inStock: Number(row.in_stock || 0),
+      inventoryValue: Number(row.inventory_value || 0),
+      potentialSaleValue: Number(row.potential_sale_value || 0),
+      as_of: date_filter === 'custom' ? end_date : (date_filter || 'current')
     });
-
   } catch (err) {
     console.error('Stock analytics error:', err);
     res.status(500).json({ message: 'Failed to fetch stock analytics.' });
@@ -978,6 +1004,7 @@ exports.stockAnalytics = async (req, res) => {
     }
   };
 
+
   exports.stockMovementAnalytics = async (req, res) => {
   try {
     const { business_id, branch_id, variant_id, product_id, period, start_date, end_date } = req.query;
@@ -990,18 +1017,23 @@ exports.stockAnalytics = async (req, res) => {
       wheres.push(`p.business_id = $${idx++}`);
       params.push(business_id);
     }
+
     if (branch_id) {
       wheres.push(`p.branch_id = $${idx++}`);
       params.push(branch_id);
     }
+
     if (variant_id) {
       wheres.push(`v.id = $${idx++}`);
       params.push(variant_id);
     }
+
     if (product_id) {
       wheres.push(`p.id = $${idx++}`);
       params.push(product_id);
     }
+
+    // Optional date filter (safe and parameterized)
     if (start_date && end_date) {
       wheres.push(`il.created_at::date BETWEEN $${idx++} AND $${idx++}`);
       params.push(start_date, end_date);
@@ -1010,25 +1042,43 @@ exports.stockAnalytics = async (req, res) => {
     const whereClause = wheres.length > 0 ? `WHERE ${wheres.join(' AND ')}` : '';
 
     // Dynamic period grouping
-    let dateSelect = `il.created_at`;
-    if (period === 'hour') dateSelect = `DATE_TRUNC('hour', il.created_at)`;
-    else if (period === 'day') dateSelect = `DATE(il.created_at)`;
-    else if (period === 'week') dateSelect = `DATE_TRUNC('week', il.created_at)`;
-    else if (period === 'month') dateSelect = `DATE_TRUNC('month', il.created_at)`;
-    else if (period === 'year') dateSelect = `DATE_TRUNC('year', il.created_at)`;
+    let dateSelect = `DATE(il.created_at)`;
+    let dateTrunc = `DATE(il.created_at)`;
+    if (period === 'hour') {
+      dateSelect = `DATE_TRUNC('hour', il.created_at)`;
+      dateTrunc = `DATE_TRUNC('hour', il.created_at)`;
+    } else if (period === 'week') {
+      dateSelect = `DATE_TRUNC('week', il.created_at)`;
+      dateTrunc = `DATE_TRUNC('week', il.created_at)`;
+    } else if (period === 'month') {
+      dateSelect = `DATE_TRUNC('month', il.created_at)`;
+      dateTrunc = `DATE_TRUNC('month', il.created_at)`;
+    } else if (period === 'year') {
+      dateSelect = `DATE_TRUNC('year', il.created_at)`;
+      dateTrunc = `DATE_TRUNC('year', il.created_at)`;
+    }
 
     const query = `
       SELECT 
         ${dateSelect} AS period,
         il.reason,
-        il.quantity,
-        il.note,
-        il.created_at
+        SUM(
+          CASE 
+            WHEN il.reason = 'decrease' THEN -ABS(il.quantity)
+            ELSE ABS(il.quantity)
+          END
+        ) AS total_moved,
+        COUNT(*) AS movement_count,
+        MIN(il.created_at) AS first_movement,
+        MAX(il.created_at) AS last_movement,
+        -- Add actual timestamps for proper ordering
+        ARRAY_AGG(il.created_at ORDER BY il.created_at) AS movement_timestamps
       FROM inventory_logs il
       JOIN variants v ON il.variant_id = v.id
       JOIN products p ON v.product_id = p.id
       ${whereClause}
-      ORDER BY il.created_at ASC
+      GROUP BY ${dateTrunc}, il.reason
+      ORDER BY MIN(il.created_at) ASC, il.reason
     `;
 
     const movementResult = await pool.query(query, params);
