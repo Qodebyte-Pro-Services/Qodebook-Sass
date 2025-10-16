@@ -1001,7 +1001,7 @@ exports.stockAnalytics = async (req, res) => {
   };
 
 
-exports.stockMovementAnalytics = async (req, res) => {
+  exports.stockMovementAnalytics = async (req, res) => {
   try {
     const { business_id, branch_id, variant_id, product_id, period, start_date, end_date } = req.query;
 
@@ -1034,61 +1034,33 @@ exports.stockMovementAnalytics = async (req, res) => {
       params.push(start_date, end_date);
     }
 
-    const whereClause = wheres.length > 0 ? `WHERE ${wheres.join(' AND ')}` : '';
+    const whereClause = wheres.length > 0 ? `WHERE ${wheres.join(" AND ")}` : "";
 
-    let dateSelect = `DATE(il.created_at)`;
-    let dateTrunc = `DATE(il.created_at)`;
-    let periodInterval = `INTERVAL '1 day'`; 
-    if (period === 'hour') {
-      dateSelect = `DATE_TRUNC('hour', il.created_at)`;
-      dateTrunc = `DATE_TRUNC('hour', il.created_at)`;
-      periodInterval = `INTERVAL '1 hour'`;
-    } else if (period === 'week') {
-      dateSelect = `DATE_TRUNC('week', il.created_at)`;
-      dateTrunc = `DATE_TRUNC('week', il.created_at)`;
-      periodInterval = `INTERVAL '1 week'`;
-    } else if (period === 'month') {
-      dateSelect = `DATE_TRUNC('month', il.created_at)`;
-      dateTrunc = `DATE_TRUNC('month', il.created_at)`;
-      periodInterval = `INTERVAL '1 month'`;
-    } else if (period === 'year') {
-      dateSelect = `DATE_TRUNC('year', il.created_at)`;
-      dateTrunc = `DATE_TRUNC('year', il.created_at)`;
-      periodInterval = `INTERVAL '1 year'`;
-    }
+    // determine period grouping
+    let dateTrunc = `DATE_TRUNC('day', il.created_at)`;
+    if (period === "hour") dateTrunc = `DATE_TRUNC('hour', il.created_at)`;
+    else if (period === "week") dateTrunc = `DATE_TRUNC('week', il.created_at)`;
+    else if (period === "month") dateTrunc = `DATE_TRUNC('month', il.created_at)`;
+    else if (period === "year") dateTrunc = `DATE_TRUNC('year', il.created_at)`;
 
-    const query = `
+    // base aggregation
+    let baseQuery = `
       SELECT
-        ${dateSelect} AS period,
+        ${dateTrunc} AS period,
         COALESCE(SUM(CASE WHEN il.reason = 'increase' THEN il.quantity ELSE 0 END),0) AS total_increased,
         COALESCE(SUM(CASE WHEN il.reason = 'decrease' THEN il.quantity ELSE 0 END),0) AS total_decreased,
-        -- net change within the period (increase - decrease)
-        COALESCE(SUM(CASE WHEN il.reason = 'decrease' THEN -ABS(il.quantity) ELSE ABS(il.quantity) END),0) AS net_change,
+        COALESCE(SUM(CASE WHEN il.reason = 'decrease' THEN -ABS(il.quantity) ELSE ABS(il.quantity) END),0) AS net_moved,
         COUNT(*) AS movement_count,
         MIN(il.created_at) AS first_movement,
         MAX(il.created_at) AS last_movement,
-        ARRAY_AGG(JSON_BUILD_OBJECT('created_at', il.created_at, 'reason', il.reason, 'quantity', il.quantity, 'note', il.note) ORDER BY il.created_at) AS movements,
-        -- snapshot: total stock at end of the period (current quantity minus movements AFTER period_end)
-        (
-          SELECT COALESCE(SUM(GREATEST(v2.quantity - COALESCE(na.after_net,0),0)),0)
-          FROM variants v2
-          JOIN products p2 ON v2.product_id = p2.id
-          LEFT JOIN (
-            SELECT il2.variant_id,
-                   SUM(CASE WHEN il2.reason = 'increase' THEN il2.quantity
-                            WHEN il2.reason = 'decrease' THEN -il2.quantity
-                            ELSE 0 END) AS after_net
-            FROM inventory_logs il2
-            JOIN variants v3 ON il2.variant_id = v3.id
-            JOIN products p3 ON v3.product_id = p3.id
-            WHERE il2.created_at >= ( (DATE_TRUNC('${period === 'hour' ? 'hour' : period || 'day'}', il.created_at)) + ${periodInterval} )
-              AND p3.business_id = $1
-              ${branch_id ? `AND p3.branch_id = $2` : ''}
-            GROUP BY il2.variant_id
-          ) na ON na.variant_id = v2.id
-          WHERE p2.business_id = $1
-          ${branch_id ? `AND p2.branch_id = $2` : ''}
-        ) AS stock_end
+        ARRAY_AGG(
+          JSON_BUILD_OBJECT(
+            'created_at', il.created_at,
+            'reason', il.reason,
+            'quantity', il.quantity,
+            'note', il.note
+          ) ORDER BY il.created_at
+        ) AS movements
       FROM inventory_logs il
       JOIN variants v ON il.variant_id = v.id
       JOIN products p ON v.product_id = p.id
@@ -1097,13 +1069,36 @@ exports.stockMovementAnalytics = async (req, res) => {
       ORDER BY MIN(il.created_at) ASC
     `;
 
-    const movementResult = await pool.query(query, params);
-    res.json({ movements: movementResult.rows });
+    // wrap it to make hour cumulative
+    let finalQuery;
+    if (period === "hour") {
+      finalQuery = `
+        SELECT
+          period,
+          total_increased,
+          total_decreased,
+          SUM(net_moved) OVER (ORDER BY period ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS net_moved, 
+          movement_count,
+          first_movement,
+          last_movement,
+          movements
+        FROM (
+          ${baseQuery}
+        ) AS base
+      `;
+    } else {
+      finalQuery = baseQuery;
+    }
+
+    const result = await pool.query(finalQuery, params);
+    res.json({ movements: result.rows });
+
   } catch (err) {
-    console.error('Stock movement analytics error:', err);
-    res.status(500).json({ message: 'Failed to fetch stock movement analytics.' });
+    console.error("Stock movement analytics error:", err);
+    res.status(500).json({ message: "Failed to fetch stock movement analytics." });
   }
 };
+
 
 
 
