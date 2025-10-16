@@ -239,22 +239,77 @@ const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
 
 /**
  * @swagger
- * /api/variants/{id}:
- *   delete:
- *     summary: Delete variant
- *     tags: [Variant]
+ * /api/variants/{variant_id}:
+ *   put:
+ *     tags:
+ *       - Variant
+ *     summary: Update an existing variant
+ *     description: Update variant fields, replace/upload images, and delete existing images. Use multipart/form-data for uploads.
  *     security:
  *       - bearerAuth: []
+ *     operationId: updateVariant
  *     parameters:
  *       - in: path
- *         name: id
- *         schema:
- *           type: string
+ *         name: variant_id
  *         required: true
+ *         schema:
+ *           type: integer
  *         description: Variant ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               attributes:
+ *                 type: string
+ *                 description: JSON stringified attributes for the variant (or send as object string)
+ *               cost_price:
+ *                 type: number
+ *                 format: float
+ *               selling_price:
+ *                 type: number
+ *                 format: float
+ *               threshold:
+ *                 type: integer
+ *               sku:
+ *                 type: string
+ *               expiry_date:
+ *                 type: string
+ *                 format: date
+ *                 description: Accepts YYYY-MM-DD or common variants (will be validated)
+ *               barcode:
+ *                 type: string
+ *               image_url:
+ *                 type: string
+ *                 description: Existing images JSON (stringified array of objects [{ public_id, secure_url }])
+ *               image_url_files:
+ *                 type: array
+ *                 description: Upload new image files (field name must be image_url)
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *               deleteImages:
+ *                 type: array
+ *                 description: Array of Cloudinary public_ids to delete
+ *                 items:
+ *                   type: string
+ *               replace_images:
+ *                 type: string
+ *                 enum: ["true","false"]
+ *                 description: If "true", uploaded files replace existing images. Default false.
+ *           examples:
+ *             update-with-files:
+ *               summary: Replace/add images and change price
+ *               value:
+ *                 selling_price: 19.99
+ *                 image_url_files: (binary files)
+ *                 deleteImages: ["old_public_id_1"]
+ *                 replace_images: "false"
  *     responses:
  *       200:
- *         description: Variant deleted
+ *         description: Variant updated successfully
  *         content:
  *           application/json:
  *             schema:
@@ -262,6 +317,39 @@ const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
  *               properties:
  *                 message:
  *                   type: string
+ *                   example: "Variant updated successfully."
+ *                 variant:
+ *                   $ref: '#/components/schemas/Variant'
+ *       400:
+ *         description: Bad request (e.g., no changes detected or invalid payload)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "No changes detected."
+ *       404:
+ *         description: Variant not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Variant not found."
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Server error."
  */
 
 
