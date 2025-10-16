@@ -341,14 +341,19 @@ exports.updateVariant = async (req, res) => {
     const values = [];
     let idx = 1;
 
-    const castValue = (field, val) => {
-      if (["quantity", "threshold"].includes(field)) return parseInt(val, 10);
-      if (["cost_price", "selling_price"].includes(field)) return parseFloat(val);
-      if (field === "attributes") return typeof val === "string" ? val : JSON.stringify(val);
-      if (field === "expiry_date") return val; 
-      return val;
-    };
-
+const castValue = (field, val) => {
+  if (["quantity", "threshold"].includes(field)) return parseInt(val, 10);
+  if (["cost_price", "selling_price"].includes(field)) return parseFloat(val);
+  if (field === "attributes") return typeof val === "string" ? val : JSON.stringify(val);
+  if (field === "expiry_date") {
+    if (typeof val === "string" && val.includes("/")) {
+      const [day, month, year] = val.split("/");
+      return `${year}-${month}-${day}`;
+    }
+    return val;
+  }
+  return val;
+};
     const updatableFields = [
       "attributes", "cost_price", "selling_price", "quantity",
       "threshold", "sku", "expiry_date", "barcode"
