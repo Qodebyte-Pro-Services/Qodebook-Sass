@@ -345,41 +345,31 @@ const castValue = (field, val) => {
   if (["quantity", "threshold"].includes(field)) return parseInt(val, 10);
   if (["cost_price", "selling_price"].includes(field)) return parseFloat(val);
   if (field === "attributes") return typeof val === "string" ? val : JSON.stringify(val);
-
-  if (field === "expiry_date" && val) {
+  if (field === "expiry_date") {
     if (typeof val === "string") {
-      let parts = val.includes("/") ? val.split("/") :
-                  val.includes("-") ? val.split("-") : null;
-
-      if (parts && parts.length === 3) {
-        // remove whitespace
-        parts = parts.map(p => p.trim());
-
-        let [a, b, c] = parts;
-
-        // detect format
-        if (a.length === 4) {
-          // YYYY-MM-DD format
-          return `${a}-${b.padStart(2, "0")}-${c.padStart(2, "0")}`;
-        } else if (c.length === 4) {
-          // DD/MM/YYYY or DD-MM-YYYY
-          return `${c}-${b.padStart(2, "0")}-${a.padStart(2, "0")}`;
-        } else {
-          // fallback: assume month/day/year (in case frontend sends that)
-          return `${c}-${a.padStart(2, "0")}-${b.padStart(2, "0")}`;
+      const parts = val.includes("/") ? val.split("/") : val.includes("-") ? val.split("-") : null;
+      const tryParse = (y, m, d) => {
+        const yy = Number(y), mm = Number(m), dd = Number(d);
+        if (!Number.isInteger(yy) || !Number.isInteger(mm) || !Number.isInteger(dd)) return null;
+        // validate with Date object
+        const date = new Date(yy, mm - 1, dd);
+        if (date.getFullYear() === yy && date.getMonth() === mm - 1 && date.getDate() === dd) {
+          return `${yy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
         }
+        return null;
+      };
+      if (parts && parts.length === 3) {
+        // try common orders: YYYY-MM-DD, DD-MM-YYYY, MM-DD-YYYY
+        let parsed = null;
+        if (parts[0].length === 4) parsed = tryParse(parts[0], parts[1], parts[2]); // YYYY-M-D
+        if (!parsed) parsed = tryParse(parts[2], parts[1], parts[0]); // D-M-YYYY
+        if (!parsed) parsed = tryParse(parts[2], parts[0], parts[1]); // M-D-YYYY
+        if (parsed) return parsed;
       }
     }
-
-    // If it's a Date object, format properly
-    if (val instanceof Date && !isNaN(val)) {
-      return val.toISOString().split("T")[0];
-    }
-
-    // If it’s already valid (e.g. from DB)
-    return val;
+    // if not parsable, return null so DB receives NULL instead of invalid date string
+    return null;
   }
-
   return val;
 };
     const updatableFields = [
