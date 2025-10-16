@@ -1049,6 +1049,70 @@ router.get(
  */
 router.get('/stock-movement-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_STOCK_MOVEMENT), controller.stockMovementAnalytics);
 
+
+/**
+ * @swagger
+ * /api/finance/product-revenue-analytics:
+ *   get:
+ *     tags:
+ *       - Analytics
+ *     summary: Get revenue analytics for a product (sum of order_items via variants)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: Business ID to filter
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: integer
+ *         required: false
+ *         description: Branch ID to filter (optional)
+ *       - in: query
+ *         name: product_id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: Product ID to fetch revenue for
+ *       - in: query
+ *         name: date_filter
+ *         schema:
+ *           type: string
+ *           enum: [today, yesterday, this_week, last_7_days, this_month, this_year, custom]
+ *         required: false
+ *         description: Predefined date range filter
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         required: false
+ *         description: Start date for custom range (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         required: false
+ *         description: End date for custom range (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Revenue summary and per-variant breakdown
+ *       400:
+ *         description: Missing or invalid parameters
+ *       500:
+ *         description: Server error
+ */
+router.get(
+  '/product-revenue-analytics',
+  ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_ANALYTICS),
+  controller.productRevenue
+);
+
 /**
  * @swagger
  * /api/finance/sales-movement-analytics:

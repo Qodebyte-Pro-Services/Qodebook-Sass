@@ -1000,6 +1000,80 @@ exports.stockAnalytics = async (req, res) => {
     }
   };
 
+  exports.productRevenue = async (req, res) => {
+  try {
+    const { business_id, product_id, branch_id, date_filter, start_date, end_date } = req.query;
+    if (!business_id) return res.status(400).json({ message: 'business_id is required' });
+    if (!product_id) return res.status(400).json({ message: 'product_id is required' });
+
+    const params = [product_id, business_id];
+    let idx = 3;
+    let branchWhere = '';
+    let dateWhere = '';
+
+    if (branch_id) {
+      branchWhere = ` AND o.branch_id = $${idx}`;
+      params.push(branch_id);
+      idx++;
+    }
+
+    if (start_date && end_date) {
+      dateWhere = ` AND o.created_at::date BETWEEN $${idx} AND $${idx + 1}`;
+      params.push(start_date, end_date);
+      idx += 2;
+    } else if (date_filter) {
+      if (date_filter === 'today') dateWhere = ` AND o.created_at::date = CURRENT_DATE`;
+      else if (date_filter === 'yesterday') dateWhere = ` AND o.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
+      else if (date_filter === 'this_week') dateWhere = ` AND o.created_at >= date_trunc('week', CURRENT_DATE)`;
+      else if (date_filter === 'last_7_days') dateWhere = ` AND o.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
+      else if (date_filter === 'this_month') dateWhere = ` AND o.created_at >= date_trunc('month', CURRENT_DATE)`;
+      else if (date_filter === 'this_year') dateWhere = ` AND o.created_at >= date_trunc('year', CURRENT_DATE)`;
+    }
+
+    // total revenue for the product
+    const totalSql = `
+      SELECT COALESCE(SUM(oi.total_price), 0)::numeric(12,2) AS total_revenue
+      FROM order_items oi
+      JOIN orders o ON oi.order_id = o.id
+      JOIN variants v ON oi.variant_id = v.id
+      WHERE v.product_id = $1
+        AND o.business_id = $2
+        AND o.status = 'completed'
+        ${branchWhere}
+        ${dateWhere}
+    `;
+    const totalRes = await pool.query(totalSql, params);
+
+    // per-variant breakdown (optional)
+    const breakdownSql = `
+      SELECT
+        v.id AS variant_id,
+        v.sku,
+        COALESCE(SUM(oi.quantity),0)::int AS units_sold,
+        COALESCE(SUM(oi.total_price),0)::numeric(12,2) AS revenue
+      FROM order_items oi
+      JOIN orders o ON oi.order_id = o.id
+      JOIN variants v ON oi.variant_id = v.id
+      WHERE v.product_id = $1
+        AND o.business_id = $2
+        AND o.status = 'completed'
+        ${branchWhere}
+        ${dateWhere}
+      GROUP BY v.id, v.sku
+      ORDER BY revenue DESC
+    `;
+    const breakdownRes = await pool.query(breakdownSql, params);
+
+    return res.status(200).json({
+      product_id,
+      totalRevenue: Number(totalRes.rows[0]?.total_revenue || 0),
+      variants: breakdownRes.rows
+    });
+  } catch (err) {
+    console.error('productRevenue error:', err);
+    return res.status(500).json({ message: 'Failed to fetch product revenue.', details: err.message });
+  }
+};
 
   exports.stockMovementAnalytics = async (req, res) => {
   try {

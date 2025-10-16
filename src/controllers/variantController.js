@@ -283,7 +283,7 @@ exports.updateVariant = async (req, res) => {
   try {
     const { variant_id } = req.params;
 
-   
+    // Get current variant
     const variantRes = await pool.query(
       "SELECT * FROM variants WHERE id = $1",
       [variant_id]
@@ -293,19 +293,25 @@ exports.updateVariant = async (req, res) => {
     }
     const currentVariant = variantRes.rows[0];
 
-    
+    // Handle new image uploads
     const variantFiles = (req.files || []).filter(f => f.fieldname === "image_url");
     let uploadedImages = [];
     if (variantFiles.length > 0) {
       uploadedImages = await uploadFilesToCloudinary(variantFiles);
     }
 
-    
-    let existingImages = Array.isArray(currentVariant.image_url)
-      ? currentVariant.image_url
-      : [];
+    // Parse existing images from database ONCE and use it consistently
+    let existingImages = [];
+    try {
+      existingImages = typeof currentVariant.image_url === 'string' 
+        ? JSON.parse(currentVariant.image_url) 
+        : currentVariant.image_url || [];
+    } catch (e) {
+      console.error('Error parsing existing images:', e.message);
+      existingImages = currentVariant.image_url || [];
+    }
 
-    
+    // Handle image deletions
     const deleteImages = req.body.deleteImages
       ? Array.isArray(req.body.deleteImages)
         ? req.body.deleteImages
@@ -323,62 +329,61 @@ exports.updateVariant = async (req, res) => {
       }
     }
 
-   
-    
+    // Build final images array
     let finalImages = [];
     if (req.body.replace_images === "true") {
       finalImages = uploadedImages;
     } else {
       finalImages = [...existingImages, ...uploadedImages];
+      // Remove duplicates based on public_id
       finalImages = finalImages.filter(
         (img, index, self) =>
           index === self.findIndex(i => i.public_id === img.public_id)
       );
     }
 
-   
+    // Prepare update fields and values
     const fields = [];
     const values = [];
     let idx = 1;
 
-const castValue = (field, val) => {
-  if (["quantity", "threshold"].includes(field)) return parseInt(val, 10);
-  if (["cost_price", "selling_price"].includes(field)) return parseFloat(val);
-  if (field === "attributes") return typeof val === "string" ? val : JSON.stringify(val);
-  if (field === "expiry_date") {
-    if (typeof val === "string") {
-      const parts = val.includes("/") ? val.split("/") : val.includes("-") ? val.split("-") : null;
-      const tryParse = (y, m, d) => {
-        const yy = Number(y), mm = Number(m), dd = Number(d);
-        if (!Number.isInteger(yy) || !Number.isInteger(mm) || !Number.isInteger(dd)) return null;
-        // validate with Date object
-        const date = new Date(yy, mm - 1, dd);
-        if (date.getFullYear() === yy && date.getMonth() === mm - 1 && date.getDate() === dd) {
-          return `${yy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+    const castValue = (field, val) => {
+      if (["quantity", "threshold"].includes(field)) return parseInt(val, 10);
+      if (["cost_price", "selling_price"].includes(field)) return parseFloat(val);
+      if (field === "attributes") return typeof val === "string" ? val : JSON.stringify(val);
+      if (field === "expiry_date") {
+        if (typeof val === "string") {
+          const parts = val.includes("/") ? val.split("/") : val.includes("-") ? val.split("-") : null;
+          const tryParse = (y, m, d) => {
+            const yy = Number(y), mm = Number(m), dd = Number(d);
+            if (!Number.isInteger(yy) || !Number.isInteger(mm) || !Number.isInteger(dd)) return null;
+            // validate with Date object
+            const date = new Date(yy, mm - 1, dd);
+            if (date.getFullYear() === yy && date.getMonth() === mm - 1 && date.getDate() === dd) {
+              return `${yy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+            }
+            return null;
+          };
+          if (parts && parts.length === 3) {
+            // try common orders: YYYY-MM-DD, DD-MM-YYYY, MM-DD-YYYY
+            let parsed = null;
+            if (parts[0].length === 4) parsed = tryParse(parts[0], parts[1], parts[2]); // YYYY-M-D
+            if (!parsed) parsed = tryParse(parts[2], parts[1], parts[0]); // D-M-YYYY
+            if (!parsed) parsed = tryParse(parts[2], parts[0], parts[1]); // M-D-YYYY
+            if (parsed) return parsed;
+          }
         }
+        // if not parsable, return null so DB receives NULL instead of invalid date string
         return null;
-      };
-      if (parts && parts.length === 3) {
-        // try common orders: YYYY-MM-DD, DD-MM-YYYY, MM-DD-YYYY
-        let parsed = null;
-        if (parts[0].length === 4) parsed = tryParse(parts[0], parts[1], parts[2]); // YYYY-M-D
-        if (!parsed) parsed = tryParse(parts[2], parts[1], parts[0]); // D-M-YYYY
-        if (!parsed) parsed = tryParse(parts[2], parts[0], parts[1]); // M-D-YYYY
-        if (parsed) return parsed;
       }
-    }
-    // if not parsable, return null so DB receives NULL instead of invalid date string
-    return null;
-  }
-  return val;
-};
+      return val;
+    };
+
     const updatableFields = [
       "attributes", "cost_price", "selling_price", "quantity",
       "threshold", "sku", "expiry_date", "barcode"
     ];
 
-
-    
     let quantityChanged = false;
     let oldQuantity = currentVariant.quantity;
     let newQuantity = oldQuantity;
@@ -398,31 +403,20 @@ const castValue = (field, val) => {
       }
     }
 
-    
-    let existingDbImages = [];
-try {
-  existingDbImages = typeof currentVariant.image_url === "string"
-    ? JSON.parse(currentVariant.image_url)
-    : currentVariant.image_url || [];
-} catch {
-  existingDbImages = currentVariant.image_url || [];
-}
+    // Check if images have changed using the same parsed existingImages
+    const areImagesSame =
+      JSON.stringify(existingImages.map(i => i.public_id).sort()) ===
+      JSON.stringify(finalImages.map(i => i.public_id).sort());
 
-const areImagesSame =
-  JSON.stringify(existingDbImages.map(i => i.public_id).sort()) ===
-  JSON.stringify(finalImages.map(i => i.public_id).sort());
-
-if (!areImagesSame) {
-  fields.push(`image_url = $${idx}::jsonb`);
-  values.push(JSON.stringify(finalImages));
-  idx++;
-}
-
+    if (!areImagesSame) {
+      fields.push(`image_url = $${idx}::jsonb`);
+      values.push(JSON.stringify(finalImages));
+      idx++;
+    }
 
     if (fields.length === 0) {
       return res.status(400).json({ message: "No changes detected." });
     }
-
 
     fields.push("updated_at = NOW()");
     values.push(variant_id);
@@ -436,7 +430,7 @@ if (!areImagesSame) {
     const result = await pool.query(query, values);
     const updatedVariant = result.rows[0];
 
-   
+    // Handle inventory logs if quantity changed
     if (quantityChanged && newQuantity !== oldQuantity) {
       let business_id = null;
       try {
@@ -451,7 +445,6 @@ if (!areImagesSame) {
         console.error('Failed to fetch business for variant:', e.message);
       }
 
-    
       let branch_id = req.headers['x-branch'] || req.headers['x-branch-id'] || null;
 
       let diff = newQuantity - oldQuantity;
@@ -491,12 +484,6 @@ if (!areImagesSame) {
     return res.status(500).json({ message: "Server error.", details: err.message });
   }
 };
-
-
-
-
-
-
 
 exports.updateBarcode = async (req, res) => {
   const { id } = req.params;
