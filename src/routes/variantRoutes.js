@@ -244,7 +244,7 @@ const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
  *     tags:
  *       - Variant
  *     summary: Update an existing variant
- *     description: Update variant fields, replace/upload images, and delete existing images. Use multipart/form-data for uploads.
+ *     description: Update variant details, including fields, attributes, quantity, and image uploads. Supports partial updates and file uploads via multipart/form-data.
  *     security:
  *       - bearerAuth: []
  *     operationId: updateVariant
@@ -253,8 +253,8 @@ const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
  *         name: variant_id
  *         required: true
  *         schema:
- *           type: integer
- *         description: Variant ID
+ *           type: string
+ *         description: Variant ID (UUID or string)
  *     requestBody:
  *       required: true
  *       content:
@@ -263,8 +263,11 @@ const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
  *             type: object
  *             properties:
  *               attributes:
- *                 type: string
- *                 description: JSON stringified attributes for the variant (or send as object string)
+ *                 oneOf:
+ *                   - type: string
+ *                     description: JSON stringified attributes
+ *                   - type: object
+ *                     description: Attributes object
  *               cost_price:
  *                 type: number
  *                 format: float
@@ -273,38 +276,37 @@ const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
  *                 format: float
  *               threshold:
  *                 type: integer
+ *               quantity:
+ *                 type: integer
  *               sku:
  *                 type: string
  *               expiry_date:
  *                 type: string
  *                 format: date
- *                 description: Accepts YYYY-MM-DD or common variants (will be validated)
+ *                 description: Accepts YYYY-MM-DD or common variants (validated internally)
  *               barcode:
  *                 type: string
  *               image_url:
- *                 type: string
- *                 description: Existing images JSON (stringified array of objects [{ public_id, secure_url }])
- *               image_url_files:
  *                 type: array
- *                 description: Upload new image files (field name must be image_url)
+ *                 description: Upload new image files (field name must be "image_url")
  *                 items:
  *                   type: string
  *                   format: binary
  *               deleteImages:
  *                 type: array
- *                 description: Array of Cloudinary public_ids to delete
+ *                 description: Array of Cloudinary public_ids to delete (send as JSON string in multipart)
  *                 items:
  *                   type: string
  *               replace_images:
  *                 type: string
- *                 enum: ["true","false"]
- *                 description: If "true", uploaded files replace existing images. Default false.
+ *                 enum: ["true", "false"]
+ *                 description: If "true", replaces all existing images with uploaded ones. Default is "false".
  *           examples:
- *             update-with-files:
- *               summary: Replace/add images and change price
+ *             update-with-images:
+ *               summary: Update price and upload new images
  *               value:
  *                 selling_price: 19.99
- *                 image_url_files: (binary files)
+ *                 image_url: (binary files)
  *                 deleteImages: ["old_public_id_1"]
  *                 replace_images: "false"
  *     responses:
@@ -351,6 +353,7 @@ const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
  *                   type: string
  *                   example: "Server error."
  */
+
 
 
 /**
@@ -557,7 +560,7 @@ router.get('/product/:productId/variants/:variantId',...requirePermission(PRODUC
 router.get('/:id', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT_VARIANTS), variantController.getVariantById);
 router.get('/business/variants', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT_VARIANTS), variantController.getVariantsByBusiness);
 router.put('/:variant_id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT_VARIANTS), upload.any(),variantController.updateVariant);
-router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_PRODUCT_VARIANTS), variantController.deleteVariant);
+router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_PRODUCT_VARIANTS), variantController.deleteVariant);router.put('/:variant_id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT_VARIANTS), upload.any(),variantController.updateVariant);
 
 
 module.exports = router;
