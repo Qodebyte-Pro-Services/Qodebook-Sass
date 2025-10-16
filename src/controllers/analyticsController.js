@@ -1038,41 +1038,57 @@ exports.stockMovementAnalytics = async (req, res) => {
 
     let dateSelect = `DATE(il.created_at)`;
     let dateTrunc = `DATE(il.created_at)`;
+    let periodInterval = `INTERVAL '1 day'`; 
     if (period === 'hour') {
       dateSelect = `DATE_TRUNC('hour', il.created_at)`;
       dateTrunc = `DATE_TRUNC('hour', il.created_at)`;
+      periodInterval = `INTERVAL '1 hour'`;
     } else if (period === 'week') {
       dateSelect = `DATE_TRUNC('week', il.created_at)`;
       dateTrunc = `DATE_TRUNC('week', il.created_at)`;
+      periodInterval = `INTERVAL '1 week'`;
     } else if (period === 'month') {
       dateSelect = `DATE_TRUNC('month', il.created_at)`;
       dateTrunc = `DATE_TRUNC('month', il.created_at)`;
+      periodInterval = `INTERVAL '1 month'`;
     } else if (period === 'year') {
       dateSelect = `DATE_TRUNC('year', il.created_at)`;
       dateTrunc = `DATE_TRUNC('year', il.created_at)`;
+      periodInterval = `INTERVAL '1 year'`;
     }
 
-    // Group only by period (not by reason). Return ordered movement list per period
     const query = `
       SELECT
         ${dateSelect} AS period,
-        -- separate totals
         COALESCE(SUM(CASE WHEN il.reason = 'increase' THEN il.quantity ELSE 0 END),0) AS total_increased,
         COALESCE(SUM(CASE WHEN il.reason = 'decrease' THEN il.quantity ELSE 0 END),0) AS total_decreased,
-        -- net movement (increase - decrease)
-        COALESCE(SUM(CASE WHEN il.reason = 'decrease' THEN -ABS(il.quantity) ELSE ABS(il.quantity) END),0) AS net_moved,
+        -- net change within the period (increase - decrease)
+        COALESCE(SUM(CASE WHEN il.reason = 'decrease' THEN -ABS(il.quantity) ELSE ABS(il.quantity) END),0) AS net_change,
         COUNT(*) AS movement_count,
         MIN(il.created_at) AS first_movement,
         MAX(il.created_at) AS last_movement,
-        -- full chronological list for the period
-        ARRAY_AGG(
-          JSON_BUILD_OBJECT(
-            'created_at', il.created_at,
-            'reason', il.reason,
-            'quantity', il.quantity,
-            'note', il.note
-          ) ORDER BY il.created_at
-        ) AS movements
+        ARRAY_AGG(JSON_BUILD_OBJECT('created_at', il.created_at, 'reason', il.reason, 'quantity', il.quantity, 'note', il.note) ORDER BY il.created_at) AS movements,
+        -- snapshot: total stock at end of the period (current quantity minus movements AFTER period_end)
+        (
+          SELECT COALESCE(SUM(GREATEST(v2.quantity - COALESCE(na.after_net,0),0)),0)
+          FROM variants v2
+          JOIN products p2 ON v2.product_id = p2.id
+          LEFT JOIN (
+            SELECT il2.variant_id,
+                   SUM(CASE WHEN il2.reason = 'increase' THEN il2.quantity
+                            WHEN il2.reason = 'decrease' THEN -il2.quantity
+                            ELSE 0 END) AS after_net
+            FROM inventory_logs il2
+            JOIN variants v3 ON il2.variant_id = v3.id
+            JOIN products p3 ON v3.product_id = p3.id
+            WHERE il2.created_at >= ( (DATE_TRUNC('${period === 'hour' ? 'hour' : period || 'day'}', il.created_at)) + ${periodInterval} )
+              AND p3.business_id = $1
+              ${branch_id ? `AND p3.branch_id = $2` : ''}
+            GROUP BY il2.variant_id
+          ) na ON na.variant_id = v2.id
+          WHERE p2.business_id = $1
+          ${branch_id ? `AND p2.branch_id = $2` : ''}
+        ) AS stock_end
       FROM inventory_logs il
       JOIN variants v ON il.variant_id = v.id
       JOIN products p ON v.product_id = p.id
@@ -1082,7 +1098,6 @@ exports.stockMovementAnalytics = async (req, res) => {
     `;
 
     const movementResult = await pool.query(query, params);
-
     res.json({ movements: movementResult.rows });
   } catch (err) {
     console.error('Stock movement analytics error:', err);
