@@ -346,9 +346,18 @@ const castValue = (field, val) => {
   if (["cost_price", "selling_price"].includes(field)) return parseFloat(val);
   if (field === "attributes") return typeof val === "string" ? val : JSON.stringify(val);
   if (field === "expiry_date") {
-    if (typeof val === "string" && val.includes("/")) {
-      const [day, month, year] = val.split("/");
-      return `${year}-${month}-${day}`;
+    if (typeof val === "string") {
+      // Handle DD/MM/YYYY or DD-MM-YYYY
+      const parts = val.includes("/") ? val.split("/") : val.includes("-") ? val.split("-") : null;
+      if (parts && parts.length === 3) {
+        let [day, month, year] = parts.map(p => p.trim());
+        // Swap if incorrectly ordered (e.g., 2025-16-10)
+        if (year.length === 2) year = `20${year}`; // handle 25 => 2025
+        if (day.length === 4) { // year came first
+          [year, month, day] = [day, month, year];
+        }
+        return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+      }
     }
     return val;
   }
@@ -381,11 +390,24 @@ const castValue = (field, val) => {
     }
 
     
-    if (JSON.stringify(currentVariant.image_url || []) !== JSON.stringify(finalImages)) {
-      fields.push(`image_url = $${idx}::jsonb`);
-      values.push(JSON.stringify(finalImages));
-      idx++;
-    }
+    let existingDbImages = [];
+try {
+  existingDbImages = typeof currentVariant.image_url === "string"
+    ? JSON.parse(currentVariant.image_url)
+    : currentVariant.image_url || [];
+} catch {
+  existingDbImages = currentVariant.image_url || [];
+}
+
+const areImagesSame =
+  JSON.stringify(existingDbImages.map(i => i.public_id).sort()) ===
+  JSON.stringify(finalImages.map(i => i.public_id).sort());
+
+if (!areImagesSame) {
+  fields.push(`image_url = $${idx}::jsonb`);
+  values.push(JSON.stringify(finalImages));
+  idx++;
+}
 
 
     if (fields.length === 0) {
