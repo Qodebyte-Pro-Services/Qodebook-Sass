@@ -345,22 +345,41 @@ const castValue = (field, val) => {
   if (["quantity", "threshold"].includes(field)) return parseInt(val, 10);
   if (["cost_price", "selling_price"].includes(field)) return parseFloat(val);
   if (field === "attributes") return typeof val === "string" ? val : JSON.stringify(val);
-  if (field === "expiry_date") {
+
+  if (field === "expiry_date" && val) {
     if (typeof val === "string") {
-      // Handle DD/MM/YYYY or DD-MM-YYYY
-      const parts = val.includes("/") ? val.split("/") : val.includes("-") ? val.split("-") : null;
+      let parts = val.includes("/") ? val.split("/") :
+                  val.includes("-") ? val.split("-") : null;
+
       if (parts && parts.length === 3) {
-        let [day, month, year] = parts.map(p => p.trim());
-        // Swap if incorrectly ordered (e.g., 2025-16-10)
-        if (year.length === 2) year = `20${year}`; // handle 25 => 2025
-        if (day.length === 4) { // year came first
-          [year, month, day] = [day, month, year];
+        // remove whitespace
+        parts = parts.map(p => p.trim());
+
+        let [a, b, c] = parts;
+
+        // detect format
+        if (a.length === 4) {
+          // YYYY-MM-DD format
+          return `${a}-${b.padStart(2, "0")}-${c.padStart(2, "0")}`;
+        } else if (c.length === 4) {
+          // DD/MM/YYYY or DD-MM-YYYY
+          return `${c}-${b.padStart(2, "0")}-${a.padStart(2, "0")}`;
+        } else {
+          // fallback: assume month/day/year (in case frontend sends that)
+          return `${c}-${a.padStart(2, "0")}-${b.padStart(2, "0")}`;
         }
-        return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
       }
     }
+
+    // If it's a Date object, format properly
+    if (val instanceof Date && !isNaN(val)) {
+      return val.toISOString().split("T")[0];
+    }
+
+    // If it’s already valid (e.g. from DB)
     return val;
   }
+
   return val;
 };
     const updatableFields = [
