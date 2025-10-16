@@ -283,7 +283,7 @@ exports.updateVariant = async (req, res) => {
   try {
     const { variant_id } = req.params;
 
-    // Get current variant
+   
     const variantRes = await pool.query(
       "SELECT * FROM variants WHERE id = $1",
       [variant_id]
@@ -293,56 +293,68 @@ exports.updateVariant = async (req, res) => {
     }
     const currentVariant = variantRes.rows[0];
 
-    // Handle new image uploads
+   
     const variantFiles = (req.files || []).filter(f => f.fieldname === "image_url");
     let uploadedImages = [];
     if (variantFiles.length > 0) {
       uploadedImages = await uploadFilesToCloudinary(variantFiles);
     }
 
-    // Parse existing images from database ONCE and use it consistently
-    let existingImages = [];
+   
+   let existingImages = [];
+if (currentVariant.image_url) {
+  try {
+   
+    existingImages = Array.isArray(currentVariant.image_url)
+      ? currentVariant.image_url
+      : JSON.parse(currentVariant.image_url);
+  } catch (err) {
+    console.error("Error parsing existingImages:", err.message);
+    existingImages = [];
+  }
+}
+
+
+
+let deleteImages = [];
+if (req.body.deleteImages) {
+  if (typeof req.body.deleteImages === "string") {
     try {
-      existingImages = typeof currentVariant.image_url === 'string' 
-        ? JSON.parse(currentVariant.image_url) 
-        : currentVariant.image_url || [];
-    } catch (e) {
-      console.error('Error parsing existing images:', e.message);
-      existingImages = currentVariant.image_url || [];
+      const parsed = JSON.parse(req.body.deleteImages);
+      deleteImages = Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      deleteImages = [req.body.deleteImages];
     }
+  } else if (Array.isArray(req.body.deleteImages)) {
+    deleteImages = req.body.deleteImages;
+  }
+}
 
-    // Handle image deletions
-    const deleteImages = req.body.deleteImages
-      ? Array.isArray(req.body.deleteImages)
-        ? req.body.deleteImages
-        : [req.body.deleteImages]
-      : [];
-
-    if (deleteImages.length > 0) {
-      for (const public_id of deleteImages) {
-        try {
-          await deleteFileFromCloudinary(public_id);
-          existingImages = existingImages.filter(img => img.public_id !== public_id);
-        } catch (err) {
-          console.error(`Failed to delete image ${public_id}:`, err.message);
-        }
-      }
+if (deleteImages.length > 0) {
+  for (const public_id of deleteImages) {
+    try {
+      await deleteFileFromCloudinary(public_id);
+      existingImages = existingImages.filter(img => img.public_id !== public_id);
+    } catch (err) {
+      console.error(`Failed to delete image ${public_id}:`, err.message);
     }
+  }
+}
 
-    // Build final images array
-    let finalImages = [];
-    if (req.body.replace_images === "true") {
-      finalImages = uploadedImages;
-    } else {
-      finalImages = [...existingImages, ...uploadedImages];
-      // Remove duplicates based on public_id
-      finalImages = finalImages.filter(
-        (img, index, self) =>
-          index === self.findIndex(i => i.public_id === img.public_id)
-      );
-    }
 
-    // Prepare update fields and values
+   let finalImages = [];
+if (req.body.replace_images === "true") {
+  finalImages = uploadedImages;
+} else {
+  finalImages = [...existingImages, ...uploadedImages];
+ 
+  finalImages = finalImages.filter(
+    (img, index, self) =>
+      index === self.findIndex(i => i.public_id === img.public_id)
+  );
+}
+
+ 
     const fields = [];
     const values = [];
     let idx = 1;
@@ -403,17 +415,19 @@ exports.updateVariant = async (req, res) => {
       }
     }
 
-    // Check if images have changed using the same parsed existingImages
-    const areImagesSame =
-      JSON.stringify(existingImages.map(i => i.public_id).sort()) ===
-      JSON.stringify(finalImages.map(i => i.public_id).sort());
+const forceImageUpdate =
+  req.body.replace_images === "true" ||
+  (deleteImages && deleteImages.length > 0);
 
-    if (!areImagesSame) {
-      fields.push(`image_url = $${idx}::jsonb`);
-      values.push(JSON.stringify(finalImages));
-      idx++;
-    }
+const areImagesSame =
+  JSON.stringify((existingImages || []).map(i => i.public_id).sort()) ===
+  JSON.stringify((finalImages || []).map(i => i.public_id).sort());
 
+if (forceImageUpdate || !areImagesSame) {
+  fields.push(`image_url = $${idx}::jsonb`);
+  values.push(JSON.stringify(finalImages));
+  idx++;
+}
     if (fields.length === 0) {
       return res.status(400).json({ message: "No changes detected." });
     }
@@ -430,7 +444,7 @@ exports.updateVariant = async (req, res) => {
     const result = await pool.query(query, values);
     const updatedVariant = result.rows[0];
 
-    // Handle inventory logs if quantity changed
+    
     if (quantityChanged && newQuantity !== oldQuantity) {
       let business_id = null;
       try {
