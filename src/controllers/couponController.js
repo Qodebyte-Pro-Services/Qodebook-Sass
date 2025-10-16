@@ -2,9 +2,14 @@ const pool = require('../config/db');
 
 exports.createCoupon = async (req, res) => {
   try {
-    const { business_id, code, description, discount_percentage, discount_amount, start_date, end_date, usage_limit } = req.body;
-    if (!business_id || !code) return res.status(400).json({ message: 'Missing required fields.' });
-    const result = await pool.query('INSERT INTO coupons (business_id, code, description, discount_percentage || 0, discount_amount || 0, start_date, end_date, usage_limit) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *', [business_id, code, description, discount_percentage, discount_amount, start_date, end_date, usage_limit]);
+    const { business_id, code, coupons_type, description, discount_percentage, discount_amount, start_date, end_date, usage_limit } = req.body;
+    if (!business_id || !code || !coupons_type) return res.status(400).json({ message: 'Missing required fields.' });
+    if (!['fixed-amount', 'percentage'].includes(coupons_type)) {
+      return res.status(400).json({ message: 'Invalid coupon type.' });
+    }
+    const coupon_percentage = discount_percentage || 0;
+    const coupon_amount = discount_amount || 0;
+    const result = await pool.query('INSERT INTO coupons (business_id, code, coupons_type, description, discount_percentage, discount_amount, start_date, end_date, usage_limit) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *', [business_id, code, coupons_type, description, coupon_percentage, coupon_amount, start_date, end_date, usage_limit]);
     return res.status(201).json({ coupon: result.rows[0] });
   } catch (err) {
     console.error(err);
