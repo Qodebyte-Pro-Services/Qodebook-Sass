@@ -1083,10 +1083,6 @@ exports.stockAnalytics = async (req, res) => {
     const wheres = [];
     let idx = 1;
 
-        const tz = req.query.timezone;
-    const timezone = tz && /^[A-Za-z_\/]+$/.test(tz) ? tz : 'Africa/Lagos';
-
-
     if (business_id) {
       wheres.push(`p.business_id = $${idx++}`);
       params.push(business_id);
@@ -1107,23 +1103,19 @@ exports.stockAnalytics = async (req, res) => {
       params.push(product_id);
     }
 
-    
-
- if (start_date && end_date) {
-      wheres.push(`(il.created_at AT TIME ZONE '${timezone}')::date BETWEEN $${idx++} AND $${idx++}`);
+    if (start_date && end_date) {
+      wheres.push(`il.created_at::date BETWEEN $${idx++} AND $${idx++}`);
       params.push(start_date, end_date);
     }
 
-
     const whereClause = wheres.length > 0 ? `WHERE ${wheres.join(" AND ")}` : "";
 
-let dateTrunc;
-if (period === "hour") dateTrunc = `DATE_TRUNC('hour', il.created_at AT TIME ZONE '${timezone}')`;
-else if (period === "day") dateTrunc = `DATE_TRUNC('day', il.created_at AT TIME ZONE '${timezone}')`;
-else if (period === "week") dateTrunc = `DATE_TRUNC('week', il.created_at AT TIME ZONE '${timezone}')`;
-else if (period === "month") dateTrunc = `DATE_TRUNC('month', il.created_at AT TIME ZONE '${timezone}')`;
-else if (period === "year") dateTrunc = `DATE_TRUNC('year', il.created_at AT TIME ZONE '${timezone}')`;
-else dateTrunc = `DATE_TRUNC('day', il.created_at AT TIME ZONE '${timezone}')`;
+    // determine period grouping
+    let dateTrunc = `DATE_TRUNC('day', il.created_at)`;
+    if (period === "hour") dateTrunc = `DATE_TRUNC('hour', il.created_at)`;
+    else if (period === "week") dateTrunc = `DATE_TRUNC('week', il.created_at)`;
+    else if (period === "month") dateTrunc = `DATE_TRUNC('month', il.created_at)`;
+    else if (period === "year") dateTrunc = `DATE_TRUNC('year', il.created_at)`;
 
     // base aggregation
     let baseQuery = `
