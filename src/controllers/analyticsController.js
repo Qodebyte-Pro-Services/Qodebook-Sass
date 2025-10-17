@@ -1145,7 +1145,7 @@ exports.stockAnalytics = async (req, res) => {
 
     // wrap it to make hour cumulative
     let finalQuery;
-    if (period === "hour") {
+if (["hour", "day"].includes(period)) {
       finalQuery = `
         SELECT
           period,
