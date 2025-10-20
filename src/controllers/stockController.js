@@ -741,7 +741,7 @@ exports.getSupplyOrder = async (req, res) => {
 
     
     const orderRes = await pool.query(
-      `SELECT so.*, s.name as supplier_name
+      `SELECT so.*, s.name as supplier_name, s.contact as supplier_contact
        FROM supply_orders so
        LEFT JOIN suppliers s ON so.supplier_id = s.id
        WHERE so.id = $1 AND so.business_id = $2`,
