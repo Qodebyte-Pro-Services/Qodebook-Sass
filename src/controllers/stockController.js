@@ -752,12 +752,14 @@ exports.getSupplyOrder = async (req, res) => {
     }
 
    
-    const itemsRes = await pool.query(
-      `SELECT soi.*, v.sku
+        const itemsRes = await pool.query(
+      `SELECT soi.*, v.sku, v.product_id, p.name AS product_name
        FROM supply_order_items soi
+       LEFT JOIN supply_orders so ON soi.supply_order_id = so.id
        LEFT JOIN variants v ON soi.variant_id = v.id
-       WHERE soi.supply_order_id = $1`,
-      [id]
+       LEFT JOIN products p ON v.product_id = p.id
+       WHERE soi.supply_order_id = $1 AND so.business_id = $2`,
+      [id, business_id]
     );
 
     return res.status(200).json({ supply_order: orderRes.rows[0], items: itemsRes.rows });
