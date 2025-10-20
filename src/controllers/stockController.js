@@ -785,13 +785,18 @@ exports.getSupplyOrders = async (req, res) => {
     const orders = ordersRes.rows;
 
     
-    const orderIds = orders.map(o => o.id);
+  const orderIds = orders.map(o => o.id);
     let items = [];
     if (orderIds.length > 0) {
       const itemsRes = await pool.query(
-        `SELECT soi.*, v.sku
+        `SELECT 
+           soi.*,
+           v.sku,
+           v.product_id,
+           p.name AS product_name
          FROM supply_order_items soi
          LEFT JOIN variants v ON soi.variant_id = v.id
+         LEFT JOIN products p ON v.product_id = p.id
          WHERE soi.supply_order_id = ANY($1::int[])`,
         [orderIds]
       );
