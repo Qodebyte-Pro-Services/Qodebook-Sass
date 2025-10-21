@@ -243,6 +243,144 @@ router.get('/products-with-coupons', authenticateToken, couponController.getList
  */
 router.patch('/:coupon_id', authenticateToken, couponController.updateCoupon);
 
+
+/**
+ * @swagger
+ * /api/coupons/unlink/{coupon_id}:
+ *   delete:
+ *     summary: Unlink a coupon from all associated products
+ *     description: Removes all product-coupon associations for a given coupon ID.
+ *     tags: [Coupons]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: coupon_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the coupon to unlink from all products.
+ *     responses:
+ *       200:
+ *         description: Coupon successfully unlinked from all products.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Coupon unlinked from products successfully."
+ *                 unlinked_count:
+ *                   type: integer
+ *                   example: 5
+ *       400:
+ *         description: Missing or invalid coupon_id.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Missing required field: coupon_id."
+ *       404:
+ *         description: No products linked to the given coupon ID.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "No products are linked to this coupon."
+ *       500:
+ *         description: Server error occurred while unlinking.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Server error."
+ *                 error:
+ *                   type: string
+ *                   example: "Database connection failed."
+ */
+
+/**
+ * @swagger
+ * /api/coupons/unlink-single/{coupon_id}/{product_id}:
+ *   delete:
+ *     summary: Unlink a specific product from a coupon
+ *     description: Removes the association between a specific product and a coupon.
+ *     tags: [Coupons]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: coupon_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the coupon.
+ *       - in: path
+ *         name: product_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the product to unlink from the coupon.
+ *     responses:
+ *       200:
+ *         description: Coupon successfully unlinked from the product.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Coupon unlinked from product successfully."
+ *       400:
+ *         description: Missing required parameters.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Missing required fields."
+ *       404:
+ *         description: The coupon is not linked to the specified product.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "This coupon is not linked to the specified product."
+ *       500:
+ *         description: Server error occurred while unlinking.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Server error."
+ *                 error:
+ *                   type: string
+ *                   example: "Database query failed."
+ */
+
+router.delete('/unlink/:coupon_id', authenticateToken, couponController.unlinkCouponFromProducts);
+
+router.delete('/unlink-single/:coupon_id/:product_id', authenticateToken, couponController.unlinkCouponFromProduct);
+
 /**
  * @swagger
  * /api/coupons/{coupon_id}:

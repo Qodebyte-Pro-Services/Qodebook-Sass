@@ -282,7 +282,142 @@ router.get('/products-with-discounts', authenticateToken, discountController.get
  *         description: Server error
  */
 router.patch('/:discount_id', authenticateToken, discountController.updateDiscount);
-router.patch('/:discount_id', authenticateToken, discountController.updateDiscount);
+
+/**
+ * @swagger
+ * /api/discounts/unlink/{discount_id}:
+ *   delete:
+ *     summary: Unlink a discount from all associated products
+ *     description: Removes all product-discount associations for a given discount ID.
+ *     tags: [Discounts]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: discount_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the discount to unlink from all products.
+ *     responses:
+ *       200:
+ *         description: Discount successfully unlinked from all products.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Successfully unlinked discount 12345 from all associated products."
+ *                 unlinked_count:
+ *                   type: integer
+ *                   example: 4
+ *       400:
+ *         description: Missing or invalid discount_id.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Missing required field: discount_id."
+ *       404:
+ *         description: No products linked to the given discount ID.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "No products are linked to this discount."
+ *       500:
+ *         description: Server error occurred while unlinking.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Server error."
+ *                 error:
+ *                   type: string
+ *                   example: "Database query failed."
+ */
+
+/**
+ * @swagger
+ * /api/discounts/unlink-single/{discount_id}/{product_id}:
+ *   delete:
+ *     summary: Unlink a specific product from a discount
+ *     description: Removes the association between a specific product and discount.
+ *     tags: [Discounts]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: discount_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the discount.
+ *       - in: path
+ *         name: product_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the product to unlink from the discount.
+ *     responses:
+ *       200:
+ *         description: Product successfully unlinked from the discount.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Successfully unlinked product 67890 from discount 12345."
+ *       400:
+ *         description: Missing required parameters.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Missing required fields: product_id or discount_id."
+ *       404:
+ *         description: Product not linked to the specified discount.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "This product is not linked to the specified discount."
+ *       500:
+ *         description: Server error occurred while unlinking.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Server error."
+ *                 error:
+ *                   type: string
+ *                   example: "Database query failed."
+ */
+router.delete('/unlink/:discount_id', authenticateToken, discountController.unlinkDiscountFromProducts);
+router.delete('/unlink-single/:discount_id/:product_id', authenticateToken, discountController.unlinkDiscountFromProduct);
+
 
 /**
  * @swagger

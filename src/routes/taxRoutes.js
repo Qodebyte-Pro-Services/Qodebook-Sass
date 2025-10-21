@@ -245,6 +245,115 @@ router.get('/products-with-taxes', authenticateToken, taxController.getListOfPro
  *         description: Server error
  */
 router.patch('/:tax_id', authenticateToken, taxController.updateTax);
+/**
+ * @swagger
+ * /api/taxes/unlink/{tax_id}:
+ *   delete:
+ *     summary: Unlink a tax from all products
+ *     tags: [Tax]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tax_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the tax to unlink from all products
+ *     responses:
+ *       200:
+ *         description: Tax unlinked from all products successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Tax unlinked from all products successfully."
+ *       404:
+ *         description: Tax not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Tax not found."
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Server error."
+ *                 error:
+ *                   type: string
+ *                   example: "Error details."
+ */
+
+/**
+ * @swagger
+ * /api/taxes/unlink-single/{tax_id}/{product_id}:
+ *   delete:
+ *     summary: Unlink a tax from a specific product
+ *     tags: [Tax]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tax_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the tax to unlink from the product
+ *       - in: path
+ *         name: product_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the product to unlink the tax from
+ *     responses:
+ *       200:
+ *         description: Tax unlinked from product successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Tax unlinked from product successfully."
+ *       404:
+ *         description: Tax or product not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Tax or product not found."
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Server error."
+ *                 error:
+ *                   type: string
+ *                   example: "Error details."
+ */
+router.delete('/unlink/:tax_id', authenticateToken, taxController.unlinkTaxFromProducts);
+router.delete('/unlink-single/:tax_id/:product_id', authenticateToken, taxController.unlinkTaxFromProduct);
 
 /**
  * @swagger

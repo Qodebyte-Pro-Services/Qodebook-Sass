@@ -1,3 +1,4 @@
+const { unlink } = require('fs');
 const pool = require('../config/db');
 
 exports.createCoupon = async (req, res) => {
@@ -45,6 +46,46 @@ exports.linkCouponToProduct = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+
+exports.unlinkCouponFromProducts = async (req, res) => {
+  try {
+    const { coupon_id } = req.params;
+    if (!coupon_id) {
+      return res.status(400).json({ message: 'Missing required field: coupon_id.' });
+    }
+    const check = await pool.query(
+      'SELECT * FROM product_coupons WHERE coupon_id = $1',
+      [coupon_id]
+    );
+    if (check.rows.length === 0) {
+      return res.status(404).json({ message: 'No products are linked to this coupon.' });
+    }
+    await pool.query('DELETE FROM product_coupons WHERE coupon_id = $1', [coupon_id]);
+    return res.status(200).json({ message: 'Coupon unlinked from products successfully.', unlinked_count: check.rows.length });
+  } catch (error) {
+    console.error('Error unlinking coupon from products:', error);
+    return res.status(500).json({ message: 'Server error.', error: error.message });
+  }
+}
+
+exports.unlinkCouponFromProduct = async (req, res) => {
+  try {
+    const { product_id, coupon_id } = req.params;
+    if (!product_id || !coupon_id) return res.status(400).json({ message: 'Missing required fields.' });
+    const check = await pool.query(
+      'SELECT * FROM product_coupons WHERE product_id = $1 AND coupon_id = $2',
+      [product_id, coupon_id]
+    );
+    if (check.rows.length === 0) {
+      return res.status(404).json({ message: 'This coupon is not linked to the specified product.' });
+    }
+    await pool.query('DELETE FROM product_coupons WHERE product_id = $1 AND coupon_id = $2', [product_id, coupon_id]);
+    return res.status(200).json({ message: 'Coupon unlinked from product successfully.' });
+  } catch (error) {
+    console.error('Error unlinking coupon from product:', error);
+    return res.status(500).json({ message: 'Server error.', error: error.message });
+  }
+}
 
 exports.getListOfProductsAndTheirCoupons = async (req, res) =>  {
   try {

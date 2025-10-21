@@ -41,6 +41,56 @@ exports.linkTaxToProduct = async (req, res) => {
   }
 };
 
+exports.unlinkTaxFromProducts = async (req, res) => {
+  try {
+    const { tax_id } = req.params;
+    if (!tax_id) return res.status(400).json({ message: 'Missing required field: tax_id.' });
+
+    const check = await pool.query(
+      'SELECT * FROM product_taxes WHERE tax_id = $1',
+      [tax_id]
+    );
+    if (check.rows.length === 0) {
+      return res.status(404).json({ message: 'No products are linked to this tax.' });
+    }
+    await pool.query('DELETE FROM product_taxes WHERE tax_id = $1', [tax_id]);
+    return res.status(200).json({ message: 'Tax unlinked from products successfully.', unlinked_count: check.rows.length });
+  } catch (error) {
+    console.error('Error unlinking tax from products:', error);
+    return res.status(500).json({ message: 'Server error.', error: error.message });
+  }
+} 
+
+
+
+exports.unlinkTaxFromProduct = async (req, res) => {
+  try {
+    const { product_id, tax_id } = req.params;
+    if (!product_id || !tax_id) return res.status(400).json({ message: 'Missing required fields.' });
+
+    const check = await pool.query(
+      'SELECT * FROM product_taxes WHERE product_id = $1 AND tax_id = $2',
+      [product_id, tax_id]
+    );
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ message: 'This product is not linked to the specified tax.' });
+    }
+
+    await pool.query(
+      'DELETE FROM product_taxes WHERE product_id = $1 AND tax_id = $2',
+      [product_id, tax_id]
+    );
+
+    return res.status(200).json({
+      message: `Successfully unlinked product ${product_id} from tax ${tax_id}.`,
+    });
+  } catch (error) {
+    console.error('Error unlinking product from tax:', error);
+    return res.status(500).json({ message: 'Server error.', error: error.message });
+  }
+}
+
 exports.getListOfProductsAndTheirTaxes = async (req, res) =>  {
   try {
     const { business_id } = req.query;

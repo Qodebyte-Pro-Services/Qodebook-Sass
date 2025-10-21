@@ -60,6 +60,73 @@ exports.linkDiscountToProduct = async (req, res) => {
   }
 };
 
+exports.unlinkDiscountFromProducts = async (req, res) => {
+  try {
+    const { discount_id } = req.params;
+
+    
+    if (!discount_id) {
+      return res.status(400).json({ message: 'Missing required field: discount_id.' });
+    }
+
+   
+    const check = await pool.query(
+      'SELECT * FROM product_discounts WHERE discount_id = $1',
+      [discount_id]
+    );
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ message: 'No products are linked to this discount.' });
+    }
+
+    
+    await pool.query('DELETE FROM product_discounts WHERE discount_id = $1', [discount_id]);
+
+    return res.status(200).json({
+      message: `Successfully unlinked discount ${discount_id} from all associated products.`,
+      unlinked_count: check.rows.length,
+    });
+  } catch (error) {
+    console.error('Error unlinking discount from products:', error);
+    return res.status(500).json({ message: 'Server error.', error: error.message });
+  }
+};
+
+
+exports.unlinkDiscountFromProduct = async (req, res) => {
+  try {
+    const { product_id, discount_id } = req.params;
+
+    if (!product_id || !discount_id) {
+      return res.status(400).json({ message: 'Missing required fields: product_id or discount_id.' });
+    }
+
+   
+    const check = await pool.query(
+      'SELECT * FROM product_discounts WHERE product_id = $1 AND discount_id = $2',
+      [product_id, discount_id]
+    );
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ message: 'This product is not linked to the specified discount.' });
+    }
+
+    
+    await pool.query(
+      'DELETE FROM product_discounts WHERE product_id = $1 AND discount_id = $2',
+      [product_id, discount_id]
+    );
+
+    return res.status(200).json({
+      message: `Successfully unlinked product ${product_id} from discount ${discount_id}.`,
+    });
+  } catch (error) {
+    console.error('Error unlinking product from discount:', error);
+    return res.status(500).json({ message: 'Server error.', error: error.message });
+  }
+};
+
+
 exports.getListOfProductsAndTheirDiscounts = async (req, res) =>  {
   try {
     const { business_id } = req.query;
