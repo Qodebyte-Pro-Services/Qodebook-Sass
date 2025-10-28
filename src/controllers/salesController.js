@@ -247,6 +247,7 @@ exports.listSales = async (req, res) => {
       params.push(business_id);
       idx++;
     }
+
     if (branch_id) {
       whereClauses.push(`o.branch_id = $${idx}`);
       params.push(branch_id);
@@ -261,28 +262,49 @@ exports.listSales = async (req, res) => {
         c.email AS customer_email,
         b.branch_name AS branch_name,
         COALESCE(s.full_name, CONCAT(u.first_name, ' ', u.last_name), '') AS recorded_by_name,
+
+        -- compute totals
         COALESCE(SUM(op.amount), 0) AS total_paid,
         (o.subtotal + o.tax_total - o.discount_total - o.coupon_total) AS total_due,
-        ((o.subtotal + o.tax_total - o.discount_total - o.coupon_total) - COALESCE(SUM(op.amount), 0)) AS balance
+        ((o.subtotal + o.tax_total - o.discount_total - o.coupon_total) - COALESCE(SUM(op.amount), 0)) AS balance,
+
+        -- aggregate payment details
+        COALESCE(
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'id', op.id,
+              'method', op.method,
+              'amount', op.amount,
+              'reference', op.reference,
+              'paid_at', op.paid_at
+            )
+          ) FILTER (WHERE op.id IS NOT NULL),
+          '[]'
+        ) AS payments
+
       FROM orders o
       LEFT JOIN customers c ON o.customer_id = c.id
       LEFT JOIN branches b ON o.branch_id = b.id
       LEFT JOIN staff s ON o.staff_id = s.staff_id
       LEFT JOIN users u ON o.created_by_user_id = u.id
       LEFT JOIN order_payments op ON o.id = op.order_id
+
       WHERE ${whereClauses.join(' AND ')}
+
       GROUP BY 
         o.id, c.name, c.phone, c.email, b.branch_name, s.full_name, u.first_name, u.last_name
       ORDER BY o.created_at DESC
     `;
 
     const result = await pool.query(query, params);
+
     return res.status(200).json({ sales: result.rows });
   } catch (err) {
-    console.error(err);
+    console.error('❌ Error listing sales:', err);
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+
 
   exports.getSale = async (req, res) => {
   try {
