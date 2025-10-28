@@ -7,6 +7,198 @@ const { STAFF_PERMISSIONS, BUSINESS_PERMISSIONS } = require('../constants/permis
 
 /**
  * @swagger
+ * /api/staff/business_settings/{business_id}:
+ *   post:
+ *     summary: Create business staff settings
+ *     description: |
+ *       Creates new authentication, OTP, and session configuration settings for a given business branch.  
+ *       Each business-branch pair can have one configuration entry.  
+ *       Use the update endpoint if settings already exist.
+ *     tags: [BusinessStaffSettings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: business_id
+ *         in: path
+ *         required: true
+ *         description: ID of the business the settings belong to
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - branch_id
+ *             properties:
+ *               branch_id:
+ *                 type: integer
+ *                 description: Branch ID associated with the business
+ *                 example: 101
+ *               password_delivery_method:
+ *                 type: string
+ *                 description: Method used to deliver passwords to staff (e.g., email, sms, manual)
+ *                 example: "email"
+ *               password_change_policy:
+ *                 type: string
+ *                 description: Rules for password changes (e.g., periodic, manual, enforced)
+ *                 example: "periodic"
+ *               require_otp_for_login:
+ *                 type: boolean
+ *                 description: Whether OTP is required during login
+ *                 example: true
+ *               otp_delivery_method:
+ *                 type: string
+ *                 description: OTP delivery method (e.g., sms, email, app)
+ *                 example: "sms"
+ *               session_timeout_minutes:
+ *                 type: integer
+ *                 description: Session timeout duration in minutes
+ *                 example: 30
+ *               max_login_attempts:
+ *                 type: integer
+ *                 description: Maximum allowed failed login attempts before lockout
+ *                 example: 5
+ *               lockout_duration_minutes:
+ *                 type: integer
+ *                 description: Duration (in minutes) for which account remains locked after too many failed logins
+ *                 example: 15
+ *     responses:
+ *       201:
+ *         description: Staff settings created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Staff settings created successfully.
+ *                 settings:
+ *                   $ref: '#/components/schemas/BusinessStaffSettings'
+ *       400:
+ *         description: Settings for this business and branch already exist
+ *       500:
+ *         description: Server error
+ */
+
+/**
+ * @swagger
+ * /api/staff/business_settings/{business_id}:
+ *   get:
+ *     summary: Get business staff settings
+ *     description: Retrieve authentication and security settings for a specific business and optionally by branch.
+ *     tags: [BusinessStaffSettings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: business_id
+ *         in: path
+ *         required: true
+ *         description: ID of the business to fetch settings for
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *       - name: branch_id
+ *         in: query
+ *         required: false
+ *         description: Optional branch ID to filter settings
+ *         schema:
+ *           type: integer
+ *           example: 101
+ *     responses:
+ *       200:
+ *         description: Staff settings retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 settings:
+ *                   $ref: '#/components/schemas/BusinessStaffSettings'
+ *       404:
+ *         description: Settings not found
+ *       500:
+ *         description: Server error
+ */
+
+/**
+ * @swagger
+ * /api/staff/business_settings/{business_id}:
+ *   patch:
+ *     summary: Update business staff settings
+ *     description: |
+ *       Updates or upserts staff authentication and session settings for a specific business and branch.
+ *       If settings do not exist, they are created automatically.
+ *     tags: [BusinessStaffSettings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: business_id
+ *         in: path
+ *         required: true
+ *         description: ID of the business to update settings for
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - branch_id
+ *             properties:
+ *               branch_id:
+ *                 type: integer
+ *                 example: 101
+ *               password_delivery_method:
+ *                 type: string
+ *                 example: "email"
+ *               password_change_policy:
+ *                 type: string
+ *                 example: "manual"
+ *               require_otp_for_login:
+ *                 type: boolean
+ *                 example: true
+ *               otp_delivery_method:
+ *                 type: string
+ *                 example: "sms"
+ *               session_timeout_minutes:
+ *                 type: integer
+ *                 example: 45
+ *               max_login_attempts:
+ *                 type: integer
+ *                 example: 3
+ *               lockout_duration_minutes:
+ *                 type: integer
+ *                 example: 10
+ *     responses:
+ *       200:
+ *         description: Staff settings updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Staff settings updated successfully.
+ *                 settings:
+ *                   $ref: '#/components/schemas/BusinessStaffSettings'
+ *       500:
+ *         description: Server error
+ */
+router.post('/business_settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_BUSINESS_SETTINGS), staffController.createBusinessStaffSettings);
+router.get('/business_settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_BUSINESS_SETTINGS), staffController.getBusinessStaffSettings);
+router.patch('/business_settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_BUSINESS_SETTINGS), staffController.updateBusinessStaffSettings);
+
+/**
+ * @swagger
  * /api/staff/actions:
  *   post:
  *     summary: Log a staff action (e.g., clock-in, clock-out, custom actions)
