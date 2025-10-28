@@ -254,16 +254,25 @@ exports.listSales = async (req, res) => {
     }
 
     const query = `
-      SELECT o.*, 
-        c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
+      SELECT 
+        o.*,
+        c.name AS customer_name, 
+        c.phone AS customer_phone, 
+        c.email AS customer_email,
         b.branch_name AS branch_name,
-        COALESCE(s.full_name, CONCAT(u.first_name, ' ', u.last_name), '') AS recorded_by_name
+        COALESCE(s.full_name, CONCAT(u.first_name, ' ', u.last_name), '') AS recorded_by_name,
+        COALESCE(SUM(op.amount), 0) AS total_paid,
+        (o.subtotal + o.tax_total - o.discount_total - o.coupon_total) AS total_due,
+        ((o.subtotal + o.tax_total - o.discount_total - o.coupon_total) - COALESCE(SUM(op.amount), 0)) AS balance
       FROM orders o
       LEFT JOIN customers c ON o.customer_id = c.id
       LEFT JOIN branches b ON o.branch_id = b.id
       LEFT JOIN staff s ON o.staff_id = s.staff_id
       LEFT JOIN users u ON o.created_by_user_id = u.id
+      LEFT JOIN order_payments op ON o.id = op.order_id
       WHERE ${whereClauses.join(' AND ')}
+      GROUP BY 
+        o.id, c.name, c.phone, c.email, b.branch_name, s.full_name, u.first_name, u.last_name
       ORDER BY o.created_at DESC
     `;
 
@@ -275,34 +284,60 @@ exports.listSales = async (req, res) => {
   }
 };
 
-exports.getSale = async (req, res) => {
+  exports.getSale = async (req, res) => {
   try {
     const { id } = req.params;
+
     const saleRes = await pool.query(`
-      SELECT o.*, 
-        c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
+      SELECT 
+        o.*,
+        c.name AS customer_name, 
+        c.phone AS customer_phone, 
+        c.email AS customer_email,
         b.branch_name AS branch_name,
-        COALESCE(s.full_name, CONCAT(u.first_name, ' ', u.last_name), '') AS recorded_by_name
+        COALESCE(s.full_name, CONCAT(u.first_name, ' ', u.last_name), '') AS recorded_by_name,
+        COALESCE(SUM(op.amount), 0) AS total_paid,
+        (o.subtotal + o.tax_total - o.discount_total - o.coupon_total) AS total_due,
+        ((o.subtotal + o.tax_total - o.discount_total - o.coupon_total) - COALESCE(SUM(op.amount), 0)) AS balance
       FROM orders o
       LEFT JOIN customers c ON o.customer_id = c.id
       LEFT JOIN branches b ON o.branch_id = b.id
       LEFT JOIN staff s ON o.staff_id = s.staff_id
       LEFT JOIN users u ON o.created_by_user_id = u.id
+      LEFT JOIN order_payments op ON o.id = op.order_id
       WHERE o.id = $1
+      GROUP BY 
+        o.id, c.name, c.phone, c.email, b.branch_name, s.full_name, u.first_name, u.last_name
     `, [id]);
-    if (saleRes.rows.length === 0) return res.status(404).json({ message: 'Sale not found.' });
+
+    if (saleRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Sale not found.' });
+    }
 
     const itemsRes = await pool.query(`
-      SELECT oi.*, 
-        v.sku AS variant_name, v.attributes, v.quantity, v.selling_price
+      SELECT 
+        oi.*, 
+        v.sku AS variant_name, 
+        v.attributes, 
+        v.quantity AS stock_quantity, 
+        v.selling_price
       FROM order_items oi
       LEFT JOIN variants v ON oi.variant_id = v.id
       WHERE oi.order_id = $1
     `, [id]);
 
+    const paymentsRes = await pool.query(`
+      SELECT 
+        id, method, amount, reference, paid_at
+      FROM order_payments
+      WHERE order_id = $1
+      ORDER BY paid_at ASC
+    `, [id]);
+
     return res.status(200).json({
       sale: saleRes.rows[0],
-      items: itemsRes.rows
+      items: itemsRes.rows,
+      payments: paymentsRes.rows
     });
   } catch (err) {
     console.error(err);
