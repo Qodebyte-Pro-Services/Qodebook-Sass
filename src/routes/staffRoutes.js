@@ -4,6 +4,7 @@ const { authenticateToken } = require('../middlewares/authMiddleware');
 const staffController = require('../controllers/staffController');
 const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
 const { STAFF_PERMISSIONS, BUSINESS_PERMISSIONS } = require('../constants/permissions');
+const upload = require('../middlewares/upload');
 
 /**
  * @swagger
@@ -1063,8 +1064,15 @@ router.delete('/roles/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_ROLES)
  *                   type: string
  *                   example: "Server error"
  */
-router.post('/create', ...requirePermission(STAFF_PERMISSIONS.CREATE_STAFF), staffController.createStaff);
-
+router.post(
+  '/create',
+  upload.fields([
+    { name: 'photo', maxCount: 1 },
+    { name: 'documents', maxCount: 10 }
+  ]),
+  ...requirePermission(STAFF_PERMISSIONS.CREATE_STAFF),
+  staffController.createStaff
+);
 /**
  * @swagger
  * /api/staff:

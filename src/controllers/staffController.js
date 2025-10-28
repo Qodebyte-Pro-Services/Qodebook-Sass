@@ -284,15 +284,16 @@ async function sendPasswordToOwner(ownerEmail, staffName, password, businessName
 
 exports.createStaff = async (req, res) => {
   try {
-    const { 
-      staff_id, business_id, branch_id, full_name, contact_no, email, 
-      address, document, position_name, assigned_position, gender, 
-      staff_status, date_of_birth, state_of_origin, emergency_contact, 
-      employment_type, start_date, salary, bank_account_number, bank_name, 
-      national_id, guarantor_name, guarantor_contact, guarantor_relationship, 
-      guarantor_address, photo, payment_status, last_payment_date, 
-      staff_status_change_reason 
+ const {
+      staff_id, business_id, branch_id, full_name, contact_no, email,
+      address, position_name, assigned_position, gender,
+      staff_status, date_of_birth, state_of_origin, emergency_contact,
+      employment_type, start_date, salary, bank_account_number, bank_name,
+      national_id, guarantor_name, guarantor_contact, guarantor_relationship,
+      guarantor_address, payment_status, last_payment_date,
+      staff_status_change_reason
     } = req.body;
+
 
     if (!staff_id || !business_id || !branch_id || !full_name || !contact_no || !email || !gender || !staff_status || !payment_status) {
       return res.status(400).json({ message: 'Missing required fields.' });
@@ -316,26 +317,41 @@ const businessName = businessResult.rows[0].business_name;
     }
 
 
-    const result = await pool.query(`
-      INSERT INTO staff (
-        staff_id, business_id, branch_id, full_name, contact_no, email, 
-        address, document, position_name, assigned_position, gender, 
-        staff_status, date_of_birth, state_of_origin, emergency_contact, 
-        employment_type, start_date, salary, bank_account_number, bank_name, 
-        national_id, guarantor_name, guarantor_contact, guarantor_relationship, 
-        guarantor_address, photo, payment_status, last_payment_date, 
-        staff_status_change_reason, password_hash, password_changed_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30) 
-      RETURNING *
-    `, [
-      staff_id, business_id, branch_id, full_name, contact_no, email, 
-      address, document, position_name, assigned_position, gender, 
-      staff_status, date_of_birth, state_of_origin, emergency_contact, 
-      employment_type, start_date, salary, bank_account_number, bank_name, 
-      national_id, guarantor_name, guarantor_contact, guarantor_relationship, 
-      guarantor_address, photo, payment_status, last_payment_date, 
-      staff_status_change_reason, passwordHash, new Date()
-    ]);
+    let photoUrl = null;
+    let documentUrls = [];
+
+        if (req.files?.photo && req.files.photo[0]) {
+      const uploadedPhoto = await uploadToCloudinary(req.files.photo[0].buffer, req.files.photo[0].originalname);
+      photoUrl = uploadedPhoto.secure_url;
+    }
+
+    if (req.files?.documents && req.files.documents.length > 0) {
+      const uploadedDocs = await uploadFilesToCloudinary(req.files.documents);
+      documentUrls = uploadedDocs.map(doc => doc.secure_url);
+    }
+
+const result = await pool.query(`
+  INSERT INTO staff (
+    staff_id, business_id, branch_id, full_name, contact_no, email,
+    address, document, position_name, assigned_position, gender,
+    staff_status, date_of_birth, state_of_origin, emergency_contact,
+    employment_type, start_date, salary, bank_account_number, bank_name,
+    national_id, guarantor_name, guarantor_contact, guarantor_relationship,
+    guarantor_address, photo, payment_status, last_payment_date,
+    staff_status_change_reason, password_hash, password_changed_at
+  ) VALUES (
+    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
+    $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30
+  ) RETURNING *;
+`, [
+  staff_id, business_id, branch_id, full_name, contact_no, email,
+  address, documentUrls, position_name, assigned_position, gender,
+  staff_status, date_of_birth, state_of_origin, emergency_contact,
+  employment_type, start_date, salary, bank_account_number, bank_name,
+  national_id, guarantor_name, guarantor_contact, guarantor_relationship,
+  guarantor_address, photoUrl, payment_status, last_payment_date,
+  staff_status_change_reason, passwordHash, new Date()
+]);
 
     const staff = result.rows[0];
 
