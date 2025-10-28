@@ -299,11 +299,11 @@ exports.createStaff = async (req, res) => {
     }
 
    
-    const businessResult = await pool.query('SELECT name FROM businesses WHERE id = $1', [business_id]);
-    if (businessResult.rows.length === 0) {
-      return res.status(404).json({ message: 'Business not found.' });
-    }
-    const businessName = businessResult.rows[0].name;
+   const businessResult = await pool.query('SELECT business_name FROM businesses WHERE id = $1', [business_id]);
+if (businessResult.rows.length === 0) {
+  return res.status(404).json({ message: 'Business not found.' });
+}
+const businessName = businessResult.rows[0].business_name;
 
 
     const password = generateStaffPassword(businessName);
@@ -476,9 +476,9 @@ exports.requestPasswordChange = async (req, res) => {
 
     
       try {
-        const businessResult = await pool.query('SELECT name FROM businesses WHERE id = $1', [business_id]);
-        const businessName = businessResult.rows[0]?.name || 'Your Business';
-        
+        const businessResult = await pool.query('SELECT business_name FROM businesses WHERE id = $1', [business_id]);
+        const businessName = businessResult.rows[0]?.business_name || 'Your Business';
+
         const ownerResult = await pool.query('SELECT email FROM users WHERE business_id = $1 LIMIT 1', [business_id]);
         const ownerEmail = ownerResult.rows[0]?.email;
         
@@ -500,9 +500,9 @@ exports.requestPasswordChange = async (req, res) => {
 
    
       try {
-        const businessResult = await pool.query('SELECT name FROM businesses WHERE id = $1', [business_id]);
-        const businessName = businessResult.rows[0]?.name || 'Your Business';
-        
+        const businessResult = await pool.query('SELECT business_name FROM businesses WHERE id = $1', [business_id]);
+        const businessName = businessResult.rows[0]?.business_name || 'Your Business';
+
         await sendPasswordChangeNotification(staff.email, businessName, staff.full_name);
       } catch (emailError) {
         console.error('Error sending password change notification:', emailError);
@@ -562,9 +562,9 @@ exports.approvePasswordChangeRequest = async (req, res) => {
 
  
     try {
-      const businessResult = await pool.query('SELECT name FROM businesses WHERE id = $1', [business_id]);
-      const businessName = businessResult.rows[0]?.name || 'Your Business';
-      
+      const businessResult = await pool.query('SELECT business_name FROM businesses WHERE id = $1', [business_id]);
+      const businessName = businessResult.rows[0]?.business_name || 'Your Business';
+
       await sendPasswordChangeNotification(staff.email, businessName, staff.full_name);
     } catch (emailError) {
       console.error('Error sending password change approval notification:', emailError);
@@ -609,9 +609,9 @@ exports.rejectPasswordChangeRequest = async (req, res) => {
 
      
       try {
-        const businessResult = await pool.query('SELECT name FROM businesses WHERE id = $1', [business_id]);
-        const businessName = businessResult.rows[0]?.name || 'Your Business';
-        
+        const businessResult = await pool.query('SELECT business_name FROM businesses WHERE id = $1', [business_id]);
+        const businessName = businessResult.rows[0]?.business_name || 'Your Business';
+
         const subject = `Password Change Request Rejected - ${businessName}`;
         const message = `
           Hello ${staff.full_name},
