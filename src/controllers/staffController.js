@@ -245,8 +245,19 @@ function generateStaffPassword(businessName) {
 
 async function getBusinessStaffSettings(businessId, branchId = null) {
   const query = branchId 
-    ? 'SELECT * FROM business_staff_settings WHERE business_id = $1 AND (branch_id = $2 OR branch_id IS NULL) ORDER BY branch_id DESC LIMIT 1'
-    : 'SELECT * FROM business_staff_settings WHERE business_id = $1 AND branch_id IS NULL';
+    ? `
+      SELECT * FROM business_staff_settings
+      WHERE business_id = $1 AND (branch_id = $2 OR branch_id IS NULL)
+      ORDER BY branch_id DESC
+      LIMIT 1
+    `
+    : `
+      SELECT * FROM business_staff_settings
+      WHERE business_id = $1
+      ORDER BY branch_id DESC
+      LIMIT 1
+    `;
+
   const params = branchId ? [businessId, branchId] : [businessId];
   const result = await pool.query(query, params);
   return result.rows[0];
