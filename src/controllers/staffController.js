@@ -244,23 +244,52 @@ function generateStaffPassword(businessName) {
 
 
 async function getBusinessStaffSettings(businessId, branchId = null) {
-  const query = branchId 
-    ? `
-      SELECT * FROM business_staff_settings
-      WHERE business_id = $1 AND (branch_id = $2 OR branch_id IS NULL)
-      ORDER BY branch_id DESC
-      LIMIT 1
-    `
-    : `
-      SELECT * FROM business_staff_settings
-      WHERE business_id = $1
-      ORDER BY branch_id DESC
-      LIMIT 1
-    `;
+  let result;
 
-  const params = branchId ? [businessId, branchId] : [businessId];
-  const result = await pool.query(query, params);
-  return result.rows[0];
+  if (branchId) {
+
+    result = await pool.query(
+      `SELECT * 
+       FROM business_staff_settings 
+       WHERE business_id = $1 AND branch_id = $2 
+       LIMIT 1`,
+      [businessId, branchId]
+    );
+
+    
+    if (result.rows.length === 0) {
+      result = await pool.query(
+        `SELECT * 
+         FROM business_staff_settings 
+         WHERE business_id = $1 AND branch_id IS NULL 
+         LIMIT 1`,
+        [businessId]
+      );
+    }
+  } else {
+  
+    result = await pool.query(
+      `SELECT * 
+       FROM business_staff_settings 
+       WHERE business_id = $1 AND branch_id IS NULL 
+       LIMIT 1`,
+      [businessId]
+    );
+
+
+    if (result.rows.length === 0) {
+      result = await pool.query(
+        `SELECT * 
+         FROM business_staff_settings 
+         WHERE business_id = $1 
+         ORDER BY branch_id DESC 
+         LIMIT 1`,
+        [businessId]
+      );
+    }
+  }
+
+  return result.rows[0] || null;
 }
 
 
@@ -844,7 +873,31 @@ exports.getStaffLoginHistory = async (req, res) => {
 
 exports.listStaff = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM staff');
+    const { business_id, branch_id } = req.query;
+    let query = 'SELECT * FROM staff';
+    const params = [];
+    const conditions = [];
+
+    if (business_id) {
+      params.push(business_id);
+      conditions.push(`business_id = $${params.length}`);
+    } else {
+      return res.status(400).json({ message: 'business_id is required.' });
+    }
+
+    if (branch_id) {
+      params.push(branch_id);
+      conditions.push(`branch_id = $${params.length}`);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    const result = await pool.query(query, params);
+
     return res.status(200).json({ staff: result.rows });
   } catch (err) {
     console.error(err);
