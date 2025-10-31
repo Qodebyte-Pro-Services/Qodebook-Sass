@@ -48,125 +48,58 @@ async function sendNotificationEmail(to, subject, message) {
 }
 
 
-async function sendStaffPasswordEmail(to, password, businessName, staffName = null) {
+async function sendStaffPasswordEmail(to, password, businessName, staffName = null, loginUrl) {
   const subject = `Your Staff Login Credentials - ${businessName}`;
   const greeting = staffName ? `Hello ${staffName},` : 'Hello,';
-  
-  const message = `
-    ${greeting}
-    
-    Welcome to ${businessName}!
-    
-    Your staff account has been created successfully.
-    
-    Your login credentials:
-    Email: ${to}
-    Password: ${password}
-    
-    Please change your password after your first login for security.
-    
-    If you have any questions, please contact your administrator.
-    
-    Best regards,
-    ${businessName} Team
-  `;
 
   const htmlMessage = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #333;">Welcome to ${businessName}!</h2>
+      <h2>Welcome to ${businessName}!</h2>
       <p>${greeting}</p>
       <p>Your staff account has been created successfully.</p>
-      
-      <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-        <h3 style="margin-top: 0;">Your Login Credentials:</h3>
+      <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px;">
+        <h3>Your Login Details:</h3>
         <p><strong>Email:</strong> ${to}</p>
         <p><strong>Password:</strong> ${password}</p>
+        <p><strong>Login URL:</strong> <a href="${loginUrl}" target="_blank">${loginUrl}</a></p>
       </div>
-      
-      <p><strong>Important:</strong> Please change your password after your first login for security.</p>
-      
-      <p>If you have any questions, please contact your administrator.</p>
-      
-      <hr style="margin: 30px 0;">
-      <p style="color: #666; font-size: 14px;">
-        Best regards,<br>
-        ${businessName} Team
-      </p>
+      <p><strong>Important:</strong> Change your password after your first login for security.</p>
+      <p>Best regards,<br>${businessName} Team</p>
     </div>
   `;
 
-  const mailOptions = {
+  return transporter.sendMail({
     from: process.env.EMAIL_USER,
     to,
     subject,
-    text: message,
     html: htmlMessage
-  };
-  
-  return transporter.sendMail(mailOptions);
+  });
 }
 
-async function sendOwnerPasswordNotification(to, staffName, password, businessName) {
+  async function sendOwnerPasswordNotification(to, staffName, password, businessName, loginUrl) {
   const subject = `New Staff Password - ${businessName}`;
-  
-  const message = `
-    Hello,
-    
-    A new staff member has been created for your business "${businessName}".
-    
-    Staff Details:
-    Name: ${staffName}
-    Password: ${password}
-    
-    Please share this password with the staff member securely.
-    They should change their password after their first login.
-    
-    For security reasons, please:
-    1. Share this password in person or through a secure channel
-    2. Ask the staff member to change their password immediately after login
-    3. Delete this email after sharing the password
-    
-    Best regards,
-    Qodebook SaaS Team
-  `;
 
   const htmlMessage = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #333;">New Staff Member Created</h2>
+      <h2>New Staff Created</h2>
       <p>Hello,</p>
-      
-      <p>A new staff member has been created for your business <strong>"${businessName}"</strong>.</p>
-      
-      <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-        <h3 style="margin-top: 0;">Staff Details:</h3>
-        <p><strong>Name:</strong> ${staffName}</p>
+      <p>A new staff member has been created for your business <strong>${businessName}</strong>.</p>
+      <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px;">
+        <p><strong>Staff Name:</strong> ${staffName}</p>
         <p><strong>Password:</strong> ${password}</p>
+        <p><strong>Login URL:</strong> <a href="${loginUrl}" target="_blank">${loginUrl}</a></p>
       </div>
-      
-      <p><strong>For security reasons, please:</strong></p>
-      <ol>
-        <li>Share this password in person or through a secure channel</li>
-        <li>Ask the staff member to change their password immediately after login</li>
-        <li>Delete this email after sharing the password</li>
-      </ol>
-      
-      <hr style="margin: 30px 0;">
-      <p style="color: #666; font-size: 14px;">
-        Best regards,<br>
-        Qodebook SaaS Team
-      </p>
+      <p>Share these credentials securely and ask the staff to change their password after first login.</p>
+      <p>Best regards,<br>Qodebook SaaS Team</p>
     </div>
   `;
 
-  const mailOptions = {
+  return transporter.sendMail({
     from: process.env.EMAIL_USER,
     to,
     subject,
-    text: message,
     html: htmlMessage
-  };
-  
-  return transporter.sendMail(mailOptions);
+  });
 }
 
 async function sendPasswordChangeNotification(to, businessName, staffName = null) {

@@ -295,121 +295,134 @@ async function getBusinessStaffSettings(businessId, branchId = null) {
 }
 
 
-async function sendPasswordToStaff(staffEmail, staffPhone, password, businessName, staffName = null) {
+async function sendPasswordToStaff(staffEmail, staffPhone, password, businessName, staffName = null, loginUrl) {
   try {
     if (staffEmail) {
-      await sendStaffPasswordEmail(staffEmail, password, businessName, staffName);
+      await sendStaffPasswordEmail(staffEmail, password, businessName, staffName, loginUrl);
       console.log(`Password email sent to staff: ${staffEmail}`);
     }
-    
-  
+
     if (staffPhone) {
-      console.log(`Password should be sent via SMS to: ${staffPhone}`);
-    
+      console.log(`Password SMS should be sent to: ${staffPhone}`);
     }
   } catch (error) {
     console.error('Error sending password email to staff:', error);
- 
   }
 }
 
 
-async function sendPasswordToOwner(ownerEmail, staffName, password, businessName) {
+async function sendPasswordToOwner(ownerEmail, staffName, password, businessName, loginUrl) {
   try {
-    await sendOwnerPasswordNotification(ownerEmail, staffName, password, businessName);
+    await sendOwnerPasswordNotification(ownerEmail, staffName, password, businessName, loginUrl);
     console.log(`Password email sent to owner: ${ownerEmail}`);
   } catch (error) {
     console.error('Error sending password email to owner:', error);
-    
   }
 }
 
 
-exports.createStaff = async (req, res) => {
+  exports.createStaff = async (req, res) => {
   try {
- const {
+    const {
       staff_id, business_id, branch_id, full_name, contact_no, email,
       address, position_name, assigned_position, gender,
       staff_status, date_of_birth, state_of_origin, emergency_contact,
       employment_type, start_date, salary, bank_account_number, bank_name,
       national_id, guarantor_name, guarantor_contact, guarantor_relationship,
       guarantor_address, payment_status, last_payment_date,
-      staff_status_change_reason
+      staff_status_change_reason, baseUrl
     } = req.body;
-
 
     if (!staff_id || !business_id || !branch_id || !full_name || !contact_no || !email || !gender || !staff_status || !payment_status) {
       return res.status(400).json({ message: 'Missing required fields.' });
     }
 
-   
-   const businessResult = await pool.query('SELECT business_name FROM businesses WHERE id = $1', [business_id]);
-if (businessResult.rows.length === 0) {
-  return res.status(404).json({ message: 'Business not found.' });
-}
-const businessName = businessResult.rows[0].business_name;
+    if (!baseUrl) {
+       return res.status(400).json({ message: 'Missing base URL.' });
+    }
 
+  
+    const existingStaff = await pool.query(
+      `SELECT staff_id FROM staff WHERE email = $1 AND business_id = $2`,
+      [email, business_id]
+    );
+    if (existingStaff.rows.length > 0) {
+      return res.status(409).json({ message: 'A staff member with this email already exists for this business.' });
+    }
 
+ 
+    const businessResult = await pool.query(
+      'SELECT business_name FROM businesses WHERE id = $1',
+      [business_id]
+    );
+    if (businessResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Business not found.' });
+    }
+    const businessName = businessResult.rows[0].business_name;
+
+    
     const password = generateStaffPassword(businessName);
     const passwordHash = await bcrypt.hash(password, 10);
 
-   
+  
     const settings = await getBusinessStaffSettings(business_id, branch_id);
     if (!settings) {
       return res.status(500).json({ message: 'Business staff settings not found.' });
     }
 
-
+   
     let photoUrl = null;
     let documentUrls = [];
-
-        if (req.files?.photo && req.files.photo[0]) {
+    if (req.files?.photo?.[0]) {
       const uploadedPhoto = await uploadToCloudinary(req.files.photo[0].buffer, req.files.photo[0].originalname);
       photoUrl = uploadedPhoto.secure_url;
     }
-
-    if (req.files?.documents && req.files.documents.length > 0) {
+    if (req.files?.documents?.length > 0) {
       const uploadedDocs = await uploadFilesToCloudinary(req.files.documents);
       documentUrls = uploadedDocs.map(doc => doc.secure_url);
     }
 
-const result = await pool.query(`
-  INSERT INTO staff (
-    staff_id, business_id, branch_id, full_name, contact_no, email,
-    address, document, position_name, assigned_position, gender,
-    staff_status, date_of_birth, state_of_origin, emergency_contact,
-    employment_type, start_date, salary, bank_account_number, bank_name,
-    national_id, guarantor_name, guarantor_contact, guarantor_relationship,
-    guarantor_address, photo, payment_status, last_payment_date,
-    staff_status_change_reason, password_hash, password_changed_at
-  )
-  VALUES (
-    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-    $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
-    $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31
-  )
-  RETURNING *;
-`, [
-  staff_id, business_id, branch_id, full_name, contact_no, email,
-  address, documentUrls, position_name, assigned_position, gender,
-  staff_status, date_of_birth, state_of_origin, emergency_contact,
-  employment_type, start_date, salary, bank_account_number, bank_name,
-  national_id, guarantor_name, guarantor_contact, guarantor_relationship,
-  guarantor_address, photoUrl, payment_status, last_payment_date,
-  staff_status_change_reason, passwordHash, new Date()
-]);
+
+    const result = await pool.query(`
+      INSERT INTO staff (
+        staff_id, business_id, branch_id, full_name, contact_no, email,
+        address, document, position_name, assigned_position, gender,
+        staff_status, date_of_birth, state_of_origin, emergency_contact,
+        employment_type, start_date, salary, bank_account_number, bank_name,
+        national_id, guarantor_name, guarantor_contact, guarantor_relationship,
+        guarantor_address, photo, payment_status, last_payment_date,
+        staff_status_change_reason, password_hash, password_changed_at
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+        $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
+        $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31
+      )
+      RETURNING *;
+    `, [
+      staff_id, business_id, branch_id, full_name, contact_no, email,
+      address, documentUrls, position_name, assigned_position, gender,
+      staff_status, date_of_birth, state_of_origin, emergency_contact,
+      employment_type, start_date, salary, bank_account_number, bank_name,
+      national_id, guarantor_name, guarantor_contact, guarantor_relationship,
+      guarantor_address, photoUrl, payment_status, last_payment_date,
+      staff_status_change_reason, passwordHash, new Date()
+    ]);
 
     const staff = result.rows[0];
 
     
+    
+    const loginUrl = `${baseUrl.replace(/\/$/, '')}/staff/login/${business_id}`;
+
+  
     if (settings.password_delivery_method === 'staff') {
-      await sendPasswordToStaff(email, contact_no, password, businessName, full_name);
+      await sendPasswordToStaff(email, contact_no, password, businessName, full_name, loginUrl);
     } else {
-     
       const ownerResult = await pool.query('SELECT email FROM users WHERE business_id = $1 LIMIT 1', [business_id]);
       const ownerEmail = ownerResult.rows[0]?.email;
       if (ownerEmail) {
-        await sendPasswordToOwner(ownerEmail, full_name, password, businessName);
+        await sendPasswordToOwner(ownerEmail, full_name, password, businessName, loginUrl);
       }
     }
 
@@ -419,8 +432,9 @@ const result = await pool.query(`
       VALUES ($1, $2, 'initial', $3, NOW())
     `, [staff_id, business_id, req.user?.user_id || null]);
 
-    return res.status(201).json({ 
-      staff: { ...staff, password_hash: undefined }, // Don't send password hash
+   
+    return res.status(201).json({
+      staff: { ...staff, password_hash: undefined },
       password: settings.password_delivery_method === 'owner' ? password : undefined,
       message: `Staff created successfully. Password ${settings.password_delivery_method === 'staff' ? 'sent to staff' : 'sent to owner'}.`
     });
@@ -440,7 +454,7 @@ exports.staffLogin = async (req, res) => {
       return res.status(400).json({ message: 'Email, password, and business_id are required.' });
     }
 
-    // Step 1: Fetch staff
+ 
     const staffResult = await pool.query(`
       SELECT s.*, r.permissions 
       FROM staff s 
@@ -454,7 +468,7 @@ exports.staffLogin = async (req, res) => {
 
     const staff = staffResult.rows[0];
 
-    // Step 2: Verify password
+   
     const isValidPassword = await bcrypt.compare(password, staff.password_hash);
     if (!isValidPassword) {
       await pool.query(`
@@ -465,20 +479,20 @@ exports.staffLogin = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
 
-    // Step 3: Fetch business settings
+
     const settings = await getBusinessStaffSettings(business_id, staff.branch_id);
 
-    // Step 4: If OTP required, generate OTP and stop here
+   
     if (settings?.require_otp_for_login) {
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min expiry
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); 
 
       await pool.query(`
         INSERT INTO staff_otps (staff_id, business_id, otp_code, purpose, expires_at)
         VALUES ($1, $2, $3, 'login', $4)
       `, [staff.staff_id, business_id, otp, expiresAt]);
 
-      // send OTP depending on delivery method
+    
       if (settings.otp_delivery_method === 'staff') {
         await sendStaffOtpEmail(staff.email, otp, staff.full_name);
       } else {
@@ -496,7 +510,7 @@ exports.staffLogin = async (req, res) => {
       });
     }
 
-    // Step 5: Otherwise (no OTP required), generate token and log login
+
     const token = jwt.sign({
       staff_id: staff.staff_id,
       business_id: staff.business_id,
@@ -554,7 +568,7 @@ exports.verifyStaffOtp = async (req, res) => {
 
     await pool.query(`UPDATE staff_otps SET used = TRUE WHERE id = $1`, [otpResult.rows[0].id]);
 
-    // Fetch staff for token generation
+  
     const staffResult = await pool.query(
       `SELECT s.*, r.permissions 
        FROM staff s 
@@ -604,7 +618,7 @@ exports.resendStaffOtp = async (req, res) => {
       return res.status(400).json({ message: 'staff_id and business_id are required.' });
     }
 
-    // Step 1: Fetch staff
+    
     const staffResult = await pool.query(`
       SELECT s.*, b.business_name 
       FROM staff s 
@@ -618,28 +632,28 @@ exports.resendStaffOtp = async (req, res) => {
 
     const staff = staffResult.rows[0];
 
-    // Step 2: Fetch business settings
+   
     const settings = await getBusinessStaffSettings(business_id, staff.branch_id);
     if (!settings?.require_otp_for_login) {
       return res.status(400).json({ message: 'OTP login is not required for this business.' });
     }
 
-    // Step 3: Invalidate previous unused OTPs for same purpose
+   
     await pool.query(`
       UPDATE staff_otps SET used = TRUE 
       WHERE staff_id = $1 AND business_id = $2 AND purpose = $3 AND used = FALSE
     `, [staff_id, business_id, purpose]);
 
-    // Step 4: Generate new OTP
+   
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min expiry
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); 
 
     await pool.query(`
       INSERT INTO staff_otps (staff_id, business_id, otp_code, purpose, expires_at)
       VALUES ($1, $2, $3, $4, $5)
     `, [staff_id, business_id, otp, purpose, expiresAt]);
 
-    // Step 5: Send OTP depending on delivery method
+    
     if (settings.otp_delivery_method === 'staff') {
       await sendStaffOtpEmail(staff.email, otp, staff.full_name);
     } else {
