@@ -1178,6 +1178,7 @@ router.delete('/:id', ...requirePermission(STAFF_PERMISSIONS.DELETE_STAFF), staf
 router.get('/business/:id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF), staffController.getStaffByBusiness);
 
 // Staff Authentication Routes
+
 /**
  * @swagger
  * /api/staff/login:
@@ -1185,16 +1186,15 @@ router.get('/business/:id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF), 
  *     summary: Staff login with business-specific authentication
  *     description: |
  *       Allows staff members to log into the system using their email, password, and business ID.
- *       This endpoint validates staff credentials against the specific business they belong to.
- *       Successful login returns a JWT token with staff permissions and business context.
+ *       Depending on business settings, login may require OTP verification before issuing a token.
  *       
  *       **Business Logic:**
  *       - Validates staff exists for the specified business
- *       - Checks if staff account is active (not suspended/terminated)
- *       - Verifies password using bcrypt
- *       - Generates JWT with staff details and permissions
- *       - Logs login attempt (success/failure) for audit purposes
- *       - Returns staff profile with role permissions
+ *       - Checks if staff account is active
+ *       - Verifies password with bcrypt
+ *       - Checks if OTP is required for login
+ *       - If OTP required → generates OTP, sends to staff or business owner
+ *       - If not → generates JWT and logs login
  *     tags: [StaffAuth]
  *     requestBody:
  *       required: true
@@ -1209,27 +1209,73 @@ router.get('/business/:id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF), 
  *             properties:
  *               email:
  *                 type: string
- *                 format: email
- *                 description: Staff email address (must be registered for the business)
  *                 example: "john.doe@business.com"
  *               password:
  *                 type: string
- *                 description: Staff password (generated during staff creation)
  *                 example: "MyBusiness123"
  *               business_id:
  *                 type: integer
- *                 description: ID of the business the staff belongs to
  *                 example: 1
- *           examples:
- *             valid_login:
- *               summary: Valid staff login
- *               value:
- *                 email: "john.doe@business.com"
- *                 password: "MyBusiness123"
- *                 business_id: 1
  *     responses:
  *       200:
- *         description: Login successful - returns JWT token and staff profile
+ *         description: Login successful or OTP required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               oneOf:
+ *                 - type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                       example: "Login successful"
+ *                     requiresOtp:
+ *                       type: boolean
+ *                       example: false
+ *                     token:
+ *                       type: string
+ *                       example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *                     staff:
+ *                       type: object
+ *                       properties:
+ *                         staff_id:
+ *                           type: string
+ *                           example: "STF001"
+ *                         full_name:
+ *                           type: string
+ *                           example: "John Doe"
+ *                         email:
+ *                           type: string
+ *                           example: "john.doe@business.com"
+ *                         role:
+ *                           type: string
+ *                           example: "Sales Manager"
+ *                         permissions:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                           example: ["view_dashboard", "manage_sales"]
+ *                         business_id:
+ *                           type: integer
+ *                           example: 1
+ *                         branch_id:
+ *                           type: integer
+ *                           example: 2
+ *                 - type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                       example: "OTP sent via staff. Please verify to complete login."
+ *                     requiresOtp:
+ *                       type: boolean
+ *                       example: true
+ *                     staff_id:
+ *                       type: string
+ *                       example: "STF001"
+ *                     business_id:
+ *                       type: integer
+ *                       example: 1
+ *       401:
+ *         description: Invalid credentials or inactive staff
  *         content:
  *           application/json:
  *             schema:
@@ -1237,7 +1283,77 @@ router.get('/business/:id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF), 
  *               properties:
  *                 message:
  *                   type: string
- *                   example: "Login successful"
+ *                   example: "Invalid credentials or inactive staff."
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Server error."
+ */
+router.post('/login', staffController.staffLogin);
+
+
+/**
+ * @swagger
+ * /api/staff/verify-otp:
+ *   post:
+ *     summary: Verify staff OTP for login completion
+ *     description: |
+ *       This endpoint verifies a one-time password (OTP) that was sent to a staff member during login.
+ *       Upon successful verification, it marks the OTP as used, generates a JWT session token, and returns
+ *       the authenticated staff’s profile and permissions.
+ *       
+ *       **Business Logic:**
+ *       - Validates that OTP, staff_id, business_id, and purpose are provided
+ *       - Checks if OTP is valid, unexpired, and unused
+ *       - Marks OTP as used after successful verification
+ *       - Retrieves staff details and permissions
+ *       - Generates JWT with staff’s business and role context
+ *     tags: [StaffAuth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - staff_id
+ *               - business_id
+ *               - otp
+ *               - purpose
+ *             properties:
+ *               staff_id:
+ *                 type: string
+ *                 description: Unique staff identifier
+ *                 example: "STF001"
+ *               business_id:
+ *                 type: integer
+ *                 description: Business the staff belongs to
+ *                 example: 1
+ *               otp:
+ *                 type: string
+ *                 description: 6-digit OTP sent during login
+ *                 example: "345678"
+ *               purpose:
+ *                 type: string
+ *                 description: Purpose of the OTP (e.g. login, password_reset)
+ *                 example: "login"
+ *     responses:
+ *       200:
+ *         description: OTP verified successfully, returns JWT and staff details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "OTP verified. Login successful."
  *                 token:
  *                   type: string
  *                   description: JWT token for authenticated requests
@@ -1259,20 +1375,17 @@ router.get('/business/:id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF), 
  *                       example: 1
  *                     branch_id:
  *                       type: integer
- *                       example: 1
- *                     role_id:
- *                       type: integer
  *                       example: 2
+ *                     role:
+ *                       type: string
+ *                       example: "Sales Manager"
  *                     permissions:
  *                       type: array
  *                       items:
  *                         type: string
- *                       example: ["view_products", "create_sales", "view_reports"]
- *                     staff_status:
- *                       type: string
- *                       example: "on_job"
- *       401:
- *         description: Authentication failed
+ *                       example: ["view_dashboard", "manage_sales"]
+ *       400:
+ *         description: Invalid or expired OTP
  *         content:
  *           application/json:
  *             schema:
@@ -1280,17 +1393,7 @@ router.get('/business/:id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF), 
  *               properties:
  *                 message:
  *                   type: string
- *                   example: "Invalid credentials or staff not found"
- *       403:
- *         description: Staff account suspended or terminated
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Staff account is suspended"
+ *                   example: "Invalid or expired OTP."
  *       500:
  *         description: Server error
  *         content:
@@ -1300,9 +1403,98 @@ router.get('/business/:id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF), 
  *               properties:
  *                 message:
  *                   type: string
- *                   example: "Server error"
+ *                   example: "Server error."
  */
-router.post('/login', staffController.staffLogin);
+router.post('/verify-otp', staffController.verifyStaffOtp);
+
+
+
+/**
+ * @swagger
+ * /api/staff/resend-otp:
+ *   post:
+ *     summary: Resend OTP to staff for login verification
+ *     description: |
+ *       Resends a new one-time password (OTP) for a staff member who has not yet verified their login.
+ *       Invalidates any previous unused OTPs for the same purpose and generates a fresh OTP
+ *       according to the business’s OTP delivery settings (either to the staff’s email or the business owner’s email).
+ *       
+ *       **Business Logic:**
+ *       - Validates that staff exists and is active under the given business
+ *       - Checks if OTP login is enabled in the business settings
+ *       - Invalidates existing OTPs for that staff and purpose
+ *       - Generates a new OTP with a 10-minute expiry
+ *       - Sends OTP via the configured delivery method
+ *     tags: [StaffAuth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - staff_id
+ *               - business_id
+ *             properties:
+ *               staff_id:
+ *                 type: string
+ *                 description: Unique staff identifier
+ *                 example: "STF001"
+ *               business_id:
+ *                 type: integer
+ *                 description: Business the staff belongs to
+ *                 example: 1
+ *               purpose:
+ *                 type: string
+ *                 description: Purpose of the OTP (default is "login")
+ *                 example: "login"
+ *     responses:
+ *       200:
+ *         description: OTP resent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "A new OTP has been sent via staff."
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *       400:
+ *         description: Missing fields or OTP not required for this business
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "OTP login is not required for this business."
+ *       404:
+ *         description: Staff not found or inactive
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Staff not found or inactive."
+ *       500:
+ *         description: Server error while resending OTP
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Server error while resending OTP."
+ */
+router.post('/resend-otp', staffController.resendStaffOtp);
+
 
 /**
  * @swagger

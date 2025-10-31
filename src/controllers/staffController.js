@@ -8,7 +8,9 @@ const {
   sendStaffPasswordEmail, 
   sendOwnerPasswordNotification,
   sendPasswordChangeNotification,
-  sendPasswordChangeRequestNotification
+  sendPasswordChangeRequestNotification,
+  sendOwnerOtpNotification,
+  sendStaffOtpEmail
 } = require('../services/emailService');
 const { error } = require('console');
 const { uploadFilesToCloudinary, uploadToCloudinary } = require('../utils/uploadToCloudinary');
@@ -438,7 +440,7 @@ exports.staffLogin = async (req, res) => {
       return res.status(400).json({ message: 'Email, password, and business_id are required.' });
     }
 
-    
+    // Step 1: Fetch staff
     const staffResult = await pool.query(`
       SELECT s.*, r.permissions 
       FROM staff s 
@@ -452,10 +454,9 @@ exports.staffLogin = async (req, res) => {
 
     const staff = staffResult.rows[0];
 
-
+    // Step 2: Verify password
     const isValidPassword = await bcrypt.compare(password, staff.password_hash);
     if (!isValidPassword) {
-     
       await pool.query(`
         INSERT INTO staff_login_logs (staff_id, business_id, success, failure_reason, ip_address, user_agent)
         VALUES ($1, $2, false, 'Invalid password', $3, $4)
@@ -464,10 +465,38 @@ exports.staffLogin = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
 
-
+    // Step 3: Fetch business settings
     const settings = await getBusinessStaffSettings(business_id, staff.branch_id);
 
-   
+    // Step 4: If OTP required, generate OTP and stop here
+    if (settings?.require_otp_for_login) {
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min expiry
+
+      await pool.query(`
+        INSERT INTO staff_otps (staff_id, business_id, otp_code, purpose, expires_at)
+        VALUES ($1, $2, $3, 'login', $4)
+      `, [staff.staff_id, business_id, otp, expiresAt]);
+
+      // send OTP depending on delivery method
+      if (settings.otp_delivery_method === 'staff') {
+        await sendStaffOtpEmail(staff.email, otp, staff.full_name);
+      } else {
+        const ownerResult = await pool.query(`SELECT owner_email, business_name FROM businesses WHERE id = $1`, [business_id]);
+        if (ownerResult.rows.length > 0) {
+          await sendOwnerOtpNotification(ownerResult.rows[0].owner_email, otp, ownerResult.rows[0].business_name);
+        }
+      }
+
+      return res.status(200).json({
+        message: `OTP sent via ${settings.otp_delivery_method}. Please verify to complete login.`,
+        requiresOtp: true,
+        staff_id: staff.staff_id,
+        business_id,
+      });
+    }
+
+    // Step 5: Otherwise (no OTP required), generate token and log login
     const token = jwt.sign({
       staff_id: staff.staff_id,
       business_id: staff.business_id,
@@ -479,7 +508,6 @@ exports.staffLogin = async (req, res) => {
       isStaff: true
     }, process.env.JWT_SECRET, { expiresIn: `${settings?.session_timeout_minutes || 480}m` });
 
-   
     const sessionId = crypto.randomBytes(32).toString('hex');
     await pool.query(`
       INSERT INTO staff_login_logs (staff_id, business_id, success, ip_address, user_agent, session_id)
@@ -488,6 +516,7 @@ exports.staffLogin = async (req, res) => {
 
     return res.status(200).json({
       message: 'Login successful',
+      requiresOtp: false,
       token,
       staff: {
         staff_id: staff.staff_id,
@@ -505,6 +534,137 @@ exports.staffLogin = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 };
+
+exports.verifyStaffOtp = async (req, res) => {
+  try {
+    const { staff_id, business_id, otp, purpose } = req.body;
+    if (!staff_id || !business_id || !otp || !purpose)
+      return res.status(400).json({ message: 'All fields are required.' });
+
+    const otpResult = await pool.query(
+      `SELECT * FROM staff_otps 
+       WHERE staff_id = $1 AND business_id = $2 
+       AND otp_code = $3 AND purpose = $4 
+       AND used = FALSE AND expires_at > NOW()`,
+      [staff_id, business_id, otp, purpose]
+    );
+
+    if (otpResult.rows.length === 0)
+      return res.status(400).json({ message: 'Invalid or expired OTP.' });
+
+    await pool.query(`UPDATE staff_otps SET used = TRUE WHERE id = $1`, [otpResult.rows[0].id]);
+
+    // Fetch staff for token generation
+    const staffResult = await pool.query(
+      `SELECT s.*, r.permissions 
+       FROM staff s 
+       LEFT JOIN staff_roles r ON s.assigned_position = r.role_id 
+       WHERE s.staff_id = $1`, [staff_id]
+    );
+
+    const staff = staffResult.rows[0];
+    const settings = await getBusinessStaffSettings(business_id, staff.branch_id);
+
+    const token = jwt.sign({
+      staff_id: staff.staff_id,
+      business_id: staff.business_id,
+      branch_id: staff.branch_id,
+      email: staff.email,
+      full_name: staff.full_name,
+      role: staff.assigned_position,
+      permissions: staff.permissions,
+      isStaff: true
+    }, process.env.JWT_SECRET, { expiresIn: `${settings?.session_timeout_minutes || 480}m` });
+
+    return res.status(200).json({
+      message: 'OTP verified. Login successful.',
+      token,
+      staff: {
+        staff_id: staff.staff_id,
+        full_name: staff.full_name,
+        email: staff.email,
+        role: staff.assigned_position,
+        permissions: staff.permissions,
+        business_id: staff.business_id,
+        branch_id: staff.branch_id
+      }
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+exports.resendStaffOtp = async (req, res) => {
+  try {
+    const { staff_id, business_id, purpose = 'login' } = req.body;
+
+    if (!staff_id || !business_id) {
+      return res.status(400).json({ message: 'staff_id and business_id are required.' });
+    }
+
+    // Step 1: Fetch staff
+    const staffResult = await pool.query(`
+      SELECT s.*, b.business_name 
+      FROM staff s 
+      JOIN businesses b ON s.business_id = b.id
+      WHERE s.staff_id = $1 AND s.business_id = $2 AND s.staff_status = 'active'
+    `, [staff_id, business_id]);
+
+    if (staffResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Staff not found or inactive.' });
+    }
+
+    const staff = staffResult.rows[0];
+
+    // Step 2: Fetch business settings
+    const settings = await getBusinessStaffSettings(business_id, staff.branch_id);
+    if (!settings?.require_otp_for_login) {
+      return res.status(400).json({ message: 'OTP login is not required for this business.' });
+    }
+
+    // Step 3: Invalidate previous unused OTPs for same purpose
+    await pool.query(`
+      UPDATE staff_otps SET used = TRUE 
+      WHERE staff_id = $1 AND business_id = $2 AND purpose = $3 AND used = FALSE
+    `, [staff_id, business_id, purpose]);
+
+    // Step 4: Generate new OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min expiry
+
+    await pool.query(`
+      INSERT INTO staff_otps (staff_id, business_id, otp_code, purpose, expires_at)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [staff_id, business_id, otp, purpose, expiresAt]);
+
+    // Step 5: Send OTP depending on delivery method
+    if (settings.otp_delivery_method === 'staff') {
+      await sendStaffOtpEmail(staff.email, otp, staff.full_name);
+    } else {
+      const ownerResult = await pool.query(`
+        SELECT owner_email, business_name 
+        FROM businesses WHERE id = $1
+      `, [business_id]);
+      if (ownerResult.rows.length > 0) {
+        await sendOwnerOtpNotification(ownerResult.rows[0].owner_email, otp, ownerResult.rows[0].business_name);
+      }
+    }
+
+    return res.status(200).json({
+      message: `A new OTP has been sent via ${settings.otp_delivery_method}.`,
+      success: true
+    });
+
+  } catch (err) {
+    console.error('Error resending OTP:', err);
+    return res.status(500).json({ message: 'Server error while resending OTP.' });
+  }
+};
+
+
+
 
 
 exports.requestPasswordChange = async (req, res) => {

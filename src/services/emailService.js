@@ -258,6 +258,85 @@ async function sendPasswordChangeRequestNotification(to, staffName, businessName
   return transporter.sendMail(mailOptions);
 }
 
+async function sendStaffOtpEmail(to, otp, staffName = null) {
+  const subject = `Your OTP Code - ${staffName ? staffName : 'Staff Member'}`;
+  const message = `
+    Hello ${staffName ? staffName : 'Staff Member'},
+    
+    Your OTP code is: ${otp}
+    
+    Please use this code to complete your verification.
+    
+    Best regards,
+    Qodebook SaaS Team
+  `;
+
+  const htmlMessage = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #333;">Your OTP Code</h2>
+      <p>Hello ${staffName ? staffName : 'Staff Member'},</p>
+      
+      <p>Your OTP code is: <strong>${otp}</strong></p>
+      
+      <p>Please use this code to complete your verification.</p>
+      
+      <hr style="margin: 30px 0;">
+      <p style="color: #666; font-size: 14px;">
+        Best regards,<br>
+        Qodebook SaaS Team
+      </p>
+    </div>
+  `;
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to,
+    subject,
+    text: message,
+    html: htmlMessage
+  };
+  
+  return transporter.sendMail(mailOptions);
+}
+
+
+async function sendOwnerOtpNotification(to, otp, businessName) {
+  const subject = `New Staff OTP - ${businessName}`;
+  
+  const message = `
+    Hello,
+    A new staff member has requested an OTP for your business "${businessName}".
+    Staff OTP: ${otp}
+    Please share this OTP with the staff member securely.
+    Best regards,
+    Qodebook SaaS Team
+  `;
+  const htmlMessage = ` 
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #333;">New Staff OTP Requested</h2>
+      <p>Hello,</p>
+      <p>A new staff member has requested an OTP for your business <strong>"${businessName}"</strong>.</p>
+      <p>Staff OTP: <strong>${otp}</strong></p>
+      <p>Please share this OTP with the staff member securely.</p>
+      <hr style="margin: 30px 0;">
+      <p style="color: #666; font-size: 14px;">
+        Best regards,<br>
+        Qodebook SaaS Team
+      </p>
+    </div>
+  `;
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to,
+    subject,
+    text: message,
+    html: htmlMessage
+  };
+
+  return transporter.sendMail(mailOptions);
+}
+
 module.exports = { 
   sendOtpEmail, 
   sendBusinessCreatedEmail, 
@@ -265,5 +344,7 @@ module.exports = {
   sendStaffPasswordEmail,
   sendOwnerPasswordNotification,
   sendPasswordChangeNotification,
-  sendPasswordChangeRequestNotification
+  sendPasswordChangeRequestNotification,
+  sendStaffOtpEmail,
+  sendOwnerOtpNotification
 };
