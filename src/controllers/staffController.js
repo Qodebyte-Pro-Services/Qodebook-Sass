@@ -401,7 +401,7 @@ async function sendPasswordToOwner(ownerEmail, staffName, password, businessName
       RETURNING *;
     `, [
       staff_id, business_id, branch_id, full_name, contact_no, email,
-      address, documentUrls, position_name, assigned_position, gender,
+      address, JSON.stringify(documentUrls), position_name, assigned_position, gender,
       staff_status, date_of_birth, state_of_origin, emergency_contact,
       employment_type, start_date, salary, bank_account_number, bank_name,
       national_id, guarantor_name, guarantor_contact, guarantor_relationship,
