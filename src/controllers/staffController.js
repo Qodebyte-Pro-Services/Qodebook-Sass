@@ -335,6 +335,14 @@ async function sendPasswordToOwner(ownerEmail, staffName, password, businessName
 
      const staff_id = req.body.staff_id || uuidv4();
 
+     const existingStaffById = await pool.query(
+  `SELECT staff_id FROM staff WHERE staff_id = $1`,
+  [staff_id]
+);
+if (existingStaffById.rows.length > 0) {
+  staff_id = uuidv4(); 
+}
+
     if (!staff_id || !business_id || !branch_id || !full_name || !contact_no || !email || !gender || !staff_status || !payment_status) {
       return res.status(400).json({ message: 'Missing required fields.' });
     }
