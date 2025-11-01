@@ -25,9 +25,17 @@ const uploadToCloudinary = async (fileBuffer, filename) => {
   const uniqueSuffix = uuidv4();
   const publicId = `${safeName}_${uniqueSuffix}`;
 
+   const extension = filename.split('.').pop().toLowerCase();
+  let resourceType = 'image';
+
+    const rawFileTypes = ['pdf', 'doc', 'docx', 'txt', 'csv', 'zip'];
+  if (rawFileTypes.includes(extension)) {
+    resourceType = 'raw';
+  }
+
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { resource_type: 'image', public_id: publicId, overwrite: false },
+      {   resource_type: resourceType, public_id: publicId, overwrite: false },
       (error, result) => {
         if (error) {
           return reject(new Error(`Cloudinary upload failed: ${error.message || error}`));
@@ -37,7 +45,8 @@ const uploadToCloudinary = async (fileBuffer, filename) => {
         }
         resolve({
           secure_url: result.secure_url,
-          public_id: result.public_id,
+          public_id: result.public_id, 
+           resource_type: resourceType,
         });
       }
     );
