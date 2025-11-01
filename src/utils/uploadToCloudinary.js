@@ -77,8 +77,31 @@ const uploadFilesToCloudinary = async (files) => {
   });
 };
 
+const ComplexDeleteFileFromCloudinary = async (publicId) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+    
+      let result = await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
+
+      
+      if (result.result === 'not found' || result.result === 'error') {
+        result = await cloudinary.uploader.destroy(publicId, { resource_type: 'raw' });
+      }
+
+      if (result.result !== 'ok' && result.result !== 'not found') {
+        return reject(new Error(`Unexpected Cloudinary delete result: ${result.result}`));
+      }
+
+      resolve(result);
+    } catch (error) {
+      reject(new Error(`Cloudinary delete failed: ${error.message || error}`));
+    }
+  });
+};
+
 module.exports = {
   uploadToCloudinary,
   uploadFilesToCloudinary,
-  deleteFileFromCloudinary
+  deleteFileFromCloudinary,
+  ComplexDeleteFileFromCloudinary,
 };
