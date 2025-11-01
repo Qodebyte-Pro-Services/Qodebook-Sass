@@ -324,7 +324,7 @@ async function sendPasswordToOwner(ownerEmail, staffName, password, businessName
   exports.createStaff = async (req, res) => {
   try {
     const {
-      staff_id, business_id, branch_id, full_name, contact_no, email,
+      business_id, branch_id, full_name, contact_no, email,
       address, position_name, assigned_position, gender,
       staff_status, date_of_birth, state_of_origin, emergency_contact,
       employment_type, start_date, salary, bank_account_number, bank_name,
@@ -332,6 +332,8 @@ async function sendPasswordToOwner(ownerEmail, staffName, password, businessName
       guarantor_address, payment_status, last_payment_date,
       staff_status_change_reason, baseUrl
     } = req.body;
+
+     const staff_id = req.body.staff_id || uuidv4();
 
     if (!staff_id || !business_id || !branch_id || !full_name || !contact_no || !email || !gender || !staff_status || !payment_status) {
       return res.status(400).json({ message: 'Missing required fields.' });
