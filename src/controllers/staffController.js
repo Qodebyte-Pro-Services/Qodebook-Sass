@@ -437,11 +437,15 @@ if (existingStaffById.rows.length > 0) {
     }
 
   
-    await pool.query(`
-      INSERT INTO staff_password_logs (staff_id, business_id, change_type, requested_by, changed_at)
-      VALUES ($1, $2, 'initial', $3, NOW())
-    `, [staff_id, business_id, req.user?.user_id || null]);
+    const requestedByUser = req.user?.user_id || null; 
+    const requestedByStaff = !req.user ? staff_id : null; 
 
+await pool.query(`
+  INSERT INTO staff_password_logs (
+    staff_id, business_id, change_type, requested_by_user, requested_by_staff, changed_at
+  )
+  VALUES ($1, $2, 'initial', $3, $4, NOW())
+`, [staff_id, business_id, requestedByUser, requestedByStaff]);
    
     return res.status(201).json({
       staff: { ...staff, password_hash: undefined },
@@ -752,11 +756,14 @@ exports.requestPasswordChange = async (req, res) => {
         console.error('Error sending password change notification:', emailError);
       }
 
+
+      const requestedByUser = req.user?.user_id || null;
+      const requestedByStaff = staff_id_of_requester || null;
   
       await pool.query(`
-        INSERT INTO staff_password_logs (staff_id, business_id, change_type, requested_by, changed_at, ip_address, user_agent)
-        VALUES ($1, $2, 'change', $3, NOW(), $4, $5)
-      `, [staff_id, business_id, staff_id, req.ip, req.get('User-Agent')]);
+        INSERT INTO staff_password_logs (staff_id, business_id, change_type, requested_by_user, requested_by_staff, changed_at, ip_address, user_agent)
+        VALUES ($1, $2, 'change', $3, $4, NOW(), $5, $6)
+      `, [staff_id, business_id, requestedByUser, requestedByStaff, req.ip, req.get('User-Agent')]);
 
       return res.status(200).json({ message: 'Password changed successfully.' });
     }
@@ -814,11 +821,14 @@ exports.approvePasswordChangeRequest = async (req, res) => {
       console.error('Error sending password change approval notification:', emailError);
     }
 
+
+    const requestedByUser = req.user?.user_id || null;
+      const requestedByStaff = staff_id_of_requester || null;
   
     await pool.query(`
-      INSERT INTO staff_password_logs (staff_id, business_id, change_type, requested_by, changed_at, ip_address, user_agent)
-      VALUES ($1, $2, 'change', $3, NOW(), $4, $5)
-    `, [staff_id, business_id, staff_id, req.ip, req.get('User-Agent')]);
+      INSERT INTO staff_password_logs (staff_id, business_id, change_type, requested_by_user, requested_by_staff, changed_at, ip_address, user_agent)
+      VALUES ($1, $2, 'change', $3, $4, NOW(), $5, $6)
+    `, [staff_id, business_id, requestedByUser, requestedByStaff, req.ip, req.get('User-Agent')]);
 
     return res.status(200).json({ message: 'Password change request approved and password changed.' });
 
