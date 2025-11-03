@@ -42,6 +42,7 @@ const uploadToCloudinary = async (fileBuffer, filename) => {
         resource_type: resourceType, 
         public_id: publicId, 
         type: 'upload',
+        access_mode: 'public', 
         use_filename: true,
         unique_filename: false,
         overwrite: false
@@ -59,11 +60,8 @@ const uploadToCloudinary = async (fileBuffer, filename) => {
           );
         }
 
-         const secureUrl =
-          resourceType === 'raw'
-            ? `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/raw/upload/${result.public_id}`
-            : result.secure_url;
-
+       const secureUrl = result.secure_url;
+        console.log(result.type);
         resolve({
           secure_url: secureUrl,
           public_id: result.public_id, 
