@@ -14,59 +14,60 @@ const {
 } = require('../services/emailService');
 const { error } = require('console');
 const { uploadFilesToCloudinary, uploadToCloudinary, deleteFileFromCloudinary, ComplexDeleteFileFromCloudinary } = require('../utils/uploadToCloudinary');
+const { logStaffAction } = require('../utils/staffAction');
 
 
-exports.createStaffAction = async (req, res) => {
-  try {
-    const { id, business_id, staff_id, action_type, action_value, reason, performed_by, performed_by_role } = req.body;
-    if (!id || !business_id || !staff_id || !action_type) return res.status(400).json({ message: 'Missing required fields.' });
-    const result = await pool.query('INSERT INTO staff_actions (id, business_id, staff_id, action_type, action_value, reason, performed_by, performed_by_role) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *', [id, business_id, staff_id, action_type, action_value, reason, performed_by, performed_by_role]);
-    return res.status(201).json({ staff_action: result.rows[0] });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
-  }
-};
 exports.listStaffActions = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM staff_actions');
-    return res.status(200).json({ staff_actions: result.rows });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
-  }
-};
-exports.updateStaffAction = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const fields = req.body;
-    let setParts = [];
-    let values = [];
-    let idx = 1;
-    for (const key in fields) {
-      setParts.push(`${key} = $${idx}`);
-      values.push(fields[key]);
-      idx++;
+    const { staff_id } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    if (!staff_id) {
+      return res.status(400).json({ message: 'staff_id is required.' });
     }
-    if (setParts.length === 0) return res.status(400).json({ message: 'No fields to update.' });
-    values.push(id);
-    const setClause = setParts.join(', ');
-    const query = `UPDATE staff_actions SET ${setClause} WHERE id = $${idx} RETURNING *`;
-    const result = await pool.query(query, values);
-    return res.status(200).json({ staff_action: result.rows[0] });
+
+
+    const countResult = await pool.query(
+      'SELECT COUNT(*) FROM staff_actions WHERE staff_id = $1',
+      [staff_id]
+    );
+    const totalItems = parseInt(countResult.rows[0].count, 10);
+    const totalPages = Math.ceil(totalItems / limit);
+
+
+    const result = await pool.query(
+      `SELECT * FROM staff_actions 
+       WHERE staff_id = $1 
+       ORDER BY created_at DESC 
+       LIMIT $2 OFFSET $3`,
+      [staff_id, limit, offset]
+    );
+
+    return res.status(200).json({
+      pagination: {
+        totalItems,
+        totalPages,
+        currentPage: page,
+        itemsPerPage: limit,
+      },
+      staff_actions: result.rows,
+    });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    console.error('Error listing staff actions:', err);
+    return res.status(500).json({ message: 'Server error while listing staff actions.' });
   }
 };
+
 exports.deleteStaffAction = async (req, res) => {
   try {
     const { id } = req.params;
     await pool.query('DELETE FROM staff_actions WHERE id = $1', [id]);
-    return res.status(200).json({ message: 'Staff action deleted.' });
+    return res.status(200).json({ message: `Staff action with ID ${id} deleted.` });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    console.error('Error deleting staff action:', err);
+    return res.status(500).json({ message: 'Server error while deleting staff action.' });
   }
 };
 
@@ -124,7 +125,15 @@ exports.createStaffDoc = async (req, res) => {
     }
 
     await client.query("COMMIT");
-
+    await logStaffAction({
+  business_id,
+  staff_id,
+  action_type: 'document_upload',
+  action_value: `${insertedDocs.length} docs`,
+  reason: 'New staff documents uploaded',
+  performed_by: req.user?.fullname || 'admin',
+  performed_by_role: req.user?.role || 'admin',
+});
     return res.status(201).json({
       message: `${insertedDocs.length} document(s) uploaded successfully.`,
       staff_docs: insertedDocs,
@@ -252,6 +261,20 @@ exports.updateStaffDoc = async (req, res) => {
 
     await client.query("COMMIT");
 
+    
+if ((removed_docs && removed_docs.length > 0) || insertedDocs.length > 0) {
+  await logStaffAction({
+    business_id: req.body.business_id,
+    staff_id,
+    action_type: 'document_upload',
+    action_value: `${insertedDocs.length} added, ${removed_docs?.length || 0} removed`,
+    reason: 'Staff documents updated',
+    performed_by: req.user?.fullname || 'admin',
+    performed_by_role: req.user?.role || 'admin',
+  });
+}
+
+
     return res.status(200).json({
       message: "Staff documents updated successfully.",
       added: insertedDocs,
@@ -329,6 +352,15 @@ exports.createStaffShift = async (req, res) => {
     const { shift_id, staff_id, business_id, fullname, working_hours, work_days } = req.body;
     if (!shift_id || !staff_id || !business_id || !fullname) return res.status(400).json({ message: 'Missing required fields.' });
     const result = await pool.query('INSERT INTO staff_shifts (shift_id, staff_id, business_id, fullname, working_hours, work_days) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *', [shift_id, staff_id, business_id, fullname, working_hours, work_days]);
+    await logStaffAction({
+  business_id,
+  staff_id,
+  action_type: 'shift_change',
+  action_value: shift_id,
+  reason: 'New shift assigned',
+  performed_by: req.user?.fullname || 'admin',
+  performed_by_role: req.user?.role || 'admin',
+});
     return res.status(201).json({ staff_shift: result.rows[0] });
   } catch (err) {
     console.error(err);
@@ -361,6 +393,15 @@ exports.updateStaffShift = async (req, res) => {
     const setClause = setParts.join(', ');
     const query = `UPDATE staff_shifts SET ${setClause} WHERE shift_id = $${idx} RETURNING *`;
     const result = await pool.query(query, values);
+    await logStaffAction({
+  business_id: fields.business_id,
+  staff_id: result.rows[0].staff_id,
+  action_type: 'shift_change',
+  action_value: result.rows[0].shift_id,
+  reason: 'Shift updated',
+  performed_by: req.user?.fullname || 'admin',
+  performed_by_role: req.user?.role || 'admin',
+});
     return res.status(200).json({ staff_shift: result.rows[0] });
   } catch (err) {
     console.error(err);
@@ -384,6 +425,15 @@ exports.createStaffSubcharge = async (req, res) => {
     const { id, staff_id, sub_charge_amt, reason } = req.body;
     if (!id || !staff_id || !sub_charge_amt) return res.status(400).json({ message: 'Missing required fields.' });
     const result = await pool.query('INSERT INTO staff_subcharges (id, staff_id, sub_charge_amt, reason) VALUES ($1,$2,$3,$4) RETURNING *', [id, staff_id, sub_charge_amt, reason]);
+    await logStaffAction({
+  business_id: req.body.business_id,
+  staff_id,
+  action_type: 'subcharge',
+  action_value: sub_charge_amt.toString(),
+  reason,
+  performed_by: req.user?.fullname || 'admin',
+  performed_by_role: req.user?.role || 'admin',
+});
     return res.status(201).json({ staff_subcharge: result.rows[0] });
   } catch (err) {
     console.error(err);
@@ -416,6 +466,15 @@ exports.updateStaffSubcharge = async (req, res) => {
     const setClause = setParts.join(', ');
     const query = `UPDATE staff_subcharges SET ${setClause} WHERE id = $${idx} RETURNING *`;
     const result = await pool.query(query, values);
+    await logStaffAction({
+  business_id: fields.business_id,
+  staff_id: result.rows[0].staff_id,
+  action_type: 'subcharge',
+  action_value: result.rows[0].sub_charge_amt?.toString() || '',
+  reason: fields.reason || 'Subcharge updated',
+  performed_by: req.user?.fullname || 'admin',
+  performed_by_role: req.user?.role || 'admin',
+});
     return res.status(200).json({ staff_subcharge: result.rows[0] });
   } catch (err) {
     console.error(err);
@@ -1395,6 +1454,19 @@ exports.updateStaff = async (req, res) => {
     const setClause = setParts.join(', ');
     const query = `UPDATE staff SET ${setClause} WHERE staff_id = $${idx} RETURNING *`;
     const result = await pool.query(query, values);
+    const updatedStaff = result.rows[0];
+
+if ('staff_status' in fields) {
+  await logStaffAction({
+    business_id: updatedStaff.business_id,
+    staff_id: updatedStaff.staff_id,
+    action_type: 'status_change',
+    action_value: fields.staff_status,
+    reason: 'Staff status updated',
+    performed_by: req.user?.fullname || 'admin',
+    performed_by_role: req.user?.role || 'admin',
+  });
+}
     return res.status(200).json({ staff: result.rows[0] });
   } catch (err) {
     console.error(err);

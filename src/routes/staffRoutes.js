@@ -198,110 +198,20 @@ router.post('/business_settings/:business_id', ...requirePermission(BUSINESS_PER
 router.get('/business_settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_BUSINESS_SETTINGS), staffController.getBusinessStaffSettings);
 router.patch('/business_settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_BUSINESS_SETTINGS), staffController.updateBusinessStaffSettings);
 
+
 /**
  * @swagger
- * /api/staff/actions:
- *   post:
- *     summary: Log a staff action (e.g., clock-in, clock-out, custom actions)
- *     description: |
- *       Records an action performed by a staff member, such as clock-in, clock-out, or any custom action.
- *       Useful for attendance, task tracking, or custom workflows.
- *     tags: [StaffAction]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [id, business_id, staff_id, action_type]
- *             properties:
- *               id:
- *                 type: string
- *                 description: Unique action ID (UUID or generated)
- *                 example: "ACT123"
- *               business_id:
- *                 type: integer
- *                 description: Business ID
- *                 example: 1
- *               staff_id:
- *                 type: string
- *                 description: Staff ID
- *                 example: "STF001"
- *               action_type:
- *                 type: string
- *                 description: Type of action (e.g., clock_in, clock_out, break, custom)
- *                 example: "clock_in"
- *               action_value:
- *                 type: string
- *                 description: Optional value for the action (e.g., location, notes)
- *                 example: "Main Entrance"
- *               reason:
- *                 type: string
- *                 description: Optional reason for the action
- *                 example: "Late arrival"
- *               performed_by:
- *                 type: string
- *                 description: ID of the user/staff who recorded the action
- *                 example: "STF002"
- *               performed_by_role:
- *                 type: string
- *                 description: Role of the person who performed the action
- *                 example: "manager"
- *     responses:
- *       201:
- *         description: Staff action logged successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 staff_action:
- *                   $ref: '#/components/schemas/StaffAction'
- *       400:
- *         description: Missing required fields
- *       500:
- *         description: Server error
- */
-router.post('/actions', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_ACTIONS), staffController.createStaffAction);
-/**
- * @swagger
- * /api/staff/actions:
+ * /api/staff/actions/{staff_id}:
  *   get:
- *     summary: List staff actions
+ *     summary: List A staff actions
  *     tags: [StaffAction]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: List of staff actions
+ *         description: List of a staff actions
  */
-/**
- * @swagger
- * /api/staff/actions/{id}:
- *   put:
- *     summary: Update staff action
- *     tags: [StaffAction]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         schema:
- *           type: string
- *         required: true
- *         description: Staff action ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *     responses:
- *       200:
- *         description: Staff action updated
- */
+
 /**
  * @swagger
  * /api/staff/actions/{id}:
@@ -321,8 +231,7 @@ router.post('/actions', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_ACTI
  *       200:
  *         description: Staff action deleted
  */
-router.get('/actions', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_ACTIONS), staffController.listStaffActions);
-router.put('/actions/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_ACTIONS), staffController.updateStaffAction);
+router.get('/actions/:staff_id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_ACTIONS), staffController.listStaffActions);
 router.delete('/actions/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_ACTIONS), staffController.deleteStaffAction);
 /**
  * @swagger
