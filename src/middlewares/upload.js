@@ -3,8 +3,13 @@ const multer = require('multer');
 const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
+  const allowedDocs = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ];
+
   if (file.fieldname === 'photo') {
-    // Only allow image files for staff photo
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
     } else {
@@ -12,14 +17,7 @@ const fileFilter = (req, file, cb) => {
     }
   } 
   
-  else if (file.fieldname === 'documents') {
-    // Allow images, PDFs, DOCX, and DOC for staff documents
-    const allowedDocs = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    ];
-
+  else if (['file', 'documents'].includes(file.fieldname)) {
     if (file.mimetype.startsWith('image/') || allowedDocs.includes(file.mimetype)) {
       cb(null, true);
     } else {
