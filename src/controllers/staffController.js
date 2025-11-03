@@ -13,7 +13,7 @@ const {
   sendStaffOtpEmail
 } = require('../services/emailService');
 const { error } = require('console');
-const { uploadFilesToCloudinary, uploadToCloudinary } = require('../utils/uploadToCloudinary');
+const { uploadFilesToCloudinary, uploadToCloudinary, deleteFileFromCloudinary, ComplexDeleteFileFromCloudinary } = require('../utils/uploadToCloudinary');
 
 
 exports.createStaffAction = async (req, res) => {
@@ -72,58 +72,256 @@ exports.deleteStaffAction = async (req, res) => {
 
 
 exports.createStaffDoc = async (req, res) => {
+  const client = await pool.connect();
+
   try {
-    const { id, business_id, staff_id, document_name, file } = req.body;
-    if (!id || !business_id || !staff_id) return res.status(400).json({ message: 'Missing required fields.' });
-    const result = await pool.query('INSERT INTO staff_docs (id, business_id, staff_id, document_name, file) VALUES ($1,$2,$3,$4,$5) RETURNING *', [id, business_id, staff_id, document_name, file]);
-    return res.status(201).json({ staff_doc: result.rows[0] });
+    const { business_id, staff_id } = req.body;
+    if (!business_id || !staff_id) {
+      return res.status(400).json({ message: "Missing required fields." });
+    }
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: "No files uploaded." });
+    }
+
+    await client.query("BEGIN");
+
+    const uploadedDocs = [];
+
+  
+    for (const file of req.files) {
+      try {
+        const uploaded = await uploadToCloudinary(file.buffer, file.originalname);
+        uploadedDocs.push(uploaded);
+      } catch (uploadErr) {
+     
+        for (const uploaded of uploadedDocs) {
+          await ComplexDeleteFileFromCloudinary(uploaded.public_id);
+        }
+        throw uploadErr;
+      }
+    }
+
+    const insertedDocs = [];
+
+    for (const [index, doc] of uploadedDocs.entries()) {
+      const id = uuidv4();
+      const document_name =
+        req.body.document_name?.[index] ||
+        req.files[index]?.originalname ||
+        `Document ${index + 1}`;
+
+      const result = await client.query(
+        `
+        INSERT INTO staff_docs (id, business_id, staff_id, document_name, file)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING *;
+      `,
+        [id, business_id, staff_id, document_name, doc.secure_url]
+      );
+
+      insertedDocs.push(result.rows[0]);
+    }
+
+    await client.query("COMMIT");
+
+    return res.status(201).json({
+      message: `${insertedDocs.length} document(s) uploaded successfully.`,
+      staff_docs: insertedDocs,
+    });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    console.error("❌ Error uploading staff documents:", err);
+    await client.query("ROLLBACK");
+    return res
+      .status(500)
+      .json({ message: "Server error while uploading documents. All changes rolled back." });
+  } finally {
+    client.release();
   }
 };
+
+
 exports.listStaffDocs = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM staff_docs');
-    return res.status(200).json({ staff_docs: result.rows });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
-  }
-};
-exports.updateStaffDoc = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const fields = req.body;
-    let setParts = [];
-    let values = [];
-    let idx = 1;
-    for (const key in fields) {
-      setParts.push(`${key} = $${idx}`);
-      values.push(fields[key]);
-      idx++;
+    const { business_id, staff_id, page = 1, limit = 20 } = req.query;
+
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const values = [];
+    let whereClause = '';
+
+    if (business_id && staff_id) {
+      whereClause = 'WHERE business_id = $1 AND staff_id = $2';
+      values.push(business_id, staff_id);
+    } else if (business_id) {
+      whereClause = 'WHERE business_id = $1';
+      values.push(business_id);
+    } else if (staff_id) {
+      whereClause = 'WHERE staff_id = $1';
+      values.push(staff_id);
     }
-    if (setParts.length === 0) return res.status(400).json({ message: 'No fields to update.' });
-    values.push(id);
-    const setClause = setParts.join(', ');
-    const query = `UPDATE staff_docs SET ${setClause} WHERE id = $${idx} RETURNING *`;
-    const result = await pool.query(query, values);
-    return res.status(200).json({ staff_doc: result.rows[0] });
+
+    const countQuery = `SELECT COUNT(*) AS total FROM staff_docs ${whereClause}`;
+    const { rows: countRows } = await pool.query(countQuery, values);
+    const total = parseInt(countRows[0].total, 10);
+
+    const query = `
+      SELECT id, business_id, staff_id, document_name, file, created_at
+      FROM staff_docs
+      ${whereClause}
+      ORDER BY created_at DESC
+      LIMIT $${values.length + 1} OFFSET $${values.length + 2};
+    `;
+
+    const result = await pool.query(query, [...values, limit, offset]);
+
+    return res.status(200).json({
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      staff_docs: result.rows,
+    });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    console.error('❌ Error fetching staff documents:', err);
+    return res.status(500).json({ message: 'Server error while fetching staff documents.' });
   }
 };
-exports.deleteStaffDoc = async (req, res) => {
+
+exports.updateStaffDoc = async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const { staff_id } = req.params;
+    const { removed_docs } = req.body; 
+
+    await client.query("BEGIN");
+
+   
+    if (removed_docs && Array.isArray(removed_docs) && removed_docs.length > 0) {
+      const existingDocs = await client.query(
+        `SELECT id, file FROM staff_docs WHERE id = ANY($1) AND staff_id = $2`,
+        [removed_docs, staff_id]
+      );
+
+      for (const doc of existingDocs.rows) {
+        await ComplexDeleteFileFromCloudinary(doc.file);
+      }
+
+      await client.query(`DELETE FROM staff_docs WHERE id = ANY($1) AND staff_id = $2`, [
+        removed_docs,
+        staff_id,
+      ]);
+    }
+
+   
+    const uploadedDocs = [];
+    const insertedDocs = [];
+
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        try {
+          const uploaded = await uploadToCloudinary(file.buffer, file.originalname);
+          uploadedDocs.push(uploaded);
+        } catch (uploadErr) {
+          console.error("❌ Upload failed:", uploadErr);
+          for (const uploaded of uploadedDocs) {
+            await ComplexDeleteFileFromCloudinary(uploaded.public_id);
+          }
+          throw uploadErr;
+        }
+      }
+
+      for (const [index, doc] of uploadedDocs.entries()) {
+        const id = uuidv4();
+        const document_name =
+          req.body.document_name?.[index] ||
+          req.files[index]?.originalname ||
+          `Document ${index + 1}`;
+
+        const result = await client.query(
+          `
+          INSERT INTO staff_docs (id, business_id, staff_id, document_name, file)
+          VALUES ($1, $2, $3, $4, $5)
+          RETURNING *;
+        `,
+          [id, req.body.business_id, staff_id, document_name, doc.secure_url]
+        );
+
+        insertedDocs.push(result.rows[0]);
+      }
+    }
+
+    await client.query("COMMIT");
+
+    return res.status(200).json({
+      message: "Staff documents updated successfully.",
+      added: insertedDocs,
+      removed: removed_docs || [],
+    });
+  } catch (err) {
+    console.error("❌ Error updating staff documents:", err);
+    await client.query("ROLLBACK");
+    return res.status(500).json({
+      message: "Server error while updating staff documents. All changes rolled back.",
+    });
+  } finally {
+    client.release();
+  }
+};
+
+  exports.deleteStaffDoc = async (req, res) => {
+  const client = await pool.connect();
+
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM staff_docs WHERE id = $1', [id]);
-    return res.status(200).json({ message: 'Staff doc deleted.' });
+    if (!id) return res.status(400).json({ message: "Missing document ID." });
+
+    await client.query("BEGIN");
+
+   
+    const { rows } = await client.query("SELECT * FROM staff_docs WHERE id = $1", [id]);
+    if (rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Document not found." });
+    }
+
+    const doc = rows[0];
+
+    
+    try {
+      await ComplexDeleteFileFromCloudinary(doc.file);
+    } catch (cloudErr) {
+      console.error("⚠️ Cloudinary delete failed:", cloudErr.message);
+     
+      if (!/not found/i.test(cloudErr.message)) {
+        await client.query("ROLLBACK");
+        return res.status(500).json({
+          message: "Failed to delete file from Cloudinary. Changes rolled back.",
+        });
+      }
+    }
+
+   
+    await client.query("DELETE FROM staff_docs WHERE id = $1", [id]);
+
+    await client.query("COMMIT");
+
+    return res.status(200).json({
+      message: "Staff document deleted successfully.",
+      deleted_doc: {
+        id: doc.id,
+        document_name: doc.document_name,
+        file_url: doc.file,
+      },
+    });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    console.error("❌ Error deleting staff document:", err);
+    await pool.query("ROLLBACK");
+    return res.status(500).json({ message: "Server error while deleting document." });
+  } finally {
+    client.release();
   }
 };
+
 
 
 exports.createStaffShift = async (req, res) => {
@@ -322,6 +520,9 @@ async function sendPasswordToOwner(ownerEmail, staffName, password, businessName
 
 
   exports.createStaff = async (req, res) => {
+  const client = await pool.connect();
+  let uploadedFiles = [];
+
   try {
     const {
       business_id, branch_id, full_name, contact_no, email,
@@ -333,67 +534,98 @@ async function sendPasswordToOwner(ownerEmail, staffName, password, businessName
       staff_status_change_reason, baseUrl
     } = req.body;
 
-     const staff_id = req.body.staff_id || uuidv4();
+    let staff_id = req.body.staff_id || uuidv4();
 
-     const existingStaffById = await pool.query(
-  `SELECT staff_id FROM staff WHERE staff_id = $1`,
-  [staff_id]
-);
-if (existingStaffById.rows.length > 0) {
-  staff_id = uuidv4(); 
-}
+   
+    const existingStaffById = await pool.query(
+      `SELECT staff_id FROM staff WHERE staff_id = $1`,
+      [staff_id]
+    );
+    if (existingStaffById.rows.length > 0) staff_id = uuidv4();
 
-    if (!staff_id || !business_id || !branch_id || !full_name || !contact_no || !email || !gender || !staff_status || !payment_status) {
-      return res.status(400).json({ message: 'Missing required fields.' });
+
+    if (
+      !staff_id || !business_id || !branch_id || !full_name ||
+      !contact_no || !email || !gender || !staff_status || !payment_status
+    ) {
+      return res.status(400).json({ message: "Missing required fields." });
     }
 
     if (!baseUrl) {
-       return res.status(400).json({ message: 'Missing base URL.' });
+      return res.status(400).json({ message: "Missing base URL." });
     }
 
-  
-    const existingStaff = await pool.query(
+    await client.query("BEGIN");
+
+
+    const existingStaff = await client.query(
       `SELECT staff_id FROM staff WHERE email = $1 AND business_id = $2`,
       [email, business_id]
     );
     if (existingStaff.rows.length > 0) {
-      return res.status(409).json({ message: 'A staff member with this email already exists for this business.' });
+      await client.query("ROLLBACK");
+      return res.status(409).json({ message: "A staff member with this email already exists for this business." });
     }
 
- 
-    const businessResult = await pool.query(
-      'SELECT business_name FROM businesses WHERE id = $1',
+
+    const businessResult = await client.query(
+      "SELECT business_name FROM businesses WHERE id = $1",
       [business_id]
     );
     if (businessResult.rows.length === 0) {
-      return res.status(404).json({ message: 'Business not found.' });
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Business not found." });
     }
+
     const businessName = businessResult.rows[0].business_name;
 
-    
     const password = generateStaffPassword(businessName);
     const passwordHash = await bcrypt.hash(password, 10);
 
-  
     const settings = await getBusinessStaffSettings(business_id, branch_id);
     if (!settings) {
-      return res.status(500).json({ message: 'Business staff settings not found.' });
+      await client.query("ROLLBACK");
+      return res.status(500).json({ message: "Business staff settings not found." });
     }
 
-   
+ 
     let photoUrl = null;
     let documentUrls = [];
-    if (req.files?.photo?.[0]) {
-      const uploadedPhoto = await uploadToCloudinary(req.files.photo[0].buffer, req.files.photo[0].originalname);
-      photoUrl = uploadedPhoto.secure_url;
-    }
-    if (req.files?.documents?.length > 0) {
-      const uploadedDocs = await uploadFilesToCloudinary(req.files.documents);
-      documentUrls = uploadedDocs.map(doc => doc.secure_url);
+
+    try {
+      if (req.files?.photo?.[0]) {
+        const uploadedPhoto = await uploadToCloudinary(
+          req.files.photo[0].buffer,
+          req.files.photo[0].originalname
+        );
+        photoUrl = uploadedPhoto.secure_url;
+        uploadedFiles.push(uploadedPhoto);
+      }
+
+      if (req.files?.documents?.length > 0) {
+        const uploadedDocs = await uploadFilesToCloudinary(req.files.documents);
+        uploadedFiles.push(...uploadedDocs);
+        documentUrls = uploadedDocs.map(doc => ({
+          url: doc.secure_url,
+          public_id: doc.public_id,
+          type: doc.resource_type,
+        }));
+      }
+    } catch (uploadErr) {
+     
+      for (const f of uploadedFiles) {
+        try {
+          await ComplexDeleteFileFromCloudinary(f.public_id);
+        } catch (cleanupErr) {
+          console.warn("⚠️ Cloudinary cleanup failed:", cleanupErr.message);
+        }
+      }
+      throw uploadErr;
     }
 
 
-    const result = await pool.query(`
+    const result = await client.query(
+      `
       INSERT INTO staff (
         staff_id, business_id, branch_id, full_name, contact_no, email,
         address, document, position_name, assigned_position, gender,
@@ -409,55 +641,90 @@ if (existingStaffById.rows.length > 0) {
         $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31
       )
       RETURNING *;
-    `, [
-      staff_id, business_id, branch_id, full_name, contact_no, email,
-      address, JSON.stringify(documentUrls), position_name, assigned_position, gender,
-      staff_status, date_of_birth, state_of_origin, emergency_contact,
-      employment_type, start_date, salary, bank_account_number, bank_name,
-      national_id, guarantor_name, guarantor_contact, guarantor_relationship,
-      guarantor_address, photoUrl, payment_status, last_payment_date,
-      staff_status_change_reason, passwordHash, new Date()
-    ]);
+      `,
+      [
+        staff_id, business_id, branch_id, full_name, contact_no, email,
+        address, JSON.stringify(documentUrls), position_name, assigned_position, gender,
+        staff_status, date_of_birth, state_of_origin, emergency_contact,
+        employment_type, start_date, salary, bank_account_number, bank_name,
+        national_id, guarantor_name, guarantor_contact, guarantor_relationship,
+        guarantor_address, photoUrl, payment_status, last_payment_date,
+        staff_status_change_reason, passwordHash, new Date(),
+      ]
+    );
 
     const staff = result.rows[0];
 
-    
-    
-    const loginUrl = `${baseUrl.replace(/\/$/, '')}/staff/login/${business_id}`;
+ 
+    if (documentUrls.length > 0) {
+      for (const doc of documentUrls) {
+        await client.query(
+          `
+          INSERT INTO staff_docs (id, business_id, staff_id, document_name, file)
+          VALUES ($1, $2, $3, $4, $5);
+          `,
+          [uuidv4(), business_id, staff_id, doc.url.split("/").pop(), doc.url]
+        );
+      }
+    }
 
-  
-    if (settings.password_delivery_method === 'staff') {
+   
+    const loginUrl = `${baseUrl.replace(/\/$/, "")}/staff/login/${business_id}`;
+    if (settings.password_delivery_method === "staff") {
       await sendPasswordToStaff(email, contact_no, password, businessName, full_name, loginUrl);
     } else {
-      const ownerResult = await pool.query('SELECT email FROM users WHERE business_id = $1 LIMIT 1', [business_id]);
+      const ownerResult = await client.query(
+        "SELECT email FROM users WHERE business_id = $1 LIMIT 1",
+        [business_id]
+      );
       const ownerEmail = ownerResult.rows[0]?.email;
       if (ownerEmail) {
         await sendPasswordToOwner(ownerEmail, full_name, password, businessName, loginUrl);
       }
     }
 
-  
-    const requestedByUser = req.user?.user_id || null; 
-    const requestedByStaff = !req.user ? staff_id : null; 
-
-await pool.query(`
-  INSERT INTO staff_password_logs (
-    staff_id, business_id, change_type, requested_by_user, requested_by_staff, changed_at
-  )
-  VALUES ($1, $2, 'initial', $3, $4, NOW())
-`, [staff_id, business_id, requestedByUser, requestedByStaff]);
    
+    const requestedByUser = req.user?.user_id || null;
+    const requestedByStaff = !req.user ? staff_id : null;
+    await client.query(
+      `
+      INSERT INTO staff_password_logs (
+        staff_id, business_id, change_type, requested_by_user, requested_by_staff, changed_at
+      )
+      VALUES ($1, $2, 'initial', $3, $4, NOW());
+      `,
+      [staff_id, business_id, requestedByUser, requestedByStaff]
+    );
+
+    await client.query("COMMIT");
+
     return res.status(201).json({
       staff: { ...staff, password_hash: undefined },
-      password: settings.password_delivery_method === 'owner' ? password : undefined,
-      message: `Staff created successfully. Password ${settings.password_delivery_method === 'staff' ? 'sent to staff' : 'sent to owner'}.`
+      password: settings.password_delivery_method === "owner" ? password : undefined,
+      message: `Staff created successfully. Password ${
+        settings.password_delivery_method === "staff" ? "sent to staff" : "sent to owner"
+      }.`,
     });
-
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    console.error("❌ Error creating staff:", err);
+    await client.query("ROLLBACK");
+
+   
+    for (const f of uploadedFiles) {
+      try {
+        await ComplexDeleteFileFromCloudinary(f.public_id);
+      } catch (cleanupErr) {
+        console.warn("⚠️ Cleanup failed for Cloudinary file:", cleanupErr.message);
+      }
+    }
+
+    return res.status(500).json({ message: "Server error. All changes rolled back." });
+  } finally {
+    client.release();
   }
 };
+
+
 
 
 exports.staffLogin = async (req, res) => {

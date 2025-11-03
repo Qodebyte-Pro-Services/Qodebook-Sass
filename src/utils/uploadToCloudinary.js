@@ -23,14 +23,15 @@ const sanitizeFilename = (name) => {
 const uploadToCloudinary = async (fileBuffer, filename) => {
   const safeName = sanitizeFilename(filename);
   const uniqueSuffix = uuidv4();
-  const publicId = `${safeName}_${uniqueSuffix}`;
 
    const extension = filename.split('.').pop().toLowerCase();
+   const rawFileTypes = ['pdf', 'doc', 'docx', 'txt', 'csv', 'zip'];
   let resourceType = 'image';
-
-    const rawFileTypes = ['pdf', 'doc', 'docx', 'txt', 'csv', 'zip'];
+    let publicId = `${safeName}_${uniqueSuffix}`;
+    
   if (rawFileTypes.includes(extension)) {
     resourceType = 'raw';
+     publicId = `${safeName}_${uniqueSuffix}.${extension}`;
   }
 
   return new Promise((resolve, reject) => {
@@ -78,26 +79,38 @@ const uploadFilesToCloudinary = async (files) => {
 };
 
 const ComplexDeleteFileFromCloudinary = async (publicId) => {
-  return new Promise(async (resolve, reject) => {
-    try {
+  if (!publicId) throw new Error("Missing Cloudinary publicId.");
+
+  try {
+   
+    let result = await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
+
     
-      let result = await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
-
-      
-      if (result.result === 'not found' || result.result === 'error') {
-        result = await cloudinary.uploader.destroy(publicId, { resource_type: 'raw' });
-      }
-
-      if (result.result !== 'ok' && result.result !== 'not found') {
-        return reject(new Error(`Unexpected Cloudinary delete result: ${result.result}`));
-      }
-
-      resolve(result);
-    } catch (error) {
-      reject(new Error(`Cloudinary delete failed: ${error.message || error}`));
+    if (['not found', 'error'].includes(result.result)) {
+      result = await cloudinary.uploader.destroy(publicId, { resource_type: 'raw' });
     }
-  });
+
+    
+    if (['not found', 'error'].includes(result.result)) {
+      result = await cloudinary.uploader.destroy(publicId, { resource_type: 'video' });
+    }
+
+    
+    if (!['ok', 'not found'].includes(result.result)) {
+      throw new Error(`Unexpected Cloudinary delete result: ${result.result}`);
+    }
+
+    return {
+      success: result.result === 'ok',
+      message: result.result === 'ok' ? 'Deleted successfully' : 'File not found',
+      result
+    };
+  } catch (error) {
+    console.error("❌ Cloudinary delete failed:", error.message);
+    throw new Error(`Cloudinary delete failed: ${error.message}`);
+  }
 };
+
 
 module.exports = {
   uploadToCloudinary,

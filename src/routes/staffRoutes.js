@@ -378,49 +378,148 @@ router.delete('/actions/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAF
  *       500:
  *         description: Server error
  */
-router.post('/docs', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_DOCS), staffController.createStaffDoc);
+router.post(
+  '/docs',
+  requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_DOCS),
+  upload.array('documents', 10),
+  staffController.createStaffDoc
+);
+
 /**
  * @swagger
  * /api/staff/docs:
  *   get:
- *     summary: List staff docs
+ *     summary: Retrieve staff documents
+ *     description: |
+ *       Fetch all staff documents, or filter by `business_id` or `staff_id`.
+ *       Use query parameters for filtering and pagination.
  *     tags: [StaffDoc]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         schema:
+ *           type: integer
+ *         required: false
+ *         description: Filter documents by business ID.
+ *       - in: query
+ *         name: staff_id
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: Filter documents by staff ID.
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         required: false
+ *         description: Page number for pagination.
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         required: false
+ *         description: Number of documents per page.
  *     responses:
  *       200:
- *         description: List of staff docs
+ *         description: List of staff documents retrieved successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 total:
+ *                   type: integer
+ *                   description: Total number of documents.
+ *                 page:
+ *                   type: integer
+ *                 limit:
+ *                   type: integer
+ *                 staff_docs:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/StaffDoc'
+ *       500:
+ *         description: Server error.
  */
 /**
  * @swagger
- * /api/staff/docs/{id}:
+ * /api/staff/docs/{staff_id}:
  *   put:
- *     summary: Update staff doc
+ *     summary: Update staff documents
+ *     description: |
+ *       Add or remove documents for a given staff member.  
+ *       Supports file uploads and file deletions in a single transaction.
  *     tags: [StaffDoc]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: staff_id
  *         schema:
  *           type: string
  *         required: true
- *         description: Staff doc ID
+ *         description: The ID of the staff member whose documents are being updated.
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
+ *             properties:
+ *               business_id:
+ *                 type: integer
+ *                 description: Business ID for context.
+ *                 example: 42
+ *               removed_docs:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of document IDs to remove.
+ *                 example: ["a1b2c3", "d4e5f6"]
+ *               document_name:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Optional names for newly uploaded documents.
+ *               documents:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Files to upload
  *     responses:
  *       200:
- *         description: Staff doc updated
+ *         description: Staff documents updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 added:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/StaffDoc'
+ *                 removed:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *       400:
+ *         description: Missing required fields
+ *       500:
+ *         description: Server error
  */
 /**
  * @swagger
  * /api/staff/docs/{id}:
  *   delete:
- *     summary: Delete staff doc
+ *     summary: Delete a specific staff document
+ *     description: Deletes both the database record and Cloudinary file associated with a staff document.
  *     tags: [StaffDoc]
  *     security:
  *       - bearerAuth: []
@@ -430,14 +529,47 @@ router.post('/docs', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_DOCS), 
  *         schema:
  *           type: string
  *         required: true
- *         description: Staff doc ID
+ *         description: The unique ID of the staff document to delete.
  *     responses:
  *       200:
- *         description: Staff doc deleted
+ *         description: Staff document deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 deleted_doc:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     document_name:
+ *                       type: string
+ *                     file_url:
+ *                       type: string
+ *       404:
+ *         description: Document not found
+ *       500:
+ *         description: Server error
  */
-router.get('/docs', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_DOCS), staffController.listStaffDocs);
-router.put('/docs/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_DOCS), staffController.updateStaffDoc);
-router.delete('/docs/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_DOCS), staffController.deleteStaffDoc);
+router.get(
+  '/docs',
+  requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_DOCS),
+  staffController.listStaffDocs
+);
+router.put(
+  '/docs/:staff_id',
+  requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_DOCS),
+  upload.array('documents', 10),
+  staffController.updateStaffDoc
+);
+router.delete(
+  '/docs/:id',
+  requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_DOCS),
+  staffController.deleteStaffDoc
+);
 /**
  * @swagger
  * /api/staff/shifts:
