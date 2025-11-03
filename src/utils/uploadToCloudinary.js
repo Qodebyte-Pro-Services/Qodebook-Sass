@@ -36,7 +36,7 @@ const uploadToCloudinary = async (fileBuffer, filename) => {
 
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      {   resource_type: resourceType, public_id: publicId, overwrite: false },
+      {   resource_type: resourceType, public_id: publicId, type: 'upload', overwrite: false },
       (error, result) => {
         if (error) {
           return reject(new Error(`Cloudinary upload failed: ${error.message || error}`));
