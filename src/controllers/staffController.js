@@ -473,7 +473,7 @@ exports.staffLogin = async (req, res) => {
       SELECT s.*, r.permissions 
       FROM staff s 
       LEFT JOIN staff_roles r ON s.assigned_position = r.role_id 
-      WHERE s.email = $1 AND s.business_id = $2 AND s.staff_status = 'active'
+      WHERE s.email = $1 AND s.business_id = $2 AND s.staff_status = 'on_job'
     `, [email, business_id]);
 
     if (staffResult.rows.length === 0) {
