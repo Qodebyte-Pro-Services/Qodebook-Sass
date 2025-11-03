@@ -637,7 +637,7 @@ exports.resendStaffOtp = async (req, res) => {
       SELECT s.*, b.business_name 
       FROM staff s 
       JOIN businesses b ON s.business_id = b.id
-      WHERE s.staff_id = $1 AND s.business_id = $2 AND s.staff_status = 'active'
+      WHERE s.staff_id = $1 AND s.business_id = $2 AND s.staff_status = 'on_job'
     `, [staff_id, business_id]);
 
     if (staffResult.rows.length === 0) {
