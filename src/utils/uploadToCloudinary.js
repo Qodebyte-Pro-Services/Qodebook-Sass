@@ -42,28 +42,18 @@ const uploadToCloudinary = async (fileBuffer, filename) => {
         resource_type: resourceType, 
         public_id: publicId, 
         type: 'upload',
-        access_mode: 'public', 
-        use_filename: true,
-        unique_filename: false,
+        access_mode: 'public',
         overwrite: false
        },
       (error, result) => {
         if (error) {
-          return reject(
-            new Error(`Upload failed for file "${filename}": ${error.message || error}`)
-          );
+          return reject(new Error(`Cloudinary upload failed: ${error.message || error}`));
         }
-
         if (!result || !result.secure_url) {
-          return reject(
-            new Error(`Cloudinary upload failed for "${filename}" — no secure_url returned.`)
-          );
+          return reject(new Error('Cloudinary upload did not return a secure_url.'));
         }
-
-       const secureUrl = result.secure_url;
-        console.log(result.type);
         resolve({
-          secure_url: secureUrl,
+          secure_url: result.secure_url,
           public_id: result.public_id, 
            resource_type: resourceType,
         });
