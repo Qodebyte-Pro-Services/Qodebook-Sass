@@ -381,7 +381,7 @@ router.delete('/actions/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAF
 router.post(
   '/docs',
   requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_DOCS),
-  upload.array('documents', 10),
+  upload.array('file', 10),
   staffController.createStaffDoc
 );
 
@@ -562,7 +562,7 @@ router.get(
 router.put(
   '/docs/:staff_id',
   requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_DOCS),
-  upload.array('documents', 10),
+  upload.array('file', 10),
   staffController.updateStaffDoc
 );
 router.delete(
