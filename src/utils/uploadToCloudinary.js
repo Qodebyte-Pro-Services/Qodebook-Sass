@@ -26,6 +26,8 @@ const uploadToCloudinary = async (fileBuffer, filename) => {
 
    const extension = filename.split('.').pop().toLowerCase();
    const rawFileTypes = ['pdf', 'doc', 'docx', 'txt', 'csv', 'zip'];
+
+
   let resourceType = 'image';
     let publicId = `${safeName}_${uniqueSuffix}`;
     
@@ -36,16 +38,34 @@ const uploadToCloudinary = async (fileBuffer, filename) => {
 
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      {   resource_type: resourceType, public_id: publicId, type: 'upload', overwrite: false },
+      {   
+        resource_type: resourceType, 
+        public_id: publicId, 
+        type: 'upload',
+        use_filename: true,
+        unique_filename: false,
+        overwrite: false
+       },
       (error, result) => {
         if (error) {
-          return reject(new Error(`Cloudinary upload failed: ${error.message || error}`));
+          return reject(
+            new Error(`Upload failed for file "${filename}": ${error.message || error}`)
+          );
         }
+
         if (!result || !result.secure_url) {
-          return reject(new Error('Cloudinary upload did not return a secure_url.'));
+          return reject(
+            new Error(`Cloudinary upload failed for "${filename}" — no secure_url returned.`)
+          );
         }
+
+         const secureUrl =
+          resourceType === 'raw'
+            ? `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/raw/upload/${result.public_id}`
+            : result.secure_url;
+
         resolve({
-          secure_url: result.secure_url,
+          secure_url: secureUrl,
           public_id: result.public_id, 
            resource_type: resourceType,
         });
