@@ -479,14 +479,14 @@ router.delete(
   requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_DOCS),
   staffController.deleteStaffDoc
 );
+
 /**
  * @swagger
  * /api/staff/shifts:
  *   post:
  *     summary: Create a staff work shift
  *     description: |
- *       Assigns a work shift to a staff member, including working hours and days.
- *       Useful for scheduling, attendance, and payroll.
+ *       Assigns a work shift to a staff member, including working hours (JSON format) and work days.
  *     tags: [StaffShift]
  *     security:
  *       - bearerAuth: []
@@ -496,12 +496,8 @@ router.delete(
  *         application/json:
  *           schema:
  *             type: object
- *             required: [shift_id, staff_id, business_id, fullname]
+ *             required: [staff_id, business_id, fullname, working_hours, work_days]
  *             properties:
- *               shift_id:
- *                 type: string
- *                 description: Unique shift ID
- *                 example: "SHIFT001"
  *               staff_id:
  *                 type: string
  *                 description: Staff ID
@@ -515,46 +511,70 @@ router.delete(
  *                 description: Staff full name
  *                 example: "John Doe"
  *               working_hours:
- *                 type: string
- *                 description: Working hours (e.g., 09:00-17:00)
- *                 example: "09:00-17:00"
+ *                 type: object
+ *                 description: JSON object defining working hours per day
+ *                 example:
+ *                   monday: { start: "09:00", end: "17:00" }
+ *                   wednesday: { start: "10:00", end: "18:00" }
  *               work_days:
- *                 type: string
- *                 description: Days of the week (e.g., Mon-Fri)
- *                 example: "Mon-Fri"
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: List of working days
+ *                 example: ["monday", "wednesday"]
  *     responses:
  *       201:
  *         description: Staff shift created successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 staff_shift:
- *                   $ref: '#/components/schemas/StaffShift'
  *       400:
  *         description: Missing required fields
  *       500:
  *         description: Server error
  */
-router.post('/shifts', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SHIFTS), staffController.createStaffShift);
+router.post(
+  '/shifts',
+  ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SHIFTS),
+  staffController.createStaffShift
+);
+
 /**
  * @swagger
- * /api/staff/shifts:
+ * /api/staff/shifts/{staff_id}:
  *   get:
- *     summary: List staff shifts
+ *     summary: Get all shifts for a specific staff member
  *     tags: [StaffShift]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: staff_id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The ID of the staff member
  *     responses:
  *       200:
- *         description: List of staff shifts
+ *         description: List of staff shifts retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 staff_shifts:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/StaffShift'
+ *       404:
+ *         description: No shifts found for this staff
+ *       500:
+ *         description: Server error
  */
 /**
  * @swagger
  * /api/staff/shifts/{id}:
  *   put:
- *     summary: Update staff shift
+ *     summary: Update a staff work shift
+ *     description: |
+ *       Updates an existing work shift record, allowing changes to working hours, days, or other fields.
  *     tags: [StaffShift]
  *     security:
  *       - bearerAuth: []
@@ -564,17 +584,39 @@ router.post('/shifts', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SHIFT
  *         schema:
  *           type: string
  *         required: true
- *         description: Staff shift ID
+ *         description: The shift ID to update
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             properties:
+ *               working_hours:
+ *                 type: object
+ *                 example:
+ *                   monday: { start: "08:00", end: "16:00" }
+ *                   friday: { start: "09:00", end: "17:00" }
+ *               work_days:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["monday", "friday"]
  *     responses:
  *       200:
- *         description: Staff shift updated
+ *         description: Staff shift updated successfully
+ *       400:
+ *         description: Invalid or missing data
+ *       404:
+ *         description: Shift not found
+ *       500:
+ *         description: Server error
  */
+router.put(
+  '/shifts/:id',
+  ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SHIFTS),
+  staffController.updateStaffShift
+);
 /**
  * @swagger
  * /api/staff/shifts/{id}:
@@ -594,8 +636,7 @@ router.post('/shifts', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SHIFT
  *       200:
  *         description: Staff shift deleted
  */
-router.get('/shifts', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_SHIFTS), staffController.listStaffShifts);
-router.put('/shifts/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SHIFTS), staffController.updateStaffShift);
+router.get('/shifts/:staff_id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_SHIFTS), staffController.listStaffShifts);
 router.delete('/shifts/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SHIFTS), staffController.deleteStaffShift);
 /**
  * @swagger

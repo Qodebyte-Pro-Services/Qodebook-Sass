@@ -349,63 +349,145 @@ if ((removed_docs && removed_docs.length > 0) || insertedDocs.length > 0) {
 
 exports.createStaffShift = async (req, res) => {
   try {
-    const { shift_id, staff_id, business_id, fullname, working_hours, work_days } = req.body;
-    if (!shift_id || !staff_id || !business_id || !fullname) return res.status(400).json({ message: 'Missing required fields.' });
-    const result = await pool.query('INSERT INTO staff_shifts (shift_id, staff_id, business_id, fullname, working_hours, work_days) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *', [shift_id, staff_id, business_id, fullname, working_hours, work_days]);
+    const {
+      staff_id,
+      business_id,
+      fullname,
+      working_hours,
+      work_days
+    } = req.body;
+
+
+  
+   
+    if (!staff_id || !business_id || !fullname) {
+      return res.status(400).json({ message: 'Missing required fields.' });
+    }
+
+   
+    if (typeof working_hours !== 'object' || Array.isArray(working_hours)) {
+      return res.status(400).json({ message: 'working_hours must be a valid JSON object.' });
+    }
+
+    if (!Array.isArray(work_days)) {
+      return res.status(400).json({ message: 'work_days must be an array of days.' });
+    }
+
+    const shift_id = uuidv4();
+
+    const query = `
+      INSERT INTO staff_shifts 
+      (shift_id, staff_id, business_id, fullname, working_hours, work_days)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *;
+    `;
+    const values = [
+      shift_id,
+      staff_id,
+      business_id,
+      fullname,
+      JSON.stringify(working_hours),
+      JSON.stringify(work_days)
+    ];
+
+    const result = await pool.query(query, values);
+
+   
     await logStaffAction({
-  business_id,
-  staff_id,
-  action_type: 'shift_change',
-  action_value: shift_id,
-  reason: 'New shift assigned',
-  performed_by: req.user?.fullname || 'admin',
-  performed_by_role: req.user?.role || 'admin',
-});
-    return res.status(201).json({ staff_shift: result.rows[0] });
+      business_id,
+      staff_id,
+      action_type: 'shift_change',
+      action_value: shift_id,
+      reason: 'New shift assigned',
+      performed_by: req.user?.fullname || 'admin',
+      performed_by_role: req.user?.role || 'admin'
+    });
+
+    return res.status(201).json({
+      message: 'Staff shift created successfully.',
+      staff_shift: result.rows[0]
+    });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    console.error('Error creating staff shift:', err);
+    return res.status(500).json({ message: 'Server error while creating staff shift.' });
   }
 };
 exports.listStaffShifts = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM staff_shifts');
+    const { staff_id } = req.params;
+
+    if (!staff_id) {
+      return res.status(400).json({ message: 'staff_id is required.' });
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM staff_shifts WHERE staff_id = $1',
+      [staff_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'No shifts found for this staff.' });
+    }
+
     return res.status(200).json({ staff_shifts: result.rows });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    console.error('Error fetching staff shifts:', err);
+    return res.status(500).json({ message: 'Server error while fetching staff shifts.' });
   }
 };
 exports.updateStaffShift = async (req, res) => {
   try {
     const { id } = req.params;
     const fields = req.body;
-    let setParts = [];
-    let values = [];
-    let idx = 1;
+
+    if (!id) return res.status(400).json({ message: 'Missing shift ID.' });
+
+    const validFields = {};
     for (const key in fields) {
-      setParts.push(`${key} = $${idx}`);
-      values.push(fields[key]);
-      idx++;
+      if (['working_hours', 'work_days'].includes(key)) {
+        validFields[key] = JSON.stringify(fields[key]);
+      } else {
+        validFields[key] = fields[key];
+      }
     }
-    if (setParts.length === 0) return res.status(400).json({ message: 'No fields to update.' });
-    values.push(id);
-    const setClause = setParts.join(', ');
-    const query = `UPDATE staff_shifts SET ${setClause} WHERE shift_id = $${idx} RETURNING *`;
-    const result = await pool.query(query, values);
+
+    const keys = Object.keys(validFields);
+    if (keys.length === 0) {
+      return res.status(400).json({ message: 'No fields to update.' });
+    }
+
+    const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
+    const values = Object.values(validFields);
+
+    const query = `
+      UPDATE staff_shifts
+      SET ${setClause}
+      WHERE shift_id = $${keys.length + 1}
+      RETURNING *;
+    `;
+    const result = await pool.query(query, [...values, id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Staff shift not found.' });
+    }
+
     await logStaffAction({
-  business_id: fields.business_id,
-  staff_id: result.rows[0].staff_id,
-  action_type: 'shift_change',
-  action_value: result.rows[0].shift_id,
-  reason: 'Shift updated',
-  performed_by: req.user?.fullname || 'admin',
-  performed_by_role: req.user?.role || 'admin',
-});
-    return res.status(200).json({ staff_shift: result.rows[0] });
+      business_id: result.rows[0].business_id,
+      staff_id: result.rows[0].staff_id,
+      action_type: 'shift_change',
+      action_value: result.rows[0].shift_id,
+      reason: 'Shift updated',
+      performed_by: req.user?.fullname || 'admin',
+      performed_by_role: req.user?.role || 'admin'
+    });
+
+    return res.status(200).json({
+      message: 'Staff shift updated successfully.',
+      staff_shift: result.rows[0]
+    });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    console.error('Error updating staff shift:', err);
+    return res.status(500).json({ message: 'Server error while updating staff shift.' });
   }
 };
 exports.deleteStaffShift = async (req, res) => {
