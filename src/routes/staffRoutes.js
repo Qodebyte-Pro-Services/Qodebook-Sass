@@ -690,7 +690,7 @@ router.post('/subcharges', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_S
  */
 /**
  * @swagger
- * /api/staff/subcharges/{id}:
+ * /api/staff/subcharges/{staff_id}:
  *   put:
  *     summary: Update staff subcharge
  *     tags: [StaffSubcharge]
@@ -732,7 +732,7 @@ router.post('/subcharges', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_S
  *       200:
  *         description: Staff subcharge deleted
  */
-router.get('/subcharges', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_SUBCHARGE), staffController.listStaffSubcharges);
+router.get('/subcharges/:staff_id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_SUBCHARGE), staffController.listStaffSubcharges);
 router.put('/subcharges/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SUBCHARGE), staffController.updateStaffSubcharge);
 router.delete('/subcharges/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SUBCHARGE), staffController.deleteStaffSubcharge);
 
