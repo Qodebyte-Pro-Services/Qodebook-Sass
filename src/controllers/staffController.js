@@ -493,84 +493,177 @@ exports.updateStaffShift = async (req, res) => {
 exports.deleteStaffShift = async (req, res) => {
   try {
     const { id } = req.params;
+    if (!id)  {
+      return res.status(400).json({ message: 'shift ID is required.' });
+    }
     await pool.query('DELETE FROM staff_shifts WHERE shift_id = $1', [id]);
     return res.status(200).json({ message: 'Staff shift deleted.' });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(500).json({ message: 'Server error.', err });
   }
 };
 
 
 exports.createStaffSubcharge = async (req, res) => {
   try {
-    const { id, staff_id, sub_charge_amt, reason } = req.body;
-    if (!id || !staff_id || !sub_charge_amt) return res.status(400).json({ message: 'Missing required fields.' });
-    const result = await pool.query('INSERT INTO staff_subcharges (id, staff_id, sub_charge_amt, reason) VALUES ($1,$2,$3,$4) RETURNING *', [id, staff_id, sub_charge_amt, reason]);
+    const { business_id, staff_id, sub_charge_amt, reason } = req.body;
+
+
+    if (!business_id || !staff_id || !sub_charge_amt) {
+      return res.status(400).json({ message: 'Missing required fields.' });
+    }
+
+    const id = uuidv4(); 
+   
+    const query = `
+      INSERT INTO staff_subcharges (id, business_id, staff_id, sub_charge_amt, reason)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *;
+    `;
+    const values = [id, business_id, staff_id, sub_charge_amt, reason];
+
+    const result = await pool.query(query, values);
+
+    
     await logStaffAction({
-  business_id: req.body.business_id,
-  staff_id,
-  action_type: 'subcharge',
-  action_value: sub_charge_amt.toString(),
-  reason,
-  performed_by: req.user?.fullname || 'admin',
-  performed_by_role: req.user?.role || 'admin',
-});
-    return res.status(201).json({ staff_subcharge: result.rows[0] });
+      business_id,
+      staff_id,
+      action_type: 'subcharge',
+      action_value: sub_charge_amt.toString(),
+      reason: reason || 'Subcharge applied',
+      performed_by: req.user?.fullname || 'admin',
+      performed_by_role: req.user?.role || 'admin',
+    });
+
+    return res.status(201).json({
+      message: 'Staff subcharge created successfully.',
+      staff_subcharge: result.rows[0],
+    });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    console.error('Error creating staff subcharge:', err);
+    return res.status(500).json({ message: 'Server error while creating staff subcharge.' });
   }
 };
 exports.listStaffSubcharges = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM staff_subcharges');
-    return res.status(200).json({ staff_subcharges: result.rows });
+    const { staff_id } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+
+    if (!staff_id) {
+      return res.status(400).json({ message: 'staff_id is required.' });
+    }
+
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    const result = await pool.query(
+      `SELECT * FROM staff_subcharges
+       WHERE staff_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [staff_id, limit, offset]
+    );
+
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM staff_subcharges WHERE staff_id = $1`,
+      [staff_id]
+    );
+
+    return res.status(200).json({
+      staff_subcharges: result.rows,
+      pagination: {
+        total: parseInt(countResult.rows[0].count, 10),
+        page: parseInt(page),
+        limit: parseInt(limit),
+      },
+    });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    console.error('Error listing staff subcharges:', err);
+    return res.status(500).json({ message: 'Server error while listing staff subcharges.' });
   }
 };
 exports.updateStaffSubcharge = async (req, res) => {
   try {
     const { id } = req.params;
     const fields = req.body;
-    let setParts = [];
-    let values = [];
+
+    if (!id) {
+      return res.status(400).json({ message: 'Subcharge ID is required.' });
+    }
+
+    const setParts = [];
+    const values = [];
     let idx = 1;
+
     for (const key in fields) {
       setParts.push(`${key} = $${idx}`);
       values.push(fields[key]);
       idx++;
     }
-    if (setParts.length === 0) return res.status(400).json({ message: 'No fields to update.' });
+
+    if (setParts.length === 0) {
+      return res.status(400).json({ message: 'No fields to update.' });
+    }
+
     values.push(id);
-    const setClause = setParts.join(', ');
-    const query = `UPDATE staff_subcharges SET ${setClause} WHERE id = $${idx} RETURNING *`;
+    const query = `UPDATE staff_subcharges SET ${setParts.join(', ')} WHERE id = $${idx} RETURNING *;`;
     const result = await pool.query(query, values);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: 'Subcharge not found.' });
+    }
+
+    const updated = result.rows[0];
+
     await logStaffAction({
-  business_id: fields.business_id,
-  staff_id: result.rows[0].staff_id,
-  action_type: 'subcharge',
-  action_value: result.rows[0].sub_charge_amt?.toString() || '',
-  reason: fields.reason || 'Subcharge updated',
-  performed_by: req.user?.fullname || 'admin',
-  performed_by_role: req.user?.role || 'admin',
-});
-    return res.status(200).json({ staff_subcharge: result.rows[0] });
+      business_id: updated.business_id,
+      staff_id: updated.staff_id,
+      action_type: 'subcharge',
+      action_value: updated.sub_charge_amt?.toString() || '',
+      reason: fields.reason || 'Subcharge updated',
+      performed_by: req.user?.fullname || 'admin',
+      performed_by_role: req.user?.role || 'admin',
+    });
+
+    return res.status(200).json({
+      message: 'Staff subcharge updated successfully.',
+      staff_subcharge: updated,
+    });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    console.error('Error updating staff subcharge:', err);
+    return res.status(500).json({ message: 'Server error while updating staff subcharge.' });
   }
 };
 exports.deleteStaffSubcharge = async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM staff_subcharges WHERE id = $1', [id]);
-    return res.status(200).json({ message: 'Staff subcharge deleted.' });
+
+    if (!id) {
+      return res.status(400).json({ message: 'Subcharge ID is required.' });
+    }
+
+    const result = await pool.query('DELETE FROM staff_subcharges WHERE id = $1 RETURNING *', [id]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: 'Subcharge not found.' });
+    }
+
+    const deleted = result.rows[0];
+
+    await logStaffAction({
+      business_id: deleted.business_id,
+      staff_id: deleted.staff_id,
+      action_type: 'subcharge',
+      action_value: deleted.sub_charge_amt?.toString() || '',
+      reason: 'Subcharge deleted',
+      performed_by: req.user?.fullname || 'admin',
+      performed_by_role: req.user?.role || 'admin',
+    });
+
+    return res.status(200).json({ message: 'Staff subcharge deleted successfully.' });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    console.error('Error deleting staff subcharge:', err);
+    return res.status(500).json({ message: 'Server error while deleting staff subcharge.' });
   }
 };
 

@@ -638,15 +638,13 @@ router.put(
  */
 router.get('/shifts/:staff_id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_SHIFTS), staffController.listStaffShifts);
 router.delete('/shifts/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SHIFTS), staffController.deleteStaffShift);
+
 /**
  * @swagger
  * /api/staff/subcharges:
  *   post:
- *     summary: Add a subcharge (deduction/bonus) to a staff member
- *     description: |
- *       Records a subcharge (e.g., penalty, bonus, deduction) for a staff member.
- *       Useful for payroll adjustments, fines, or incentives.
- *     tags: [StaffSubcharge]
+ *     summary: Create a staff subcharge
+ *     tags: [StaffSubcharges]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -655,34 +653,23 @@ router.delete('/shifts/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF
  *         application/json:
  *           schema:
  *             type: object
- *             required: [id, staff_id, sub_charge_amt]
+ *             required: [business_id, staff_id, sub_charge_amt]
  *             properties:
- *               id:
- *                 type: string
- *                 description: Unique subcharge ID
- *                 example: "SUBC123"
+ *               business_id:
+ *                 type: integer
+ *                 example: 1
  *               staff_id:
  *                 type: string
- *                 description: Staff ID
- *                 example: "STF001"
+ *                 example: "72248dba-4ab2-47d3-8915-736635c8ac2c"
  *               sub_charge_amt:
  *                 type: number
- *                 description: Amount of the subcharge (positive for bonus, negative for deduction)
- *                 example: -5000
+ *                 example: 150.00
  *               reason:
  *                 type: string
- *                 description: Reason for the subcharge
- *                 example: "Late coming penalty"
+ *                 example: "Late arrival penalty"
  *     responses:
  *       201:
- *         description: Staff subcharge recorded successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 staff_subcharge:
- *                   $ref: '#/components/schemas/StaffSubcharge'
+ *         description: Staff subcharge created successfully
  *       400:
  *         description: Missing required fields
  *       500:
