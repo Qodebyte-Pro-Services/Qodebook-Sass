@@ -22,7 +22,7 @@ async function logStaffAction({
   const executor = client || pool;
  try {
    await executor.query(query, values);
- } catch (error) {
+ } catch (err) {
     console.error('Error logging staff action:', err);
  }
 }
