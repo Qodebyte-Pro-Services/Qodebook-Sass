@@ -20,7 +20,11 @@ async function logStaffAction({
   const values = [id, business_id, staff_id, action_type, action_value, reason, performed_by, performed_by_role];
 
   const executor = client || pool;
-  await executor.query(query, values);
+ try {
+   await executor.query(query, values);
+ } catch (error) {
+    console.error('Error logging staff action:', err);
+ }
 }
 
 module.exports = { logStaffAction };

@@ -487,7 +487,7 @@ exports.updateStaffShift = async (req, res) => {
     });
   } catch (err) {
     console.error('Error updating staff shift:', err);
-    return res.status(500).json({ message: 'Server error while updating staff shift.' });
+    return res.status(500).json({ message: 'Server error while updating staff shift.', err });
   }
 };
 exports.deleteStaffShift = async (req, res) => {
@@ -631,7 +631,7 @@ exports.updateStaffSubcharge = async (req, res) => {
     });
   } catch (err) {
     console.error('Error updating staff subcharge:', err);
-    return res.status(500).json({ message: 'Server error while updating staff subcharge.' });
+    return res.status(500).json({ message: 'Server error while updating staff subcharge.', err });
   }
 };
 exports.deleteStaffSubcharge = async (req, res) => {
@@ -1645,7 +1645,7 @@ if ('staff_status' in fields) {
     return res.status(200).json({ staff: result.rows[0] });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(500).json({ message: 'Server error.', err });
   }
 };
 
