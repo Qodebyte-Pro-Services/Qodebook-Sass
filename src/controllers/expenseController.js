@@ -9,161 +9,576 @@ module.exports = {
 
   create: async (req, res) => {
     try {
-      const { business_id, category_id, staff_id, amount, description, expense_date } = req.body;
-      let receipt_url = null;
-      if (req.file) {
-      
-        receipt_url = await uploadToCloudinary(req.file);
-      }
+     const { 
+        business_id, 
+        category_id, 
+        staff_id, 
+        amount, 
+        description, 
+        expense_date, 
+        payment_method 
+      } = req.body;
+
+
       if (!business_id || !category_id || !amount || !expense_date) {
-        return res.status(400).json({ message: 'business_id, category_id, amount, and expense_date are required.' });
+        return res.status(400).json({ 
+          success: false, 
+          message: 'business_id, category_id, amount, and expense_date are required.' 
+        });
       }
-      const result = await pool.query(
-        'INSERT INTO expenses (business_id, category_id, staff_id, amount, description, expense_date, status, receipt_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-        [business_id, category_id, staff_id || null, amount, description || null, expense_date, 'pending', receipt_url]
-      );
-      res.status(201).json({ expense: result.rows[0] });
+
+        let receipt_url = null;
+
+      if (req.file) {
+        const uploaded = await uploadToCloudinary(req.file.buffer, req.file.originalname);
+        receipt_url = uploaded.secure_url;
+      }
+
+    
+      const validMethods = [
+        'cash', 'credit_card', 'debit_card', 'bank_transfer', 'mobile_payment', 'other'
+      ];
+
+
+       if (payment_method && !validMethods.includes(payment_method)) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `Invalid payment method. Must be one of: ${validMethods.join(', ')}` 
+        });
+      }
+
+      const status = 'pending';
+      const payment_status = 'pending';
+
+       const query = `
+        INSERT INTO expenses (
+          business_id, 
+          category_id, 
+          staff_id, 
+          amount, 
+          description, 
+          expense_date, 
+          status, 
+          receipt_url, 
+          payment_method, 
+          payment_status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING *;
+      `;
+
+       const values = [
+        business_id,
+        category_id,
+        staff_id || null,
+        amount,
+        description || null,
+        expense_date,
+        status,
+        receipt_url,
+        payment_method || null,
+        payment_status
+      ];
+
+      const result = await pool.query(query, values);
+
+      res.status(201).json({
+        success: true,
+        message: 'Expense created successfully.',
+        expense: result.rows[0]
+      });
+   
     } catch (err) {
       console.error('Create expense error:', err);
-      res.status(500).json({ message: 'Failed to create expense.' });
+      res.status(500).json({ message: 'Failed to create expense.', err });
     }
   },
+
   list: async (req, res) => {
     try {
-      const business_id = req.query.business_id;
-      const status = req.query.status;
-      let query = 'SELECT * FROM expenses';
-      let params = [];
-      if (business_id && status) {
-        query += ' WHERE business_id = $1 AND status = $2 ORDER BY expense_date DESC';
-        params = [business_id, status];
-      } else if (business_id) {
-        query += ' WHERE business_id = $1 ORDER BY expense_date DESC';
-        params = [business_id];
-      } else if (status) {
-        query += ' WHERE status = $1 ORDER BY expense_date DESC';
-        params = [status];
-      } else {
-        query += ' ORDER BY expense_date DESC';
-      }
-      const result = await pool.query(query, params);
-      res.json({ expenses: result.rows });
-    } catch (err) {
-      console.error('List expenses error:', err);
-      res.status(500).json({ message: 'Failed to list expenses.' });
-    }
-  },
+    const { business_id, status, page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
 
-  approve: async (req, res) => {
-    try {
-      const { id } = req.params;
-      const approverId = req.user.id;
-      const result = await pool.query(
-        'UPDATE expenses SET status = $1, approved_by = $2, approved_at = NOW() WHERE id = $3 AND status = $4 RETURNING *',
-        ['approved', approverId, id, 'pending']
-      );
-      if (result.rows.length === 0) {
-        return res.status(404).json({ message: 'Expense not found or not pending.' });
-      }
-      const staffId = result.rows[0].staff_id;
-      const socketId = userSockets.get(String(staffId));
-      if (socketId) {
-        io.to(socketId).emit('notification', { type: 'expense_approved', expense: result.rows[0] });
-      }
-      res.json({ expense: result.rows[0] });
-    } catch (err) {
-      console.error('Approve expense error:', err);
-      res.status(500).json({ message: 'Failed to approve expense.' });
-    }
-  },
+    let baseQuery = `
+      SELECT 
+        e.id,
+        e.amount,
+        e.description,
+        e.expense_date,
+        e.status,
+        e.payment_method,
+        e.payment_status,
+        e.receipt_url,
+        e.created_at,
+        e.approved_at,
+        e.status_updated_at,
+        b.name AS business_name,
+        c.name AS category_name,
+        s.full_name AS staff_name,
+        COALESCE(u.full_name, '—') AS approved_by_user_name,
+        sa.full_name AS approved_by_staff_name
+      FROM expenses e
+      JOIN businesses b ON e.business_id = b.id
+      JOIN expense_categories c ON e.category_id = c.id
+      LEFT JOIN staff s ON e.staff_id = s.staff_id
+      LEFT JOIN users u ON e.approved_by_user = u.id
+      LEFT JOIN staff sa ON e.approved_by_staff = sa.staff_id
+    `;
 
-  reject: async (req, res) => {
-    try {
-      const { id } = req.params;
-      const approverId = req.user.id;
-      
-      const result = await pool.query(
-        'UPDATE expenses SET status = $1, approved_by = $2, approved_at = NOW() WHERE id = $3 AND status = $4 RETURNING *',
-        ['rejected', approverId, id, 'pending']
-      );
-      if (result.rows.length === 0) {
-        return res.status(404).json({ message: 'Expense not found or not pending.' });
-      }
+    const params = [];
+    const whereClauses = [];
 
-      const staffId = result.rows[0].staff_id;
-      const socketId = userSockets.get(String(staffId));
-      if (socketId) {
-        io.to(socketId).emit('notification', { type: 'expense_rejected', expense: result.rows[0] });
-      }
-      res.json({ expense: result.rows[0] });
-    } catch (err) {
-      console.error('Reject expense error:', err);
-      res.status(500).json({ message: 'Failed to reject expense.' });
+    if (business_id) {
+      params.push(business_id);
+      whereClauses.push(`e.business_id = $${params.length}`);
     }
-  },
- 
-createStaffSalary: async (req, res) => {
-  try {
-    const { business_id, staff_id, amount, expense_date, description } = req.body;
-    if (!business_id || !staff_id || !amount || !expense_date) {
-      return res.status(400).json({ message: 'business_id, staff_id, amount, and expense_date are required.' });
+
+    if (status) {
+      params.push(status);
+      whereClauses.push(`e.status = $${params.length}`);
     }
+
+    if (whereClauses.length > 0) {
+      baseQuery += ` WHERE ${whereClauses.join(" AND ")}`;
+    }
+
+    baseQuery += ` ORDER BY e.expense_date DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+
+    params.push(limit, offset);
+
+    
+    const result = await pool.query(baseQuery, params);
+
    
-    let categoryResult = await pool.query(
-      'SELECT id FROM expense_categories WHERE business_id = $1 AND LOWER(name) = $2',
-      [business_id, 'salary']
-    );
-    let category_id;
-    if (categoryResult.rows.length === 0) {
-      const insert = await pool.query(
-        'INSERT INTO expense_categories (business_id, name, description) VALUES ($1, $2, $3) RETURNING id',
-        [business_id, 'Salary', 'Staff salary payments']
-      );
-      category_id = insert.rows[0].id;
-    } else {
-      category_id = categoryResult.rows[0].id;
+    let countQuery = "SELECT COUNT(*) FROM expenses";
+    if (whereClauses.length > 0) {
+      countQuery += ` WHERE ${whereClauses.join(" AND ")}`;
     }
-    const result = await pool.query(
-      'INSERT INTO expenses (business_id, category_id, staff_id, amount, description, expense_date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [business_id, category_id, staff_id, amount, description || 'Salary payment', expense_date]
-    );
-    res.status(201).json({ expense: result.rows[0] });
+
+    const countResult = await pool.query(countQuery, whereClauses.length ? params.slice(0, whereClauses.length) : []);
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    res.json({
+      success: true,
+      current_page: Number(page),
+      total_pages: Math.ceil(total / limit),
+      total_records: total,
+      data: result.rows,
+    });
   } catch (err) {
-    console.error('Create staff salary expense error:', err);
-    res.status(500).json({ message: 'Failed to create staff salary expense.' });
+    console.error("List expenses error:", err);
+    res.status(500).json({ message: "Failed to list expenses.", err });
+  }
+  },
+
+  listSalaryForStaff: async (req, res) => {
+    try {
+
+        const { staff_id } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+
+    const offset = (page - 1) * limit;
+
+
+      if (!staff_id) {
+      return res.status(400).json({ success: false, message: "Staff ID is required." });
+    }
+
+   
+    const staffCheck = await pool.query(
+      "SELECT staff_name FROM staff WHERE staff_id = $1",
+      [staff_id]
+    );
+    if (staffCheck.rowCount === 0) {
+      return res.status(404).json({ success: false, message: "Staff not found." });
+    }
+
+     const query = `
+      SELECT 
+        e.id,
+        e.amount,
+        e.description,
+        e.payment_method,
+        e.created_at AS payment_date,
+        e.approved_by_role,
+        e.approved_at,
+        e.receipt_url
+      FROM expenses e
+      WHERE e.staff_id = $1
+        AND e.expense_type = 'staff_salary'
+      ORDER BY e.created_at DESC
+      LIMIT $2 OFFSET $3
+    `;
+
+
+     const { rows } = await pool.query(query, [staff_id, limit, offset]);
+     const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM expenses
+      WHERE staff_id = $1 AND expense_type = 'staff_salary'
+    `;
+    const totalResult = await pool.query(countQuery, [staff_id]);
+    const total = parseInt(totalResult.rows[0].total, 10);
+
+    return res.status(200).json({
+      success: true,
+      staff_name: staffCheck.rows[0].staff_name,
+      current_page: Number(page),
+      total_pages: Math.ceil(total / limit),
+      total_records: total,
+      data: rows,
+    });
+      
+    } catch (err) {
+    console.error("Error fetching staff salary history:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch staff salary history.",
+      err
+    });
+    }
+  },
+
+  listExpense: async (req, res) => {
+      try {
+    const { id } = req.params;
+
+    if (!id || isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid expense ID is required.",
+      });
+    }
+
+    const query = `
+      SELECT 
+        e.id,
+        e.amount,
+        e.description,
+        e.expense_date,
+        e.status,
+        e.payment_method,
+        e.payment_status,
+        e.receipt_url,
+        e.created_at,
+        e.approved_at,
+        e.status_updated_at,
+        b.id AS business_id,
+        b.name AS business_name,
+        b.email AS business_email,
+        b.phone AS business_phone,
+        b.address AS business_address,
+        c.id AS category_id,
+        c.name AS category_name,
+        s.staff_id,
+        s.full_name AS staff_name,
+        s.role AS staff_role,
+        COALESCE(u.full_name, '—') AS approved_by_user_name,
+        sa.full_name AS approved_by_staff_name
+      FROM expenses e
+      JOIN businesses b ON e.business_id = b.id
+      JOIN expense_categories c ON e.category_id = c.id
+      LEFT JOIN staff s ON e.staff_id = s.staff_id
+      LEFT JOIN users u ON e.approved_by_user = u.id
+      LEFT JOIN staff sa ON e.approved_by_staff = sa.staff_id
+      WHERE e.id = $1
+      LIMIT 1;
+    `;
+
+    const result = await pool.query(query, [id]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Expense not found.",
+      });
+    }
+
+    const expense = result.rows[0];
+
+    res.status(200).json({
+      success: true,
+      message: "Expense details retrieved successfully.",
+      expense,
+    });
+  } catch (err) {
+    console.error("Get expense by ID error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch expense details.",
+      error: err.message,
+    });
+  }
+  },
+
+  updatePayment: async (req, res) => {
+    try {
+    const { id } = req.params; 
+    const { payment_status } = req.body;
+
+     const validStatuses = ['pending', 'completed', 'failed'];
+    if (!validStatuses.includes(payment_status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid payment_status. Must be one of: ${validStatuses.join(', ')}`
+      });
+    }
+
+
+    const user = req.user;
+    const updaterId = user.isStaff ? user.staff_id : user.user_id;
+    const updaterRole = user.isStaff ? 'staff' : 'user';
+
+    const result = await pool.query(
+      `
+      UPDATE expenses
+      SET 
+        payment_status = $1,
+        status_updated_by = $2,
+        status_updated_by_role = $3,
+        status_updated_at = CURRENT_TIMESTAMP
+      WHERE id = $4
+      RETURNING *;
+      `,
+      [payment_status, updaterId, updaterRole, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, message: 'Expense not found.' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Expense payment status updated to "${payment_status}".`,
+      expense: result.rows[0]
+    });
+
+    } catch (err) {
+      console.error('❌ updatePaymentStatus error:', err);
+    res.status(500).json({ success: false, message: 'Failed to update payment status.', err });
+    }
+  },
+
+  expenseDecison: async (req, res) => {
+    try {
+       const { id } = req.params;
+       const {status} = req.body;
+
+         const validStatuses = ['in_review', 'approved', 'rejected', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+      });
+    }
+
+    const user = req.user;
+
+    const approvedByRole = user.isStaff ? 'staff' : 'user';
+    const approvedByUser = user.isStaff ? null : user.user_id;
+    const approvedByStaff = user.isStaff ? user.staff_id : null;
+
+    const result = await pool.query(
+      `
+      UPDATE expenses
+      SET 
+        status = $1,
+        approved_by_role = $1,
+        approved_by_user = $2,
+        approved_by_staff = $3,
+        approved_at = CURRENT_TIMESTAMP
+      WHERE id = $4
+      RETURNING *;
+      `,
+      [status, approvedByRole, approvedByUser, approvedByStaff, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, message: 'Expense not found.' });
+    }
+
+      res.status(200).json({
+      success: true,
+      message: 'Expense approved successfully.',
+      expense: result.rows[0]
+    });
+    } catch (err) {
+      
+    }
+  },
+
+  payStaffSalary: async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { business_id, staff_id, payment_method, description, amountToBePaid } = req.body;
+    const user = req.user;
+
+    const updaterId = user.isStaff ? user.staff_id : user.user_id;
+    const updaterRole = user.isStaff ? "staff" : "user";
+
+    const approvedByRole = user.isStaff ? "staff" : "user";
+    const approvedByUser = user.isStaff ? null : user.user_id;
+    const approvedByStaff = user.isStaff ? user.staff_id : null;
+
+    if (!business_id || !staff_id) {
+      return res.status(400).json({
+        success: false,
+        message: "business_id and staff_id are required.",
+      });
+    }
+
+    await client.query("BEGIN");
+
+    
+    const staffRes = await client.query(
+      "SELECT * FROM staff WHERE staff_id = $1 AND business_id = $2",
+      [staff_id, business_id]
+    );
+
+    if (staffRes.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res
+        .status(404)
+        .json({ success: false, message: "Staff not found for this business." });
+    }
+
+    const staff = staffRes.rows[0];
+    const amount = parseFloat(amountToBePaid);
+
+    if (!amount || amount <= 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or missing staff salary amount.",
+      });
+    }
+
+    
+    const categoryRes = await client.query(
+      `
+      SELECT id FROM expense_categories
+      WHERE business_id = $1
+      AND LOWER(name) IN ('salary', 'salaries')
+      LIMIT 1;
+      `,
+      [business_id]
+    );
+
+    let category_id;
+    if (categoryRes.rowCount > 0) {
+      category_id = categoryRes.rows[0].id;
+    } else {
+      const newCategory = await client.query(
+        `
+        INSERT INTO expense_categories (business_id, name, description)
+        VALUES ($1, $2, $3)
+        RETURNING id;
+        `,
+        [business_id, "Salary", "Staff salary payments"]
+      );
+      category_id = newCategory.rows[0].id;
+    }
+
+    
+    let receipt_url = null;
+    if (req.file) {
+      const uploaded = await uploadToCloudinary(req.file.buffer, req.file.originalname);
+      receipt_url = uploaded.secure_url;
+    }
+
+    const validMethods = [
+      "cash",
+      "credit_card",
+      "debit_card",
+      "bank_transfer",
+      "mobile_payment",
+      "other",
+    ];
+
+    if (payment_method && !validMethods.includes(payment_method)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid payment method. Must be one of: ${validMethods.join(", ")}`,
+      });
+    }
+
+    
+    const expenseInsert = await client.query(
+      `
+      INSERT INTO expenses (
+        business_id, category_id, staff_id, amount, description, expense_date,
+        status, receipt_url, payment_status, payment_method,
+        approved_by_role, approved_by_user, approved_by_staff,
+        status_updated_by, status_updated_by_role, status_updated_at, approved_at
+      )
+      VALUES (
+        $1, $2, $3, $4, $5, CURRENT_DATE,
+        'approved', $6, 'completed', $7,
+        $8, $9, $10,
+        $11, $12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+      RETURNING *;
+      `,
+      [
+        business_id,
+        category_id,
+        staff_id,
+        amount,
+        description || `Salary payment for ${staff.full_name}`,
+        receipt_url,
+        payment_method || null,
+        approvedByRole,
+        approvedByUser,
+        approvedByStaff,
+        updaterId,
+        updaterRole,
+      ]
+    );
+
+    const expense = expenseInsert.rows[0];
+
+    
+    await client.query(
+      `
+      UPDATE staff
+      SET payment_status = 'paid', last_payment_date = CURRENT_DATE
+      WHERE staff_id = $1;
+      `,
+      [staff_id]
+    );
+
+    
+    await logStaffAction({
+      business_id,
+      staff_id,
+      action_type: "staff_salary",
+      action_value: expense.id.toString(),
+      reason: "Salary payment processed",
+      performed_by: user.isStaff ? user.staff_id : user.user_id,
+      performed_by_role: user.isStaff ? "staff" : "user",
+      client,
+    });
+
+    await client.query("COMMIT");
+
+    res.status(201).json({
+      success: true,
+      message: `Salary of ₦${amount.toLocaleString()} paid to ${staff.full_name}`,
+      expense,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("💥 payStaffSalary error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to process staff salary.",
+      error: err.message,
+    });
+  } finally {
+    client.release();
   }
 },
-  update: async (req, res) => {
-    try {
-      const { id } = req.params;
-      const fields = ['category_id', 'staff_id', 'amount', 'description', 'expense_date'];
-      const updates = [];
-      const values = [];
-      fields.forEach((field, idx) => {
-        if (req.body[field] !== undefined) {
-          updates.push(`${field} = $${updates.length + 1}`);
-          values.push(req.body[field]);
-        }
-      });
-      if (req.file) {
-        updates.push(`receipt_url = $${updates.length + 1}`);
 
-        values.push(await uploadToCloudinary(req.file));
-      }
-      if (updates.length === 0) {
-        return res.status(400).json({ message: 'No fields to update.' });
-      }
-      values.push(id);
-      const result = await pool.query(
-        `UPDATE expenses SET ${updates.join(', ')} WHERE id = $${values.length} RETURNING *`,
-        values
-      );
-      res.json({ expense: result.rows[0] });
-    } catch (err) {
-      console.error('Update expense error:', err);
-      res.status(500).json({ message: 'Failed to update expense.' });
-    }
-  },
   delete: async (req, res) => {
     try {
       const { id } = req.params;
