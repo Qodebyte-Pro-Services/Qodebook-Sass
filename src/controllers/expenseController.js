@@ -94,8 +94,8 @@ module.exports = {
     }
   },
 
-  list: async (req, res) => {
-    try {
+list: async (req, res) => {
+  try {
     const { business_id, status, page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
 
@@ -113,13 +113,13 @@ module.exports = {
         e.approved_at,
         e.status_updated_at,
         b.name AS business_name,
-        c.name AS category_name,
+        COALESCE(c.name, '—') AS category_name,
         s.full_name AS staff_name,
         COALESCE(u.full_name, '—') AS approved_by_user_name,
         sa.full_name AS approved_by_staff_name
       FROM expenses e
       JOIN businesses b ON e.business_id = b.id
-      JOIN expense_categories c ON e.category_id = c.id
+      LEFT JOIN expense_categories c ON e.category_id = c.id
       LEFT JOIN staff s ON e.staff_id = s.staff_id
       LEFT JOIN users u ON e.approved_by_user = u.id
       LEFT JOIN staff sa ON e.approved_by_staff = sa.staff_id
@@ -143,14 +143,11 @@ module.exports = {
     }
 
     baseQuery += ` ORDER BY e.expense_date DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-
     params.push(limit, offset);
 
-    
     const result = await pool.query(baseQuery, params);
 
-   
-    let countQuery = "SELECT COUNT(*) FROM expenses";
+    let countQuery = "SELECT COUNT(*) FROM expenses e";
     if (whereClauses.length > 0) {
       countQuery += ` WHERE ${whereClauses.join(" AND ")}`;
     }
@@ -169,7 +166,7 @@ module.exports = {
     console.error("List expenses error:", err);
     res.status(500).json({ message: "Failed to list expenses.", err });
   }
-  },
+},
 
   listSalaryForStaff: async (req, res) => {
     try {
@@ -240,7 +237,7 @@ module.exports = {
   },
 
   listExpense: async (req, res) => {
-      try {
+  try {
     const { id } = req.params;
 
     if (!id || isNaN(id)) {
@@ -269,7 +266,7 @@ module.exports = {
         b.phone AS business_phone,
         b.address AS business_address,
         c.id AS category_id,
-        c.name AS category_name,
+        COALESCE(c.name, '—') AS category_name,
         s.staff_id,
         s.full_name AS staff_name,
         s.role AS staff_role,
@@ -277,7 +274,7 @@ module.exports = {
         sa.full_name AS approved_by_staff_name
       FROM expenses e
       JOIN businesses b ON e.business_id = b.id
-      JOIN expense_categories c ON e.category_id = c.id
+      LEFT JOIN expense_categories c ON e.category_id = c.id
       LEFT JOIN staff s ON e.staff_id = s.staff_id
       LEFT JOIN users u ON e.approved_by_user = u.id
       LEFT JOIN staff sa ON e.approved_by_staff = sa.staff_id
@@ -294,12 +291,10 @@ module.exports = {
       });
     }
 
-    const expense = result.rows[0];
-
     res.status(200).json({
       success: true,
       message: "Expense details retrieved successfully.",
-      expense,
+      expense: result.rows[0],
     });
   } catch (err) {
     console.error("Get expense by ID error:", err);
@@ -309,7 +304,7 @@ module.exports = {
       error: err.message,
     });
   }
-  },
+},
 
   updatePayment: async (req, res) => {
     try {
