@@ -100,29 +100,29 @@ list: async (req, res) => {
     const offset = (page - 1) * limit;
 
     let baseQuery = `
-      SELECT 
-        e.id,
-        e.amount,
-        e.description,
-        e.expense_date,
-        e.status,
-        e.payment_method,
-        e.payment_status,
-        e.receipt_url,
-        e.created_at,
-        e.approved_at,
-        e.status_updated_at,
-        b.business_name AS business_name,
-        COALESCE(c.name, '—') AS category_name,
-        s.full_name AS staff_name,
-        COALESCE(u.first_name || ' ' || u.last_name, '—') AS approved_by_user_name
-        sa.full_name AS approved_by_staff_name
-      FROM expenses e
-      JOIN businesses b ON e.business_id = b.id
-      LEFT JOIN expense_categories c ON e.category_id = c.id
-      LEFT JOIN staff s ON e.staff_id = s.staff_id
-      LEFT JOIN users u ON e.approved_by_user = u.id
-      LEFT JOIN staff sa ON e.approved_by_staff = sa.staff_id
+ SELECT 
+    e.id,
+    e.amount,
+    e.description,
+    e.expense_date,
+    e.status,
+    e.payment_method,
+    e.payment_status,
+    e.receipt_url,
+    e.created_at,
+    e.approved_at,
+    e.status_updated_at,
+    b.business_name AS business_name,
+    COALESCE(c.name, '—') AS category_name,
+    s.full_name AS staff_name,
+    COALESCE(u.first_name || ' ' || u.last_name, '—') AS approved_by_user_name,
+    sa.full_name AS approved_by_staff_name
+FROM expenses e
+JOIN businesses b ON e.business_id = b.id
+LEFT JOIN expense_categories c ON e.category_id = c.id
+LEFT JOIN staff s ON e.staff_id = s.staff_id
+LEFT JOIN users u ON e.approved_by_user = u.id
+LEFT JOIN staff sa ON e.approved_by_staff = sa.staff_id
     `;
 
     const params = [];
