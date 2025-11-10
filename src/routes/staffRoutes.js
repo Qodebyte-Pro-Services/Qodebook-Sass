@@ -1181,7 +1181,17 @@ router.get('/:id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF), staffCont
  * @swagger
  * /api/staff/{id}:
  *   put:
- *     summary: Update staff info
+ *     summary: Update an existing staff member's information
+ *     description: |
+ *       Updates an existing staff member's details. Supports partial updates — only provided fields will be modified.
+ *       You can also update the staff's **profile photo** (Cloudinary-hosted). If a new photo is uploaded, the old one is automatically removed.
+ *       
+ *       **Update Rules:**
+ *       - You can update any combination of fields.
+ *       - Uploading a new `photo` will delete the previous Cloudinary image.
+ *       - If no new `photo` is uploaded, the existing one remains.
+ *       - If `staff_status` changes, a status change log entry will be created automatically.
+ *
  *     tags: [Staff]
  *     security:
  *       - bearerAuth: []
@@ -1191,18 +1201,133 @@ router.get('/:id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF), staffCont
  *         schema:
  *           type: string
  *         required: true
- *         description: Staff ID
+ *         description: The unique staff ID
  *     requestBody:
- *       required: true
+ *       required: false
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
+ *             properties:
+ *               full_name:
+ *                 type: string
+ *                 description: Updated full name of the staff member
+ *                 example: "John Doe"
+ *               contact_no:
+ *                 type: string
+ *                 description: Updated contact number
+ *                 example: "+2348012345678"
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Updated email address
+ *                 example: "john.doe@company.com"
+ *               address:
+ *                 type: string
+ *                 description: Updated residential address
+ *                 example: "123 Main Street, Lagos"
+ *               position_name:
+ *                 type: string
+ *                 description: Updated job position
+ *                 example: "Branch Manager"
+ *               salary:
+ *                 type: number
+ *                 description: Updated salary amount
+ *                 example: 250000
+ *               bank_account_number:
+ *                 type: string
+ *                 description: Updated bank account number
+ *                 example: "0123456789"
+ *               bank_name:
+ *                 type: string
+ *                 description: Updated bank name
+ *                 example: "GTBank"
+ *               staff_status:
+ *                 type: string
+ *                 enum: [on_job, suspended, terminated]
+ *                 description: Current employment status
+ *                 example: "suspended"
+ *               payment_status:
+ *                 type: string
+ *                 enum: [paid, un_paid, paid_half]
+ *                 description: Payment status for payroll purposes
+ *                 example: "paid"
+ *               photo:
+ *                 type: string
+ *                 format: binary
+ *                 description: Optional new profile photo (Cloudinary upload)
  *     responses:
  *       200:
- *         description: Staff updated
+ *         description: Staff updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Staff updated successfully."
+ *                 staff:
+ *                   type: object
+ *                   properties:
+ *                     staff_id:
+ *                       type: string
+ *                       example: "STF001"
+ *                     full_name:
+ *                       type: string
+ *                       example: "John Doe"
+ *                     email:
+ *                       type: string
+ *                       example: "john.doe@company.com"
+ *                     photo:
+ *                       type: string
+ *                       description: URL of the updated profile photo (if changed)
+ *                       example: "https://res.cloudinary.com/demo/image/upload/v1731234567/john_doe_photo.png"
+ *                     staff_status:
+ *                       type: string
+ *                       example: "on_job"
+ *                     updated_at:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2025-11-10T09:15:00Z"
+ *       400:
+ *         description: Invalid or missing fields
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "No fields to update."
+ *       404:
+ *         description: Staff not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Staff not found."
+ *       500:
+ *         description: Server error or Cloudinary upload failure
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Failed to upload new profile photo."
  */
-router.put('/:id', ...requirePermission(STAFF_PERMISSIONS.UPDATE_STAFF), staffController.updateStaff);
+
+router.put(
+  '/:id',
+  upload.fields([{ name: 'photo', maxCount: 1 }]), 
+  ...requirePermission(STAFF_PERMISSIONS.UPDATE_STAFF),
+  staffController.updateStaff
+);
 
 /**
  * @swagger

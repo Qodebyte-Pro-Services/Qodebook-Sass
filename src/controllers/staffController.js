@@ -1612,40 +1612,97 @@ exports.getStaff = async (req, res) => {
   }
 };
 
-exports.updateStaff = async (req, res) => {
+  exports.updateStaff = async (req, res) => {
+  const client = await pool.connect();
+
   try {
     const { id } = req.params;
     const fields = req.body;
+    let uploadedPhoto = null;
+
+    
+    const existingStaffResult = await client.query(
+      'SELECT * FROM staff WHERE staff_id = $1',
+      [id]
+    );
+
+    if (existingStaffResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Staff not found.' });
+    }
+
+    const existingStaff = existingStaffResult.rows[0];
+
+    
+    if (req.files?.photo?.[0]) {
+      try {
+       
+        const uploaded = await uploadToCloudinary(
+          req.files.photo[0].buffer,
+          req.files.photo[0].originalname
+        );
+        uploadedPhoto = uploaded.secure_url;
+
+        
+        if (existingStaff.photo) {
+          try {
+            const publicId = existingStaff.photo.split('/').slice(-1)[0].split('.')[0]; 
+            await ComplexDeleteFileFromCloudinary(publicId);
+          } catch (cleanupErr) {
+            console.warn("⚠️ Failed to delete old Cloudinary image:", cleanupErr.message);
+          }
+        }
+
+       
+        fields.photo = uploadedPhoto;
+      } catch (uploadErr) {
+        console.error('❌ Cloudinary upload failed:', uploadErr.message);
+        return res.status(500).json({ message: 'Failed to upload new profile photo.' });
+      }
+    }
+
+    
     let setParts = [];
     let values = [];
     let idx = 1;
+
     for (const key in fields) {
       setParts.push(`${key} = $${idx}`);
       values.push(fields[key]);
       idx++;
     }
-    if (setParts.length === 0) return res.status(400).json({ message: 'No fields to update.' });
+
+    if (setParts.length === 0)
+      return res.status(400).json({ message: 'No fields to update.' });
+
     values.push(id);
     const setClause = setParts.join(', ');
     const query = `UPDATE staff SET ${setClause} WHERE staff_id = $${idx} RETURNING *`;
-    const result = await pool.query(query, values);
+
+    const result = await client.query(query, values);
     const updatedStaff = result.rows[0];
 
-if ('staff_status' in fields) {
-  await logStaffAction({
-    business_id: updatedStaff.business_id,
-    staff_id: updatedStaff.staff_id,
-    action_type: 'status_change',
-    action_value: fields.staff_status,
-    reason: 'Staff status updated',
-    performed_by: req.user?.fullname || 'admin',
-    performed_by_role: req.user?.role || 'admin',
-  });
-}
-    return res.status(200).json({ staff: result.rows[0] });
+   
+    if ('staff_status' in fields) {
+      await logStaffAction({
+        business_id: updatedStaff.business_id,
+        staff_id: updatedStaff.staff_id,
+        action_type: 'status_change',
+        action_value: fields.staff_status,
+        reason: 'Staff status updated',
+        performed_by: req.user?.fullname || 'admin',
+        performed_by_role: req.user?.role || 'admin',
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Staff updated successfully.',
+      staff: updatedStaff,
+    });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.', err });
+    console.error('❌ Error updating staff:', err);
+    return res.status(500).json({ message: 'Server error.', error: err.message });
+  } finally {
+    client.release();
   }
 };
 
