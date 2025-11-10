@@ -115,7 +115,7 @@ list: async (req, res) => {
         b.business_name AS business_name,
         COALESCE(c.name, '—') AS category_name,
         s.full_name AS staff_name,
-        COALESCE(u.full_name, '—') AS approved_by_user_name,
+        COALESCE(u.first_name || ' ' || u.last_name, '—') AS approved_by_user_name
         sa.full_name AS approved_by_staff_name
       FROM expenses e
       JOIN businesses b ON e.business_id = b.id
@@ -269,8 +269,8 @@ list: async (req, res) => {
         COALESCE(c.name, '—') AS category_name,
         s.staff_id,
         s.full_name AS staff_name,
-        s.role AS staff_role,
-        COALESCE(u.full_name, '—') AS approved_by_user_name,
+        s.position_name AS staff_role,
+        COALESCE(u.first_name || ' ' || u.last_name, '—') AS approved_by_user_name,
         sa.full_name AS approved_by_staff_name
       FROM expenses e
       JOIN businesses b ON e.business_id = b.id
