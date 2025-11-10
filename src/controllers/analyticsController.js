@@ -119,58 +119,91 @@ exports.grossNetProfitOverTime = async (req, res) => {
 
 exports.expenseOverTime = async (req, res) => {
   try {
-    const { business_id, branch_id, period = 'day', start_date, end_date } = req.query;
+    const { business_id, period = 'day', start_date, end_date } = req.query;
+
+    
+    const allowedPeriods = ['day', 'week', 'month', 'year'];
+    if (!allowedPeriods.includes(period)) return res.status(400).json({ message: 'Invalid period' });
+
     let params = [];
     let wheres = [];
     let idx = 1;
-    if (business_id) { wheres.push(`e.business_id = $${idx}`); params.push(business_id); idx++; }
-    if (branch_id) { wheres.push(`e.branch_id = $${idx}`); params.push(branch_id); idx++; }
-    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
-    let dateSelect = `DATE_TRUNC('${period}', e.created_at)`;
-    let dateWhere = '';
-    if (start_date && end_date) dateWhere = ` AND e.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
-    const expenseResult = await pool.query(
-      `SELECT ${dateSelect} AS period, SUM(e.amount) AS total_expense
-       FROM expenses e
-       ${whereClause}${dateWhere}
-       GROUP BY period
-       ORDER BY period ASC`,
-      params
-    );
-    res.json({ expense: expenseResult.rows });
+
+    if (business_id) {
+      wheres.push(`e.business_id = $${idx}`);
+      params.push(business_id);
+      idx++;
+    }
+
+    if (start_date && end_date) {
+      wheres.push(`e.created_at::date BETWEEN $${idx} AND $${idx + 1}`);
+      params.push(start_date, end_date);
+      idx += 2;
+    }
+
+    const whereClause = wheres.length ? 'WHERE ' + wheres.join(' AND ') : '';
+
+    const query = `
+      SELECT DATE_TRUNC('${period}', e.created_at) AS period,
+             SUM(e.amount) AS total_expense
+      FROM expenses e
+      ${whereClause}
+      GROUP BY period
+      ORDER BY period ASC
+    `;
+
+    const result = await pool.query(query, params);
+    res.json({ expense: result.rows });
+
   } catch (err) {
     console.error('Expense over time error:', err);
     res.status(500).json({ message: 'Failed to fetch expense over time.' });
   }
 };
 
-
 exports.budgetOverTime = async (req, res) => {
   try {
-    const { business_id, branch_id, period = 'day', start_date, end_date } = req.query;
+    const { business_id, period = 'day', start_date, end_date } = req.query;
+
+    const allowedPeriods = ['day', 'week', 'month', 'year'];
+    if (!allowedPeriods.includes(period)) return res.status(400).json({ message: 'Invalid period' });
+
     let params = [];
     let wheres = [];
     let idx = 1;
-    if (business_id) { wheres.push(`b.business_id = $${idx}`); params.push(business_id); idx++; }
-    if (branch_id) { wheres.push(`b.branch_id = $${idx}`); params.push(branch_id); idx++; }
-    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
-    let dateSelect = `DATE_TRUNC('${period}', b.created_at)`;
-    let dateWhere = '';
-    if (start_date && end_date) dateWhere = ` AND b.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
-    const budgetResult = await pool.query(
-      `SELECT ${dateSelect} AS period, SUM(b.amount) AS total_budget
-       FROM budgets b
-       ${whereClause}${dateWhere}
-       GROUP BY period
-       ORDER BY period ASC`,
-      params
-    );
-    res.json({ budget: budgetResult.rows });
+
+    if (business_id) {
+      wheres.push(`b.business_id = $${idx}`);
+      params.push(business_id);
+      idx++;
+    }
+
+    if (start_date && end_date) {
+      wheres.push(`b.created_at::date BETWEEN $${idx} AND $${idx + 1}`);
+      params.push(start_date, end_date);
+      idx += 2;
+    }
+
+    const whereClause = wheres.length ? 'WHERE ' + wheres.join(' AND ') : '';
+
+    const query = `
+      SELECT DATE_TRUNC('${period}', b.created_at) AS period,
+             SUM(b.amount) AS total_budget
+      FROM budgets b
+      ${whereClause}
+      GROUP BY period
+      ORDER BY period ASC
+    `;
+
+    const result = await pool.query(query, params);
+    res.json({ budget: result.rows });
+
   } catch (err) {
     console.error('Budget over time error:', err);
     res.status(500).json({ message: 'Failed to fetch budget over time.' });
   }
 };
+
 
 
 exports.budgetAllocationByCategory = async (req, res) => {

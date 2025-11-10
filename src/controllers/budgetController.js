@@ -262,9 +262,9 @@ module.exports = {
         b.id, b.amount, b.period_start, b.period_end, b.carry_over,
         b.budget_spent, b.budget_remaining, b.budget_month, b.budget_year,
         b.status, b.rejection_reason, b.created_at,
-        biz.name AS business_name,
+        biz.business_name AS business_name,
         cat.name AS category_name,
-        COALESCE(u.full_name, '—') AS approved_by_user_name,
+        COALESCE(u.first_name || ' ' || u.last_name, '—') AS approved_by_user_name,
         COALESCE(s.full_name, '—') AS approved_by_staff_name
       FROM budgets b
       JOIN businesses biz ON b.business_id = biz.id
@@ -307,9 +307,9 @@ module.exports = {
         b.id, b.amount, b.period_start, b.period_end, b.carry_over,
         b.budget_spent, b.budget_remaining, b.budget_month, b.budget_year,
         b.status, b.rejection_reason, b.created_at,
-        biz.name AS business_name,
+        biz.business_name AS business_name,
         cat.name AS category_name,
-        COALESCE(u.full_name, '—') AS approved_by_user_name,
+        COALESCE(u.first_name || ' ' || u.last_name, '—') AS approved_by_user_name,
         COALESCE(s.full_name, '—') AS approved_by_staff_name
       FROM budgets b
       JOIN businesses biz ON b.business_id = biz.id
