@@ -51,6 +51,27 @@ router.get('/', authenticateToken, customerController.listCustomers);
 
 /**
  * @swagger
+ * /api/customer/{id}/orders:
+ *   get:
+ *     summary: Get orders by a customer
+ *     tags: [Customer]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: Customer ID
+ *     responses:
+ *       200:
+ *         description: List of orders for customer
+ */
+router.get('/:id/orders', authenticateToken, customerController.getCustomerOrders);
+
+/**
+ * @swagger
  * /api/customers/{id}:
  *   get:
  *     summary: Get a customer
@@ -125,25 +146,6 @@ router.put('/:id', ...requirePermission(CUSTOMER_PERMISSIONS.UPDATE_CUSTOMER), r
  */
 router.delete('/:id', ...requirePermission(CUSTOMER_PERMISSIONS.DELETE_CUSTOMER), rateLimitMiddleware, customerController.deleteCustomer);
 
-/**
- * @swagger
- * /api/customer/{id}/orders:
- *   get:
- *     summary: Get orders by a customer
- *     tags: [Customer]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         schema:
- *           type: integer
- *         required: true
- *         description: Customer ID
- *     responses:
- *       200:
- *         description: List of orders for customer
- */
-router.get('/:id/orders', authenticateToken, customerController.getCustomerOrders);
+
 
 module.exports = router;
