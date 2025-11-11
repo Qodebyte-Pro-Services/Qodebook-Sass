@@ -51,7 +51,7 @@ router.get('/', authenticateToken, customerController.listCustomers);
 
 /**
  * @swagger
- * /api/customer/{id}/orders:
+ * /api/customer/orders/{id}:
  *   get:
  *     summary: Get orders by a customer
  *     tags: [Customer]
@@ -68,7 +68,7 @@ router.get('/', authenticateToken, customerController.listCustomers);
  *       200:
  *         description: List of orders for customer
  */
-router.get('/:id/orders', authenticateToken, customerController.getCustomerOrders);
+router.get('/orders/:id', authenticateToken, customerController.getCustomerOrders);
 
 /**
  * @swagger
