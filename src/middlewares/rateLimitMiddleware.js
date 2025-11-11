@@ -1,17 +1,18 @@
 const rateLimit = require('express-rate-limit');
 const slowDown = require('express-slow-down');
-const { ipKeyGenerator } = require('express-rate-limit'); 
+const RedisStore = require('rate-limit-redis');
+const { createClient } = require('redis');
+const { ipKeyGenerator } = require('express-rate-limit');
 
+const redisClient = createClient({ url: process.env.REDIS_URL });
+redisClient.connect().catch(console.error);
 
 const generateKey = (req) => {
   if (req.user?.staff_id) return `staff-${req.user.staff_id}`;
   if (req.user?.business_id) return `biz-${req.user.business_id}`;
   if (req.user?.user_id) return `usr-${req.user.user_id}`;
-
-
   return ipKeyGenerator(req);
 };
-
 
 const rateLimitHandler = (req, res, _next, options) => {
   const retryAfterSeconds = Math.ceil(options.windowMs / 1000);
@@ -31,7 +32,6 @@ const rateLimitHandler = (req, res, _next, options) => {
   });
 };
 
-
 const createRateLimitMiddleware = ({ windowMs, max, message }) => {
   const limiter = rateLimit({
     windowMs,
@@ -40,6 +40,9 @@ const createRateLimitMiddleware = ({ windowMs, max, message }) => {
     legacyHeaders: false,
     keyGenerator: generateKey,
     handler: rateLimitHandler,
+    store: new RedisStore({
+      sendCommand: (...args) => redisClient.sendCommand(args),
+    }),
   });
 
   const slowDownMiddleware = slowDown({
@@ -76,7 +79,6 @@ const getGuestLimiter = createRateLimitMiddleware({
   message: 'Too many GET requests, please try again later.',
 });
 
-
 const staffLimiter = createRateLimitMiddleware({
   windowMs: 15 * 60 * 1000,
   max: 150,
@@ -95,7 +97,6 @@ const guestLimiter = createRateLimitMiddleware({
   message: 'Too many attempts, please try again later.',
 });
 
-
 const rateLimitMiddleware = (req, res, next) => {
   if (req.method === 'GET') {
     if (req.user?.staff_id) return getStaffLimiter(req, res, next);
@@ -109,6 +110,4 @@ const rateLimitMiddleware = (req, res, next) => {
   return guestLimiter(req, res, next);
 };
 
-module.exports = {
-  rateLimitMiddleware,
-};
+module.exports = { rateLimitMiddleware };
