@@ -58,6 +58,25 @@ const createRateLimitMiddleware = ({ windowMs, max, message }) => {
 };
 
 
+const getStaffLimiter = createRateLimitMiddleware({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  message: 'Too many GET requests, please try again later.',
+});
+
+const getUserLimiter = createRateLimitMiddleware({
+  windowMs: 15 * 60 * 1000,
+  max: 400,
+  message: 'Too many GET requests, please try again later.',
+});
+
+const getGuestLimiter = createRateLimitMiddleware({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: 'Too many GET requests, please try again later.',
+});
+
+
 const staffLimiter = createRateLimitMiddleware({
   windowMs: 15 * 60 * 1000,
   max: 150,
@@ -76,17 +95,12 @@ const guestLimiter = createRateLimitMiddleware({
   message: 'Too many attempts, please try again later.',
 });
 
-const getLimiter = createRateLimitMiddleware({
-  windowMs: 15 * 60 * 1000,
-  max: 20, 
-  message: 'Too many GET requests, please try again later.',
-});
-
 
 const rateLimitMiddleware = (req, res, next) => {
   if (req.method === 'GET') {
-    const max = req.user?.staff_id ? 300 : req.user?.user_id ? 400 : 20;
-    return getLimiter(req, res, next);
+    if (req.user?.staff_id) return getStaffLimiter(req, res, next);
+    if (req.user?.user_id) return getUserLimiter(req, res, next);
+    return getGuestLimiter(req, res, next);
   }
 
   if (req.user?.staff_id) return staffLimiter(req, res, next);
