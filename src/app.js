@@ -1,6 +1,7 @@
 const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
+const helmet = require('helmet');
 require('./config/env');
 const reviewRoutes = require('./routes/reviewRoutes');
 const wishlistRoutes = require('./routes/wishlistRoutes');
@@ -45,7 +46,7 @@ const analyticsUnifiedRoutes = require('./routes/analyticsUnifiedRoutes');
 const setupSwagger = require('../swagger');
 const app = express();
 
-
+app.use(helmet()); 
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
