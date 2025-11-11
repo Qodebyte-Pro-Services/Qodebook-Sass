@@ -512,14 +512,14 @@ for (const table of tables) {
 
     
     const today = new Date().toISOString().slice(0, 10);
-    const staffWithShiftTodayResult = await pool.query(
-      `
-      SELECT COUNT(DISTINCT staff_id) AS count
-      FROM staff_shifts s
-      WHERE work_days LIKE $1
-      `,
-      [`%${today}%`]
-    );
+ const staffWithShiftTodayResult = await pool.query(
+  `
+  SELECT COUNT(DISTINCT staff_id) AS count
+  FROM staff_shifts s
+  WHERE work_days @> to_jsonb($1::text)
+  `,
+  [today]
+);
     const staffWithShiftToday = Number(
       staffWithShiftTodayResult.rows[0]?.count || 0
     );
