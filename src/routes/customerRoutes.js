@@ -144,6 +144,6 @@ router.delete('/:id', ...requirePermission(CUSTOMER_PERMISSIONS.DELETE_CUSTOMER)
  *       200:
  *         description: List of orders for customer
  */
-router.get('/customer/:id/orders', authenticateToken, customerController.getCustomerOrders);
+router.get('/:id/orders', authenticateToken, customerController.getCustomerOrders);
 
 module.exports = router;
