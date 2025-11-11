@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { authenticateToken } = require('../middlewares/authMiddleware');
 const staffController = require('../controllers/staffController');
-const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
+const { requirePermission } = require('../utils/routeHelpers');
 const { STAFF_PERMISSIONS, BUSINESS_PERMISSIONS } = require('../constants/permissions');
 const upload = require('../middlewares/upload');
-
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
+ 
 /**
  * @swagger
  * /api/staff/business_settings/{business_id}:
@@ -194,9 +194,9 @@ const upload = require('../middlewares/upload');
  *       500:
  *         description: Server error
  */
-router.post('/business_settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_BUSINESS_SETTINGS), staffController.createBusinessStaffSettings);
+router.post('/business_settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_BUSINESS_SETTINGS), rateLimitMiddleware, staffController.createBusinessStaffSettings);
 router.get('/business_settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_BUSINESS_SETTINGS), staffController.getBusinessStaffSettings);
-router.patch('/business_settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_BUSINESS_SETTINGS), staffController.updateBusinessStaffSettings);
+router.patch('/business_settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_BUSINESS_SETTINGS), rateLimitMiddleware, staffController.updateBusinessStaffSettings);
 
 
 /**
@@ -232,7 +232,7 @@ router.patch('/business_settings/:business_id', ...requirePermission(BUSINESS_PE
  *         description: Staff action deleted
  */
 router.get('/actions/:staff_id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_ACTIONS), staffController.listStaffActions);
-router.delete('/actions/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_ACTIONS), staffController.deleteStaffAction);
+router.delete('/actions/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_ACTIONS), rateLimitMiddleware, staffController.deleteStaffAction);
 /**
  * @swagger
  * /api/staff/docs:
@@ -291,6 +291,7 @@ router.post(
   '/docs',
   requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_DOCS),
   upload.array('file', 10),
+  rateLimitMiddleware,
   staffController.createStaffDoc
 );
 
@@ -472,11 +473,13 @@ router.put(
   '/docs/:staff_id',
   requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_DOCS),
   upload.array('file', 10),
+  rateLimitMiddleware,
   staffController.updateStaffDoc
 );
 router.delete(
   '/docs/:id',
   requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_DOCS),
+  rateLimitMiddleware,
   staffController.deleteStaffDoc
 );
 
@@ -533,6 +536,7 @@ router.delete(
 router.post(
   '/shifts',
   ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SHIFTS),
+  rateLimitMiddleware,
   staffController.createStaffShift
 );
 
@@ -615,6 +619,7 @@ router.post(
 router.put(
   '/shifts/:id',
   ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SHIFTS),
+  rateLimitMiddleware,
   staffController.updateStaffShift
 );
 /**
@@ -637,7 +642,7 @@ router.put(
  *         description: Staff shift deleted
  */
 router.get('/shifts/:staff_id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_SHIFTS), staffController.listStaffShifts);
-router.delete('/shifts/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SHIFTS), staffController.deleteStaffShift);
+router.delete('/shifts/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SHIFTS), rateLimitMiddleware, staffController.deleteStaffShift);
 
 /**
  * @swagger
@@ -675,7 +680,7 @@ router.delete('/shifts/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF
  *       500:
  *         description: Server error
  */
-router.post('/subcharges', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SUBCHARGE), staffController.createStaffSubcharge);
+router.post('/subcharges', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SUBCHARGE), rateLimitMiddleware, staffController.createStaffSubcharge);
 /**
  * @swagger
  * /api/staff/subcharges:
@@ -733,8 +738,8 @@ router.post('/subcharges', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_S
  *         description: Staff subcharge deleted
  */
 router.get('/subcharges/:staff_id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_SUBCHARGE), staffController.listStaffSubcharges);
-router.put('/subcharges/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SUBCHARGE), staffController.updateStaffSubcharge);
-router.delete('/subcharges/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SUBCHARGE), staffController.deleteStaffSubcharge);
+router.put('/subcharges/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SUBCHARGE), rateLimitMiddleware, staffController.updateStaffSubcharge);
+router.delete('/subcharges/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_STAFF_SUBCHARGE), rateLimitMiddleware, staffController.deleteStaffSubcharge);
 
 /**
  * @swagger
@@ -788,7 +793,7 @@ router.delete('/subcharges/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_S
  *       500:
  *         description: Server error
  */
-router.post('/roles', ...requirePermission(STAFF_PERMISSIONS.MANAGE_ROLES), staffController.createRole);
+router.post('/roles', ...requirePermission(STAFF_PERMISSIONS.MANAGE_ROLES), rateLimitMiddleware, staffController.createRole);
 /**
  * @swagger
  * /api/staff/roles:
@@ -907,7 +912,7 @@ router.get('/roles/:id', ...requirePermission(STAFF_PERMISSIONS.VIEW_ROLES), sta
  *       500:
  *         description: Server error
  */
-router.put('/roles/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_ROLES), staffController.updateRole);
+router.put('/roles/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_ROLES), rateLimitMiddleware, staffController.updateRole);
 /**
  * @swagger
  * /api/staff/roles/{id}:
@@ -931,7 +936,7 @@ router.put('/roles/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_ROLES), s
  *       500:
  *         description: Server error
  */
-router.delete('/roles/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_ROLES), staffController.deleteRole);
+router.delete('/roles/:id', ...requirePermission(STAFF_PERMISSIONS.MANAGE_ROLES), rateLimitMiddleware, staffController.deleteRole);
 
 /**
  * @swagger
@@ -1140,6 +1145,7 @@ router.post(
     { name: 'documents', maxCount: 10 }
   ]),
   ...requirePermission(STAFF_PERMISSIONS.CREATE_STAFF),
+  rateLimitMiddleware,
   staffController.createStaff
 );
 /**
@@ -1326,6 +1332,7 @@ router.put(
   '/:id',
   upload.fields([{ name: 'photo', maxCount: 1 }]), 
   ...requirePermission(STAFF_PERMISSIONS.UPDATE_STAFF),
+  rateLimitMiddleware,
   staffController.updateStaff
 );
 
@@ -1489,7 +1496,7 @@ router.get('/business/:id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF), 
  *                   type: string
  *                   example: "Server error."
  */
-router.post('/login', staffController.staffLogin);
+router.post('/login', rateLimitMiddleware, staffController.staffLogin);
 
 
 /**
@@ -1687,7 +1694,7 @@ router.post('/verify-otp', staffController.verifyStaffOtp);
  *                   type: string
  *                   example: "Server error while resending OTP."
  */
-router.post('/resend-otp', staffController.resendStaffOtp);
+router.post('/resend-otp', rateLimitMiddleware, staffController.resendStaffOtp);
 
 
 /**
@@ -1792,11 +1799,11 @@ router.post('/resend-otp', staffController.resendStaffOtp);
  *                   type: string
  *                   example: "Server error"
  */
-router.post('/password/change', ...requirePermission(STAFF_PERMISSIONS.CHANGE_PASSWORD), staffController.requestPasswordChange);
+router.post('/password/change', ...requirePermission(STAFF_PERMISSIONS.CHANGE_PASSWORD), rateLimitMiddleware, staffController.requestPasswordChange);
 
 
 
-router.post('/settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_SETTINGS), staffController.updateBusinessStaffSettings);
+router.post('/settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_SETTINGS), rateLimitMiddleware, staffController.updateBusinessStaffSettings);
 /**
  * @swagger
  * /api/staff/settings/{business_id}:
@@ -1971,7 +1978,7 @@ router.get('/settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.V
  *       200:
  *         description: Settings updated successfully
  */
-router.put('/settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_BUSINESS_SETTINGS), staffController.updateBusinessStaffSettings);
+router.put('/settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_BUSINESS_SETTINGS), rateLimitMiddleware,  staffController.updateBusinessStaffSettings);
 
 // Staff Login History Routes
 /**
@@ -2200,7 +2207,7 @@ router.get('/logins/:business_id', ...requirePermission(STAFF_PERMISSIONS.VIEW_S
  *       200:
  *         description: Password change request approved
  */
-router.post('/password/approve/:request_id', ...requirePermission(STAFF_PERMISSIONS.APPROVE_PASSWORD_CHANGE), staffController.approvePasswordChangeRequest);
+router.post('/password/approve/:request_id', ...requirePermission(STAFF_PERMISSIONS.APPROVE_PASSWORD_CHANGE), rateLimitMiddleware, staffController.approvePasswordChangeRequest);
 
 /**
  * @swagger
@@ -2229,7 +2236,7 @@ router.post('/password/approve/:request_id', ...requirePermission(STAFF_PERMISSI
  *       200:
  *         description: Password change request rejected
  */
-router.post('/password/reject/:request_id', ...requirePermission(STAFF_PERMISSIONS.REJECT_PASSWORD_CHANGE), staffController.rejectPasswordChangeRequest);
+router.post('/password/reject/:request_id', ...requirePermission(STAFF_PERMISSIONS.REJECT_PASSWORD_CHANGE), rateLimitMiddleware, staffController.rejectPasswordChangeRequest);
 
 
 module.exports = router;

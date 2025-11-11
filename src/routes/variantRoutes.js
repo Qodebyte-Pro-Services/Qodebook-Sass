@@ -5,6 +5,7 @@ const upload = require('../middlewares/upload');
 const variantController = require('../controllers/variantController');
 const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
 const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
 /**
  * @swagger
  * /api/variants/batch:
@@ -550,17 +551,16 @@ const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
  *       500:
  *         description: Server error
  */
-router.patch('/:id/barcode', ...requirePermission(PRODUCT_PERMISSIONS.MANAGE_VARIANTS), variantController.updateBarcode);
+router.patch('/:id/barcode', ...requirePermission(PRODUCT_PERMISSIONS.MANAGE_VARIANTS), rateLimitMiddleware, variantController.updateBarcode);
 router.get('/count-in-stock', ...requirePermission(PRODUCT_PERMISSIONS.MANAGE_VARIANTS), variantController.countVariantsInStock);
-router.post('/products/:id/variants/generate', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT_VARIANTS),upload.any(),variantController.generateVariants);
-router.post('/generate-names', ...requirePermission(PRODUCT_PERMISSIONS.MANAGE_VARIANTS), variantController.generateVariantNames);
-router.post('/batch', ...requirePermission(PRODUCT_PERMISSIONS.MANAGE_VARIANTS), variantController.createVariantsBatch);
+router.post('/products/:id/variants/generate', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT_VARIANTS),upload.any(),rateLimitMiddleware,variantController.generateVariants);
+router.post('/generate-names', ...requirePermission(PRODUCT_PERMISSIONS.MANAGE_VARIANTS), rateLimitMiddleware, variantController.generateVariantNames);
+router.post('/batch', ...requirePermission(PRODUCT_PERMISSIONS.MANAGE_VARIANTS), rateLimitMiddleware, variantController.createVariantsBatch);
 router.get('/products/:id/variants', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT_VARIANTS), variantController.listVariants);
 router.get('/product/:productId/variants/:variantId',...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT_VARIANTS),variantController.getVariantByProduct);
 router.get('/:id', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT_VARIANTS), variantController.getVariantById);
 router.get('/business/variants', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT_VARIANTS), variantController.getVariantsByBusiness);
-router.put('/:variant_id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT_VARIANTS), upload.any(),variantController.updateVariant);
-router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_PRODUCT_VARIANTS), variantController.deleteVariant);router.put('/:variant_id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT_VARIANTS), upload.any(),variantController.updateVariant);
-
+router.put('/:variant_id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT_VARIANTS), upload.any(), rateLimitMiddleware, variantController.updateVariant);
+router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_PRODUCT_VARIANTS), rateLimitMiddleware, variantController.deleteVariant);
 
 module.exports = router;

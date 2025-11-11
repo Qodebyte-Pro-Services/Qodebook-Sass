@@ -22,6 +22,7 @@ const { BUSINESS_PERMISSIONS } = require('../constants/permissions');
 const { validateBusiness } = require('../middlewares/validateInput');
 const upload = require('../middlewares/upload');
 const businessController = require('../controllers/businessController');
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
 
 
 
@@ -61,7 +62,7 @@ const businessController = require('../controllers/businessController');
  *       409:
  *         description: Business name or phone already exists
  */
-router.post('/create', ...requireAuthOnly(), upload.single('logo'), validateBusiness, businessController.createBusiness);
+router.post('/create', ...requireAuthOnly(), upload.single('logo'), validateBusiness, rateLimitMiddleware, businessController.createBusiness);
 
 
 /**
@@ -147,7 +148,7 @@ router.get('/:id', ...requirePermission(), businessController.getBusiness);
  *       409:
  *         description: Business name or phone already exists
  */
-router.put('/:id', ...requirePermission(BUSINESS_PERMISSIONS.UPDATE_BUSINESS), upload.single('logo'), validateBusiness, businessController.updateBusiness);
+router.put('/:id', ...requirePermission(BUSINESS_PERMISSIONS.UPDATE_BUSINESS), upload.single('logo'), validateBusiness, rateLimitMiddleware, businessController.updateBusiness);
 
 
 /**
@@ -171,6 +172,6 @@ router.put('/:id', ...requirePermission(BUSINESS_PERMISSIONS.UPDATE_BUSINESS), u
  *       404:
  *         description: Business not found
  */
-router.delete('/:id', ...requirePermission(BUSINESS_PERMISSIONS.DELETE_BUSINESS), businessController.deleteBusiness);
+router.delete('/:id', ...requirePermission(BUSINESS_PERMISSIONS.DELETE_BUSINESS), rateLimitMiddleware, businessController.deleteBusiness);
 
 module.exports = router;

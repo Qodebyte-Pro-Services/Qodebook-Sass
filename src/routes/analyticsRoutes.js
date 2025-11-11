@@ -6,7 +6,8 @@ const controller = require('../controllers/analyticsController');
 const auth = require('../middlewares/authMiddleware');
 const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
 const { REPORTS_ANALYTICS_PERMISSIONS, FINANCIAL_PERMISSIONS} = require('../constants/permissions');
-const rateLimitMiddleware = require('../middlewares/rateLimitMiddleware');
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
+
 
 /**
  * @swagger

@@ -3,6 +3,9 @@ const router = express.Router();
 const { authenticateToken } = require('../middlewares/authMiddleware');
 const discountController = require('../controllers/discountController');
 const { route } = require('./couponRoutes');
+const { SALES_PERMISSIONS } = require('../constants/permissions');
+const { requirePermission } = require('../utils/routeHelpers');
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
 
 /**
  * @swagger
@@ -39,7 +42,7 @@ const { route } = require('./couponRoutes');
  *       201:
  *         description: Discount created
  */
-router.post('/', authenticateToken, discountController.createDiscount);
+router.post('/', ...requirePermission(SALES_PERMISSIONS.MANAGE_DISCOUNTS), rateLimitMiddleware, discountController.createDiscount);
 
 /**
  * @swagger
@@ -78,7 +81,7 @@ router.get('/', authenticateToken, discountController.listDiscounts);
  *       201:
  *         description: Product discount link created
  */
-router.post('/link', authenticateToken, discountController.linkDiscountToProduct);
+router.post('/link', ...requirePermission(SALES_PERMISSIONS.MANAGE_DISCOUNTS), rateLimitMiddleware, discountController.linkDiscountToProduct);
 
 
 /**
@@ -281,7 +284,7 @@ router.get('/products-with-discounts', authenticateToken, discountController.get
  *       500:
  *         description: Server error
  */
-router.patch('/:discount_id', authenticateToken, discountController.updateDiscount);
+router.patch('/:discount_id', ...requirePermission(SALES_PERMISSIONS.MANAGE_DISCOUNTS), rateLimitMiddleware, discountController.updateDiscount);
 
 /**
  * @swagger
@@ -415,8 +418,8 @@ router.patch('/:discount_id', authenticateToken, discountController.updateDiscou
  *                   type: string
  *                   example: "Database query failed."
  */
-router.delete('/unlink/:discount_id', authenticateToken, discountController.unlinkDiscountFromProducts);
-router.delete('/unlink-single/:discount_id/:product_id', authenticateToken, discountController.unlinkDiscountFromProduct);
+router.delete('/unlink/:discount_id', ...requirePermission(SALES_PERMISSIONS.MANAGE_DISCOUNTS), rateLimitMiddleware, discountController.unlinkDiscountFromProducts);
+router.delete('/unlink-single/:discount_id/:product_id', ...requirePermission(SALES_PERMISSIONS.MANAGE_DISCOUNTS), rateLimitMiddleware, discountController.unlinkDiscountFromProduct);
 
 
 /**
@@ -476,5 +479,5 @@ router.delete('/unlink-single/:discount_id/:product_id', authenticateToken, disc
  *                   type: string
  *                   example: Server error.
  */
-router.delete('/:discount_id', authenticateToken, discountController.deleteDiscount);
+router.delete('/:discount_id',  ...requirePermission(SALES_PERMISSIONS.MANAGE_DISCOUNTS), rateLimitMiddleware, discountController.deleteDiscount);
 module.exports = router;

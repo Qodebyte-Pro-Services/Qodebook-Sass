@@ -4,6 +4,7 @@ const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
 const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
 // const { validateCategory } = require('../middlewares/validateInput');
 const categoryController = require('../controllers/categoryController');
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
 
 /**
  * @swagger
@@ -32,7 +33,7 @@ const categoryController = require('../controllers/categoryController');
  *       409:
  *         description: Category name already exists
  */
-router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_CATEGORY), categoryController.createCategory);
+router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_CATEGORY), rateLimitMiddleware, categoryController.createCategory);
 
 /**
  * @swagger
@@ -87,7 +88,7 @@ router.get('/', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT_CATEGORIES
  *       409:
  *         description: Category name already exists
  */
-router.put('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_CATEGORY), categoryController.updateCategory);
+router.put('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_CATEGORY), rateLimitMiddleware, categoryController.updateCategory);
 
 /**
  * @swagger
@@ -108,7 +109,7 @@ router.put('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_CATEGORY), ca
  *       200:
  *         description: Category deleted
  */
-router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_CATEGORY), categoryController.deleteCategory);
+router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_CATEGORY), rateLimitMiddleware, categoryController.deleteCategory);
 
 /**
  * @swagger

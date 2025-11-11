@@ -5,6 +5,7 @@ const controller = require('../controllers/expenseCategoryController');
 const auth = require('../middlewares/authMiddleware');
 const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
 const { FINANCIAL_PERMISSIONS } = require('../constants/permissions');
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
 
 /**
  * @swagger
@@ -24,7 +25,7 @@ const { FINANCIAL_PERMISSIONS } = require('../constants/permissions');
  *       201:
  *         description: Expense category created
  */
-router.post('/', ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_EXPENSE_CATEGORY), controller.create);
+router.post('/', ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_EXPENSE_CATEGORY), rateLimitMiddleware, controller.create);
 
 /**
  * @swagger
@@ -65,7 +66,7 @@ router.get('/', ...requireAuthOnly(), controller.list);
  *       200:
  *         description: Expense category updated
  */
-router.put('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.UPDATE_EXPENSE_CATEGORY), controller.update);
+router.put('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.UPDATE_EXPENSE_CATEGORY), rateLimitMiddleware, controller.update);
 
 /**
  * @swagger
@@ -86,6 +87,6 @@ router.put('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.UPDATE_EXPENSE_CAT
  *       200:
  *         description: Expense category deleted
  */
-router.delete('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.DELETE_EXPENSE_CATEGORY), controller.delete);
+router.delete('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.DELETE_EXPENSE_CATEGORY), rateLimitMiddleware, controller.delete);
 
 module.exports = router;

@@ -6,6 +6,7 @@ const { authenticateToken } = require('../middlewares/authMiddleware');
 const stockController = require('../controllers/stockController');
 const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
 const { STOCK_PERMISSIONS } = require('../constants/permissions');
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
 
 /**
  * @swagger
@@ -74,7 +75,7 @@ const { STOCK_PERMISSIONS } = require('../constants/permissions');
  *                       error:
  *                         type: string
  */
-router.post('/adjust', ...requirePermission(STOCK_PERMISSIONS.ADJUST_STOCK), stockController.adjustStock);
+router.post('/adjust', ...requirePermission(STOCK_PERMISSIONS.ADJUST_STOCK), rateLimitMiddleware, stockController.adjustStock);
 
 
 /**
@@ -138,7 +139,7 @@ router.post('/adjust', ...requirePermission(STOCK_PERMISSIONS.ADJUST_STOCK), sto
  *                       cost_price:
  *                         type: number
  */
-router.post('/create-supply-order', ...requirePermission(STOCK_PERMISSIONS.RESTOCK_ITEMS), stockController.createSupplyOrder);
+router.post('/create-supply-order', ...requirePermission(STOCK_PERMISSIONS.RESTOCK_ITEMS), rateLimitMiddleware, stockController.createSupplyOrder);
 /**
  * @swagger
  * /api/stock/get-supply-orders:
@@ -195,7 +196,7 @@ router.get('/get-supply-order/:id', ...requirePermission(STOCK_PERMISSIONS.VIEW_
  *       200:
  *         description: Supply status updated
  */
-router.post('/supply-status', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK), stockController.updateSupplyStatus);
+router.post('/supply-status', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK), rateLimitMiddleware, stockController.updateSupplyStatus);
 
 /**
  * @swagger
@@ -244,7 +245,7 @@ router.post('/supply-status', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOC
  *       404:
  *         description: Supply order not found
  */
-router.put('/supply-order/edit', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK), stockController.editSupplyOrder);
+router.put('/supply-order/edit', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK), rateLimitMiddleware, stockController.editSupplyOrder);
 
 /**
  *  @swagger
@@ -261,7 +262,7 @@ router.put('/supply-order/edit', ...requirePermission(STOCK_PERMISSIONS.MANAGE_S
  * schema:
  * 
  */
-router.delete('/delete-supply-order', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK), stockController.deleteSupplyOrder);
+router.delete('/delete-supply-order', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK), rateLimitMiddleware, stockController.deleteSupplyOrder);
 
 /**
  * @swagger
@@ -455,7 +456,7 @@ router.get('/movement/variant/:id', ...requirePermission(STOCK_PERMISSIONS.VIEW_
  *       200:
  *         description: Stock movement deleted
  */
-router.delete('/movement/:id', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK), stockController.deleteStockMovement);
+router.delete('/movement/:id', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK), rateLimitMiddleware, stockController.deleteStockMovement);
 
 /**
  * @swagger
@@ -575,7 +576,7 @@ router.get('/status/slow-moving', ...requirePermission(STOCK_PERMISSIONS.VIEW_ST
  *       201:
  *         description: Stock transfer initiated
  */
-router.post('/transfer', ...requirePermission(STOCK_PERMISSIONS.TRANSFER_STOCK), stockController.transferStock);
+router.post('/transfer', ...requirePermission(STOCK_PERMISSIONS.TRANSFER_STOCK), rateLimitMiddleware, stockController.transferStock);
 
 /**
  * @swagger
@@ -607,7 +608,7 @@ router.post('/transfer', ...requirePermission(STOCK_PERMISSIONS.TRANSFER_STOCK),
  *       200:
  *         description: Stock transfer completed
  */
-router.post('/transfer/:transfer_id/complete', ...requirePermission(STOCK_PERMISSIONS.TRANSFER_STOCK), stockController.completeTransfer);
+router.post('/transfer/:transfer_id/complete', ...requirePermission(STOCK_PERMISSIONS.TRANSFER_STOCK),rateLimitMiddleware, stockController.completeTransfer);
 
 /**
  * @swagger
@@ -690,7 +691,7 @@ router.get('/notifications', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK
  *       200:
  *         description: Notification marked as read (filtered by business_id)
  */
-router.post('/notifications/:id/read', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK), stockController.markNotificationAsRead);
+router.post('/notifications/:id/read', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK), rateLimitMiddleware, stockController.markNotificationAsRead);
 
 /**
  * @swagger

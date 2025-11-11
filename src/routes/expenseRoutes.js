@@ -5,6 +5,7 @@ const controller = require('../controllers/expenseController');
 const upload = require('../middlewares/upload');
 const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
 const { FINANCIAL_PERMISSIONS } = require('../constants/permissions');
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
 
 /**
  * @swagger
@@ -55,7 +56,7 @@ const { FINANCIAL_PERMISSIONS } = require('../constants/permissions');
  *       500:
  *         description: Failed to create expense.
  */
-router.post('/', ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_EXPENSE), upload.single('receipt'), controller.create);
+router.post('/', ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_EXPENSE), upload.single('receipt'), rateLimitMiddleware, controller.create);
 
 /**
  * @swagger
@@ -249,6 +250,7 @@ router.post(
   '/staff-salary',
   ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_STAFF_SALARY_EXPENSE),
   upload.single('receipt'),
+  rateLimitMiddleware,
   controller.payStaffSalary
 );
 
@@ -349,7 +351,7 @@ router.post(
  *       500:
  *         description: Server error fetching expense details
  */
-router.get("/:id", controller.listExpense);
+router.get("/:id", ...requirePermission(FINANCIAL_PERMISSIONS.VIEW_EXPENSES), controller.listExpense);
 
 /**
  * @swagger
@@ -487,7 +489,7 @@ router.get(
  *       500:
  *         description: Failed to update expense decision.
  */
-router.patch('/expense-status/:id', ...requirePermission(FINANCIAL_PERMISSIONS.APPROVE_EXPENSE), controller.expenseDecison);
+router.patch('/expense-status/:id', ...requirePermission(FINANCIAL_PERMISSIONS.APPROVE_EXPENSE), rateLimitMiddleware, controller.expenseDecison);
 
 /**
  * @swagger
@@ -525,7 +527,7 @@ router.patch('/expense-status/:id', ...requirePermission(FINANCIAL_PERMISSIONS.A
  *       500:
  *         description: Failed to update payment status.
  */
-router.patch('payment_status/:id', ...requirePermission(FINANCIAL_PERMISSIONS.UPDATE_EXPENSE), controller.updatePayment);
+router.patch('payment_status/:id', ...requirePermission(FINANCIAL_PERMISSIONS.UPDATE_EXPENSE), rateLimitMiddleware, controller.updatePayment);
 
 
 
@@ -551,7 +553,7 @@ router.patch('payment_status/:id', ...requirePermission(FINANCIAL_PERMISSIONS.UP
  *       200:
  *         description: Expense deleted
  */
-router.delete('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.DELETE_EXPENSE), controller.delete);
+router.delete('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.DELETE_EXPENSE), rateLimitMiddleware, controller.delete);
 
 
 

@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middlewares/authMiddleware');
 const customerController = require('../controllers/customerController');
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
+const { requirePermission } = require('../utils/routeHelpers');
+const { CUSTOMER_PERMISSIONS } = require('../constants/permissions');
 
 /**
  * @swagger
@@ -65,7 +68,7 @@ router.get('/', authenticateToken, customerController.listCustomers);
  *       200:
  *         description: Customer details
  */
-router.get('/:id', authenticateToken, customerController.getCustomer);
+router.get('/:id', ...requirePermission(CUSTOMER_PERMISSIONS.CREATE_CUSTOMER), rateLimitMiddleware, customerController.getCustomer);
 
 /**
  * @swagger
@@ -99,7 +102,7 @@ router.get('/:id', authenticateToken, customerController.getCustomer);
  *       200:
  *         description: Customer updated
  */
-router.put('/:id', authenticateToken, customerController.updateCustomer);
+router.put('/:id', ...requirePermission(CUSTOMER_PERMISSIONS.UPDATE_CUSTOMER), rateLimitMiddleware, customerController.updateCustomer);
 
 /**
  * @swagger
@@ -120,7 +123,7 @@ router.put('/:id', authenticateToken, customerController.updateCustomer);
  *       200:
  *         description: Customer deleted
  */
-router.delete('/:id', authenticateToken, customerController.deleteCustomer);
+router.delete('/:id', ...requirePermission(CUSTOMER_PERMISSIONS.DELETE_CUSTOMER), rateLimitMiddleware, customerController.deleteCustomer);
 
 /**
  * @swagger

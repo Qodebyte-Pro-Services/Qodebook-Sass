@@ -4,6 +4,7 @@ const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
 const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
 const upload = require('../middlewares/upload');
 const productController = require('../controllers/productController');
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
 
 /**
  * @swagger
@@ -88,7 +89,7 @@ const productController = require('../controllers/productController');
  *       409:
  *         description: Product name already exists
  */
-router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT), upload.any(), productController.createProduct);
+router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT), upload.any(), rateLimitMiddleware, productController.createProduct);
 
 /**
  * @swagger
@@ -228,6 +229,7 @@ router.post(
     PRODUCT_PERMISSIONS.CREATE_PRODUCT_VARIANTS
   ),
   upload.any(),
+  rateLimitMiddleware,
   productController.createProductWithVariants
 );
 
@@ -345,7 +347,7 @@ router.get('/:id', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT), produ
  *         description: Server error
  */
 
-router.put('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT), upload.any(), productController.updateProduct);
+router.put('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT), upload.any(), rateLimitMiddleware, productController.updateProduct);
 
 /**
  * @swagger
@@ -366,7 +368,7 @@ router.put('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT), upl
  *       200:
  *         description: Product deleted
  */
-router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_PRODUCT), productController.deleteProduct);
+router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_PRODUCT), rateLimitMiddleware, productController.deleteProduct);
 
 /**
  * @swagger

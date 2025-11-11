@@ -7,7 +7,8 @@ const { validateSignup, validateLogin } = require('../middlewares/validateInput'
 const authController = require('../controllers/authController');
 const {requireAuthOnly} = require('../utils/routeHelpers');
 const auditLog = require('../middlewares/auditLogMiddleware');
-const rateLimitMiddleware = require('../middlewares/rateLimitMiddleware');
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
+
 
 // configureFacebookStrategy();
 
@@ -33,7 +34,7 @@ const rateLimitMiddleware = require('../middlewares/rateLimitMiddleware');
  *       401:
  *         description: Invalid credentials
  */
-router.post('/social-login/google', authController.googleLogin);
+router.post('/social-login/google', rateLimitMiddleware, authController.googleLogin);
 
 
 // /**
@@ -94,7 +95,7 @@ router.post('/social-login/google', authController.googleLogin);
  *       409:
  *         description: Email already exists
  */
-router.post('/signup', validateSignup, authController.signup);
+router.post('/signup', rateLimitMiddleware, validateSignup, authController.signup);
 
 /**
  * @swagger
@@ -120,7 +121,7 @@ router.post('/signup', validateSignup, authController.signup);
  *       404:
  *         description: User not found
  */
-router.post('/resend-otp', require('../controllers/authController').resendOtp);
+router.post('/resend-otp', rateLimitMiddleware, require('../controllers/authController').resendOtp);
 
 
 /**
@@ -146,7 +147,7 @@ router.post('/resend-otp', require('../controllers/authController').resendOtp);
  *       401:
  *         description: Invalid credentials
  */
-router.post('/login', validateLogin, authController.login);
+router.post('/login', rateLimitMiddleware, validateLogin, authController.login);
 
 
 /**

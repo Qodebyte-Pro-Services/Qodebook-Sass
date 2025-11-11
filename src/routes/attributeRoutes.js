@@ -4,6 +4,7 @@ const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
 const { PRODUCT_PERMISSIONS } = require('../constants/permissions');
 // const { validateAttribute, validateAttributeValue } = require('../middlewares/validateInput');
 const attributeController = require('../controllers/attributeController');
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
 
 /**
  * @swagger
@@ -30,7 +31,7 @@ const attributeController = require('../controllers/attributeController');
  *       409:
  *         description: Attribute name already exists
  */
-router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT_ATTRIBUTES), attributeController.createAttribute);
+router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT_ATTRIBUTES), rateLimitMiddleware, attributeController.createAttribute);
 
 
 /**
@@ -68,7 +69,7 @@ router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT_ATTRIBU
  *        201:
  *          description: Attributes created or skipped if they already exist
  */
-router.post('/bulk', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_ATTRIBUTE_AND_VALUES), attributeController.createAttributesBulk);
+router.post('/bulk', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_ATTRIBUTE_AND_VALUES), rateLimitMiddleware, attributeController.createAttributesBulk);
 
 /**
  * @swagger
@@ -121,7 +122,7 @@ router.get('/', ...requireAuthOnly(), attributeController.listAttributes);
  *       409:
  *         description: Attribute value already exists
  */
-router.post('/:id/values', ...requirePermission(PRODUCT_PERMISSIONS.MANAGE_ATTRIBUTES), attributeController.addAttributeValue);
+router.post('/:id/values', ...requirePermission(PRODUCT_PERMISSIONS.MANAGE_ATTRIBUTES), rateLimitMiddleware, attributeController.addAttributeValue);
 
 /**
  * @swagger
@@ -283,7 +284,7 @@ router.get('/:id', ...requireAuthOnly(), attributeController.getAttribute);
  *                   type: string
  *                   example: "Server error."
  */
-router.patch('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT_ATTRIBUTES), attributeController.updateAttribute);
+router.patch('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT_ATTRIBUTES), rateLimitMiddleware, attributeController.updateAttribute);
 
 /**
  * @swagger
@@ -304,7 +305,7 @@ router.patch('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT_ATT
  *       200:
  *         description: Attribute deleted
  */
-router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_PRODUCT_ATTRIBUTES), attributeController.deleteAttribute);
+router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_PRODUCT_ATTRIBUTES), rateLimitMiddleware, attributeController.deleteAttribute);
 
 /**
  * @swagger
@@ -360,7 +361,7 @@ router.get('/:id/values/:valueId', ...requireAuthOnly(), attributeController.get
  *       200:
  *         description: Attribute value deleted
  */
-router.delete('/:id/values/:valueId', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_ATTRIBUTE_VALUES), attributeController.deleteAttributeValue);
+router.delete('/:id/values/:valueId', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_ATTRIBUTE_VALUES), rateLimitMiddleware, attributeController.deleteAttributeValue);
 
 /**
  * @swagger

@@ -5,6 +5,7 @@ const router = express.Router();
 const controller = require('../controllers/budgetController');
 const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
 const { FINANCIAL_PERMISSIONS } = require('../constants/permissions');
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
 
 
 
@@ -114,7 +115,7 @@ const { FINANCIAL_PERMISSIONS } = require('../constants/permissions');
  *       500:
  *         description: Failed to create budget
  */
-router.post('/', ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_BUDGET), controller.create);
+router.post('/', ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_BUDGET), rateLimitMiddleware, controller.create);
 
 
 /**
@@ -159,7 +160,7 @@ router.post('/', ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_BUDGET), cont
  *       500:
  *         description: Server error.
  */
-router.post('/all', ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_BUDGET), controller.budgetAllCat);
+router.post('/all', ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_BUDGET), rateLimitMiddleware, controller.budgetAllCat);
 
 /**
  * @swagger
@@ -200,7 +201,7 @@ router.post('/all', ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_BUDGET), c
  *       500:
  *         description: Server error
  */
-router.post('/transfer', ...requirePermission(FINANCIAL_PERMISSIONS.MANAGE_BUDGETS), controller.transfer)
+router.post('/transfer', ...requirePermission(FINANCIAL_PERMISSIONS.MANAGE_BUDGETS), rateLimitMiddleware, controller.transfer)
 
 /**
  * @swagger
@@ -307,6 +308,7 @@ router.get('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.VIEW_BUDGETS), con
 router.patch(
   '/manage/:id',
   ...requirePermission(FINANCIAL_PERMISSIONS.MANAGE_BUDGETS),
+  rateLimitMiddleware,
   controller.manage
 );
 
@@ -418,7 +420,7 @@ router.patch(
  *       500:
  *         description: Failed to update budget
  */
-router.put('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.UPDATE_BUDGET), controller.update);
+router.put('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.UPDATE_BUDGET), rateLimitMiddleware, controller.update);
 
 
 
@@ -441,6 +443,6 @@ router.put('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.UPDATE_BUDGET), co
  *       200:
  *         description: Budget deleted
  */
-router.delete('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.DELETE_BUDGET), controller.delete);
+router.delete('/:id', ...requirePermission(FINANCIAL_PERMISSIONS.DELETE_BUDGET), rateLimitMiddleware, controller.delete);
 
 module.exports = router;

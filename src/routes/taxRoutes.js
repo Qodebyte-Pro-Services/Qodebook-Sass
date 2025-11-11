@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middlewares/authMiddleware');
 const taxController = require('../controllers/taxController');
+const { requirePermission } = require('../utils/routeHelpers');
+const { FINANCIAL_PERMISSIONS } = require('../constants/permissions');
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
 
 /**
  * @swagger
@@ -33,7 +36,7 @@ const taxController = require('../controllers/taxController');
  *       201:
  *         description: Tax created
  */
-router.post('/', authenticateToken, taxController.createTax);
+router.post('/', ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_TAXES), rateLimitMiddleware, taxController.createTax);
 
 /**
  * @swagger
@@ -47,7 +50,7 @@ router.post('/', authenticateToken, taxController.createTax);
  *       200:
  *         description: List of taxes
  */
-router.get('/', authenticateToken, taxController.listTaxes);
+router.get('/', ...requirePermission(FINANCIAL_PERMISSIONS.VIEW_TAXES), taxController.listTaxes);
 
 /**
  * @swagger
@@ -72,7 +75,7 @@ router.get('/', authenticateToken, taxController.listTaxes);
  *       201:
  *         description: Product tax link created
  */
-router.post('/link', authenticateToken, taxController.linkTaxToProduct);
+router.post('/link', ...requirePermission(FINANCIAL_PERMISSIONS.CREATE_TAXES), rateLimitMiddleware, taxController.linkTaxToProduct);
 
 /**
  * @swagger
@@ -112,7 +115,7 @@ router.post('/link', authenticateToken, taxController.linkTaxToProduct);
  *                       description:
  *                         type: string
  */
-router.get('/product/:product_id', authenticateToken, taxController.getTaxesForProduct);
+router.get('/product/:product_id', ...requirePermission(FINANCIAL_PERMISSIONS.VIEW_TAXES), rateLimitMiddleware, taxController.getTaxesForProduct);
 
 /**
  * @swagger
@@ -152,7 +155,7 @@ router.get('/product/:product_id', authenticateToken, taxController.getTaxesForP
  *                       description:
  *                         type: string
  */
-router.get('/product/:product_id/variants', authenticateToken, taxController.getTaxesForVariantsBasedOnProduct);
+router.get('/product/:product_id/variants', ...requirePermission(FINANCIAL_PERMISSIONS.VIEW_TAXES), taxController.getTaxesForVariantsBasedOnProduct);
 
 /**
  * @swagger
@@ -211,7 +214,7 @@ router.get('/product/:product_id/variants', authenticateToken, taxController.get
  *         description: Server error
  */
 
-router.get('/products-with-taxes', authenticateToken, taxController.getListOfProductsAndTheirTaxes);
+router.get('/products-with-taxes', ...requirePermission(FINANCIAL_PERMISSIONS.VIEW_TAXES), taxController.getListOfProductsAndTheirTaxes);
 
 /**
  * @swagger
@@ -244,7 +247,7 @@ router.get('/products-with-taxes', authenticateToken, taxController.getListOfPro
  *       500:
  *         description: Server error
  */
-router.patch('/:tax_id', authenticateToken, taxController.updateTax);
+router.patch('/:tax_id', ...requirePermission(FINANCIAL_PERMISSIONS.UPDATE_TAXES), rateLimitMiddleware, taxController.updateTax);
 /**
  * @swagger
  * /api/taxes/unlink/{tax_id}:
@@ -352,8 +355,8 @@ router.patch('/:tax_id', authenticateToken, taxController.updateTax);
  *                   type: string
  *                   example: "Error details."
  */
-router.delete('/unlink/:tax_id', authenticateToken, taxController.unlinkTaxFromProducts);
-router.delete('/unlink-single/:tax_id/:product_id', authenticateToken, taxController.unlinkTaxFromProduct);
+router.delete('/unlink/:tax_id', ...requirePermission(FINANCIAL_PERMISSIONS.DELETE_TAXES), rateLimitMiddleware, taxController.unlinkTaxFromProducts);
+router.delete('/unlink-single/:tax_id/:product_id', ...requirePermission(FINANCIAL_PERMISSIONS.DELETE_TAXES), rateLimitMiddleware, taxController.unlinkTaxFromProduct);
 
 /**
  * @swagger
@@ -404,6 +407,6 @@ router.delete('/unlink-single/:tax_id/:product_id', authenticateToken, taxContro
  *       500:
  *         description: Server error
  */
-router.delete('/:tax_id', authenticateToken, taxController.deleteTax);
+router.delete('/:tax_id', ...requirePermission(FINANCIAL_PERMISSIONS.DELETE_TAXES), rateLimitMiddleware, taxController.deleteTax);
 
 module.exports = router;

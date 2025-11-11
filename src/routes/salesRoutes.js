@@ -4,6 +4,7 @@ const { authenticateToken } = require('../middlewares/authMiddleware');
 const salesController = require('../controllers/salesController');
 const { requirePermission, requireAuthOnly } = require('../utils/routeHelpers');
 const { SALES_PERMISSIONS } = require('../constants/permissions');
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
 /**
  * @swagger
  * /api/sales/create:
@@ -112,7 +113,7 @@ const { SALES_PERMISSIONS } = require('../constants/permissions');
  *       500:
  *         description: Server error
  */
-router.post('/create', ...requirePermission(SALES_PERMISSIONS.CREATE_SALE), salesController.createSale);
+router.post('/create', ...requirePermission(SALES_PERMISSIONS.CREATE_SALE), rateLimitMiddleware, salesController.createSale);
 
 
 /**
@@ -127,7 +128,7 @@ router.post('/create', ...requirePermission(SALES_PERMISSIONS.CREATE_SALE), sale
  *       200:
  *         description: List of sales
  */
-router.get('/', authenticateToken, salesController.listSales);
+router.get('/', ...requirePermission(SALES_PERMISSIONS.VIEW_SALES), salesController.listSales);
 
 /**
  * @swagger
@@ -148,7 +149,7 @@ router.get('/', authenticateToken, salesController.listSales);
  *       200:
  *         description: Sale details
  */
-router.get('/:id', authenticateToken, salesController.getSale);
+router.get('/:id', ...requirePermission(SALES_PERMISSIONS.VIEW_SALES), salesController.getSale);
 
 /**
  * @swagger
@@ -169,6 +170,6 @@ router.get('/:id', authenticateToken, salesController.getSale);
  *       200:
  *         description: Sale refunded
  */
-router.post('/refund/:id', authenticateToken, salesController.refundSale);
+router.post('/refund/:id', authenticateToken, rateLimitMiddleware, salesController.refundSale);
 
 module.exports = router;

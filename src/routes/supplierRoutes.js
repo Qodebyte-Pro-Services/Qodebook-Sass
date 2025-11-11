@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middlewares/authMiddleware');
 const supplierController = require('../controllers/supplierController');
+const { requirePermission } = require('../utils/routeHelpers');
+const { STOCK_PERMISSIONS } = require('../constants/permissions');
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
 
 /**
  * @swagger
@@ -28,7 +31,7 @@ const supplierController = require('../controllers/supplierController');
  *       201:
  *         description: Supplier added
  */
-router.post('/', authenticateToken, supplierController.addSupplier);
+router.post('/', ...requirePermission(STOCK_PERMISSIONS.MANAGE_SUPPLIERS), rateLimitMiddleware, supplierController.addSupplier);
 
 /**
  * @swagger
@@ -42,7 +45,7 @@ router.post('/', authenticateToken, supplierController.addSupplier);
  *       200:
  *         description: List of suppliers
  */
-router.get('/', authenticateToken, supplierController.listSuppliers);
+router.get('/', ...requirePermission(STOCK_PERMISSIONS.MANAGE_SUPPLIERS), supplierController.listSuppliers);
 
 /**
  * @swagger
@@ -63,7 +66,7 @@ router.get('/', authenticateToken, supplierController.listSuppliers);
  *       200:
  *         description: List of suppliers for business
  */
-router.get('/business/:id', authenticateToken, supplierController.getSuppliersByBusiness);
+router.get('/business/:id', ...requirePermission(STOCK_PERMISSIONS.MANAGE_SUPPLIERS), supplierController.getSuppliersByBusiness);
 
 /**
  * @swagger
@@ -95,7 +98,7 @@ router.get('/business/:id', authenticateToken, supplierController.getSuppliersBy
  *       200:
  *         description: Supplier updated
  */
-router.put('/:id', authenticateToken, supplierController.updateSupplier);
+router.put('/:id', ...requirePermission(STOCK_PERMISSIONS.MANAGE_SUPPLIERS), rateLimitMiddleware, supplierController.updateSupplier);
 
 /**
  * @swagger
@@ -116,7 +119,7 @@ router.put('/:id', authenticateToken, supplierController.updateSupplier);
  *       200:
  *         description: Supplier deleted
  */
-router.delete('/:id', authenticateToken, supplierController.deleteSupplier);
+router.delete('/:id', ...requirePermission(STOCK_PERMISSIONS.MANAGE_SUPPLIERS), rateLimitMiddleware, supplierController.deleteSupplier);
 
 /**
  * @swagger
@@ -130,6 +133,6 @@ router.delete('/:id', authenticateToken, supplierController.deleteSupplier);
  *       200:
  *         description: List of supply entries
  */
-router.get('/stock-movement', authenticateToken, supplierController.getSupplierStockMovements);
+router.get('/stock-movement', ...requirePermission(STOCK_PERMISSIONS.MANAGE_SUPPLIERS), supplierController.getSupplierStockMovements);
 
 module.exports = router;

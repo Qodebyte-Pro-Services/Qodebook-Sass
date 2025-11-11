@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middlewares/authMiddleware');
 const couponController = require('../controllers/couponController');
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
+const { FINANCIAL_PERMISSIONS, SALES_PERMISSIONS } = require('../constants/permissions');
+const { requirePermission } = require('../utils/routeHelpers');
 
 /**
  * @swagger
@@ -40,7 +43,7 @@ const couponController = require('../controllers/couponController');
  *       201:
  *         description: Coupon created
  */
-router.post('/', authenticateToken, couponController.createCoupon);
+router.post('/', ...requirePermission(SALES_PERMISSIONS.MANAGE_COUPONS), rateLimitMiddleware, couponController.createCoupon);
 
 /**
  * @swagger
@@ -79,7 +82,7 @@ router.get('/', authenticateToken, couponController.listCoupons);
  *       201:
  *         description: Product coupon link created
  */
-router.post('/link', authenticateToken, couponController.linkCouponToProduct);
+router.post('/link', ...requirePermission(SALES_PERMISSIONS.MANAGE_COUPONS), rateLimitMiddleware, couponController.linkCouponToProduct);
 
 /**
  * @swagger
@@ -241,7 +244,7 @@ router.get('/products-with-coupons', authenticateToken, couponController.getList
  *       500:
  *         description: Server error
  */
-router.patch('/:coupon_id', authenticateToken, couponController.updateCoupon);
+router.patch('/:coupon_id', ...requirePermission(SALES_PERMISSIONS.MANAGE_COUPONS), rateLimitMiddleware, couponController.updateCoupon);
 
 
 /**
@@ -377,9 +380,9 @@ router.patch('/:coupon_id', authenticateToken, couponController.updateCoupon);
  *                   example: "Database query failed."
  */
 
-router.delete('/unlink/:coupon_id', authenticateToken, couponController.unlinkCouponFromProducts);
+router.delete('/unlink/:coupon_id', ...requirePermission(SALES_PERMISSIONS.MANAGE_COUPONS), rateLimitMiddleware, couponController.unlinkCouponFromProducts);
 
-router.delete('/unlink-single/:coupon_id/:product_id', authenticateToken, couponController.unlinkCouponFromProduct);
+router.delete('/unlink-single/:coupon_id/:product_id', ...requirePermission(SALES_PERMISSIONS.MANAGE_COUPONS), rateLimitMiddleware, couponController.unlinkCouponFromProduct);
 
 /**
  * @swagger
@@ -438,5 +441,5 @@ router.delete('/unlink-single/:coupon_id/:product_id', authenticateToken, coupon
  *                   type: string
  *                   example: Internal server error
  */
-router.delete('/:coupon_id', authenticateToken, couponController.deleteCoupon);
+router.delete('/:coupon_id', ...requirePermission(SALES_PERMISSIONS.MANAGE_COUPONS), rateLimitMiddleware, couponController.deleteCoupon);
 module.exports = router;

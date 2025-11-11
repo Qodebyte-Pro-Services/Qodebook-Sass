@@ -1041,12 +1041,26 @@ event-target-shim@^5.0.0:
   resolved "https://registry.yarnpkg.com/event-target-shim/-/event-target-shim-5.0.1.tgz#5d4d3ebdf9583d63a5333ce2deb7480ab2b05789"
   integrity sha512-i/2XbnSz/uxRCU6+NdVJgKWDTM427+MqYbkQzD321DuCQJUqOuJKIA0IM2+W2xtYHdKOmZ4dR6fExsd4SXL+WQ==
 
+express-rate-limit@8:
+  version "8.2.1"
+  resolved "https://registry.yarnpkg.com/express-rate-limit/-/express-rate-limit-8.2.1.tgz#ec75fdfe280ecddd762b8da8784c61bae47d7f7f"
+  integrity sha512-PCZEIEIxqwhzw4KF0n7QF4QqruVTcF73O5kFKUnGOyjbCCgizBBiFaYpd/fnBLUMPw/BWw9OsiN7GgrNYr7j6g==
+  dependencies:
+    ip-address "10.0.1"
+
 express-rate-limit@^8.0.1:
   version "8.0.1"
   resolved "https://registry.yarnpkg.com/express-rate-limit/-/express-rate-limit-8.0.1.tgz#3bc13aaf9f448085686180ef60679a68ea89654d"
   integrity sha512-aZVCnybn7TVmxO4BtlmnvX+nuz8qHW124KKJ8dumsBsmv5ZLxE0pYu7S2nwyRBGHHCAzdmnGyrc5U/rksSPO7Q==
   dependencies:
     ip-address "10.0.1"
+
+express-slow-down@^3.0.1:
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/express-slow-down/-/express-slow-down-3.0.1.tgz#8d027066e64956e44ae4afbcf2049e3b3988abf2"
+  integrity sha512-Syl+K1o/z8zSTsMWbDpJEOF5WzSj923ktkv/WbNq6E3tmNwPoEcKIhqRxMLWq3a/4OudRciylEqEZvzMBdzn8w==
+  dependencies:
+    express-rate-limit "8"
 
 express-validator@^7.2.1:
   version "7.2.1"

@@ -20,6 +20,7 @@ const { requirePermission, requireAuth } = require('../utils/routeHelpers');
 const { BUSINESS_PERMISSIONS } = require('../constants/permissions');
 const { validateBranch, validateBranchUpdate } = require('../middlewares/validateInput');
 const branchController = require('../controllers/branchController');
+const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
 
 
 /**
@@ -51,7 +52,7 @@ const branchController = require('../controllers/branchController');
  *       409:
  *         description: Branch name or phone already exists
  */
-router.post('/create', ...requirePermission(BUSINESS_PERMISSIONS.CREATE_BRANCH), validateBranch, branchController.createBranch);
+router.post('/create', ...requirePermission(BUSINESS_PERMISSIONS.CREATE_BRANCH), validateBranch, rateLimitMiddleware, branchController.createBranch);
 
 
 /**
@@ -129,7 +130,7 @@ router.get('/:id', ...requirePermission(), branchController.getBranch);
  *       409:
  *         description: Branch name or phone already exists
  */
-router.put('/:id', ...requirePermission(BUSINESS_PERMISSIONS.UPDATE_BRANCH), validateBranchUpdate, branchController.updateBranch);
+router.put('/:id', ...requirePermission(BUSINESS_PERMISSIONS.UPDATE_BRANCH), validateBranchUpdate, rateLimitMiddleware, branchController.updateBranch);
 
 
 /**
