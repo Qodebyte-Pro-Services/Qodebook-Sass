@@ -1,6 +1,6 @@
 const rateLimit = require('express-rate-limit');
 const slowDown = require('express-slow-down');
-const crypto = require('crypto');
+const { ipKeyGenerator } = require('express-rate-limit'); 
 
 
 const generateKey = (req) => {
@@ -8,13 +8,8 @@ const generateKey = (req) => {
   if (req.user?.business_id) return `biz-${req.user.business_id}`;
   if (req.user?.user_id) return `usr-${req.user.user_id}`;
 
-  
-  const ip =
-    req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
-    req.ip ||
-    req.connection?.remoteAddress ||
-    'unknown';
-  return `ip-${crypto.createHash('sha256').update(ip).digest('hex')}`;
+
+  return ipKeyGenerator(req);
 };
 
 
@@ -41,7 +36,6 @@ const createRateLimitMiddleware = ({ windowMs, max, message }) => {
   const limiter = rateLimit({
     windowMs,
     max,
-    message,
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: generateKey,
@@ -50,12 +44,11 @@ const createRateLimitMiddleware = ({ windowMs, max, message }) => {
 
   const slowDownMiddleware = slowDown({
     windowMs,
-    delayAfter: Math.floor(max * 0.5), 
-    delayMs: 500,
+    delayAfter: Math.floor(max * 0.5),
+    delayMs: () => 500,
     keyGenerator: generateKey,
   });
 
-  
   return (req, res, next) => {
     slowDownMiddleware(req, res, (err) => {
       if (err) return next(err);
@@ -65,42 +58,41 @@ const createRateLimitMiddleware = ({ windowMs, max, message }) => {
 };
 
 
+const staffLimiter = createRateLimitMiddleware({
+  windowMs: 15 * 60 * 1000,
+  max: 150,
+  message: 'Too many staff requests, please try again later.',
+});
+
+const userLimiter = createRateLimitMiddleware({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: 'Too many requests, please try again later.',
+});
+
+const guestLimiter = createRateLimitMiddleware({
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  message: 'Too many attempts, please try again later.',
+});
+
+const getLimiter = createRateLimitMiddleware({
+  windowMs: 15 * 60 * 1000,
+  max: 20, 
+  message: 'Too many GET requests, please try again later.',
+});
+
+
 const rateLimitMiddleware = (req, res, next) => {
-
-  const method = req.method;
-
-
-  if (method === 'GET') {
-    return createRateLimitMiddleware({
-      windowMs: 15 * 60 * 1000,
-      max: req.user?.staff_id ? 300 : req.user?.user_id ? 400 : 20,
-      message: 'Too many GET requests, please try again later.',
-    })(req, res, next);
+  if (req.method === 'GET') {
+    const max = req.user?.staff_id ? 300 : req.user?.user_id ? 400 : 20;
+    return getLimiter(req, res, next);
   }
 
+  if (req.user?.staff_id) return staffLimiter(req, res, next);
+  if (req.user?.user_id || req.user?.business_id) return userLimiter(req, res, next);
 
- if (req.user?.staff_id) {
-    return createRateLimitMiddleware({
-      windowMs: 15 * 60 * 1000,
-      max: 150,
-      message: 'Too many staff requests, please try again later.',
-    })(req, res, next);
-  }
-
-  if (req.user?.user_id || req.user?.business_id) {
-    return createRateLimitMiddleware({
-      windowMs: 15 * 60 * 1000,
-      max: 200,
-      message: 'Too many requests, please try again later.',
-    })(req, res, next);
-  }
-
-
-  return createRateLimitMiddleware({
-    windowMs: 15 * 60 * 1000,
-    max: 3,
-    message: 'Too many attempts, please try again later.',
-  })(req, res, next);
+  return guestLimiter(req, res, next);
 };
 
 module.exports = {
