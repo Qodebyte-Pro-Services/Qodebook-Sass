@@ -131,8 +131,8 @@ exports.createStaffDoc = async (req, res) => {
   action_type: 'document_upload',
   action_value: `${insertedDocs.length} docs`,
   reason: 'New staff documents uploaded',
-  performed_by: req.user?.fullname || 'admin',
-  performed_by_role: req.user?.role || 'admin',
+     performed_by: user.isStaff ? user.staff_id : user.user_id,
+  performed_by_role: user.isStaff ? "staff" : "user",
 });
     return res.status(201).json({
       message: `${insertedDocs.length} document(s) uploaded successfully.`,
@@ -269,8 +269,8 @@ if ((removed_docs && removed_docs.length > 0) || insertedDocs.length > 0) {
     action_type: 'document_upload',
     action_value: `${insertedDocs.length} added, ${removed_docs?.length || 0} removed`,
     reason: 'Staff documents updated',
-    performed_by: req.user?.fullname || 'admin',
-    performed_by_role: req.user?.role || 'admin',
+     performed_by: user.isStaff ? user.staff_id : user.user_id,
+  performed_by_role: user.isStaff ? "staff" : "user",
   });
 }
 
@@ -399,8 +399,8 @@ exports.createStaffShift = async (req, res) => {
       action_type: 'shift_change',
       action_value: shift_id,
       reason: 'New shift assigned',
-      performed_by: req.user?.fullname || 'admin',
-      performed_by_role: req.user?.role || 'admin'
+       performed_by: user.isStaff ? user.staff_id : user.user_id,
+  performed_by_role: user.isStaff ? "staff" : "user",
     });
 
     return res.status(201).json({
@@ -477,8 +477,8 @@ exports.updateStaffShift = async (req, res) => {
       action_type: 'shift_change',
       action_value: result.rows[0].shift_id,
       reason: 'Shift updated',
-      performed_by: req.user?.fullname || 'admin',
-      performed_by_role: req.user?.role || 'admin'
+       performed_by: user.isStaff ? user.staff_id : user.user_id,
+  performed_by_role: user.isStaff ? "staff" : "user",
     });
 
     return res.status(200).json({
@@ -532,8 +532,8 @@ exports.createStaffSubcharge = async (req, res) => {
       action_type: 'subcharge',
       action_value: sub_charge_amt.toString(),
       reason: reason || 'Subcharge applied',
-      performed_by: req.user?.fullname || 'admin',
-      performed_by_role: req.user?.role || 'admin',
+       performed_by: user.isStaff ? user.staff_id : user.user_id,
+  performed_by_role: user.isStaff ? "staff" : "user",
     });
 
     return res.status(201).json({
@@ -621,8 +621,8 @@ exports.updateStaffSubcharge = async (req, res) => {
       action_type: 'subcharge',
       action_value: updated.sub_charge_amt?.toString() || '',
       reason: fields.reason || 'Subcharge updated',
-      performed_by: req.user?.fullname || 'admin',
-      performed_by_role: req.user?.role || 'admin',
+       performed_by: user.isStaff ? user.staff_id : user.user_id,
+  performed_by_role: user.isStaff ? "staff" : "user",
     });
 
     return res.status(200).json({
@@ -656,8 +656,8 @@ exports.deleteStaffSubcharge = async (req, res) => {
       action_type: 'subcharge',
       action_value: deleted.sub_charge_amt?.toString() || '',
       reason: 'Subcharge deleted',
-      performed_by: req.user?.fullname || 'admin',
-      performed_by_role: req.user?.role || 'admin',
+       performed_by: user.isStaff ? user.staff_id : user.user_id,
+  performed_by_role: user.isStaff ? "staff" : "user",
     });
 
     return res.status(200).json({ message: 'Staff subcharge deleted successfully.' });
@@ -1689,8 +1689,8 @@ exports.getStaff = async (req, res) => {
         action_type: 'status_change',
         action_value: fields.staff_status,
         reason: 'Staff status updated',
-        performed_by: req.user?.fullname || 'admin',
-        performed_by_role: req.user?.role || 'admin',
+        performed_by: user.isStaff ? user.staff_id : user.user_id,
+  performed_by_role: user.isStaff ? "staff" : "user",
       });
     }
 

@@ -3,6 +3,8 @@ const morgan = require('morgan');
 const cors = require('cors');
 const helmet = require('helmet');
 require('./config/env');
+const cron = require("node-cron");
+const { updateStaffPaymentStatus } = require("./jobs/staff-payment");
 const reviewRoutes = require('./routes/reviewRoutes');
 const wishlistRoutes = require('./routes/wishlistRoutes');
 const loyaltyRoutes = require('./routes/loyaltyRoutes');
@@ -97,6 +99,12 @@ app.use('/api/shop', shopRoutes);
 
 app.get('/', (req, res) => {
   res.send('Qodebook SaaS API is running');
+});
+
+
+cron.schedule("0 0 * * *", () => {
+  console.log("🕒 Running daily staff payment status check...");
+  updateStaffPaymentStatus();
 });
 
 module.exports = app;

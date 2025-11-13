@@ -403,7 +403,7 @@ LEFT JOIN staff sa ON e.approved_by_staff = sa.staff_id
     }
   },
 
-  payStaffSalary: async (req, res) => {
+payStaffSalary: async (req, res) => {
   const client = await pool.connect();
   try {
     const { business_id, staff_id, payment_method, description, amountToBePaid } = req.body;
@@ -542,6 +542,25 @@ LEFT JOIN staff sa ON e.approved_by_staff = sa.staff_id
       `,
       [staff_id]
     );
+
+    await client.query(
+  `DELETE FROM staff_subcharges
+   WHERE staff_id = $1
+   AND business_id = $2;`,
+  [staff_id, business_id]
+);
+
+
+await logStaffAction({
+  business_id,
+  staff_id,
+  action_type: "subcharge", 
+  action_value: null,
+  reason: "All subcharges cleared after salary payment",
+  performed_by: user.isStaff ? user.staff_id : user.user_id,
+  performed_by_role: user.isStaff ? "staff" : "user",
+  client,
+});
 
     
     await logStaffAction({

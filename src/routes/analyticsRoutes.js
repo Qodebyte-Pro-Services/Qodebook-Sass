@@ -997,6 +997,84 @@ router.get(
   controller.productVariantStockMovement
 );
 
+
+/**
+ * @swagger
+ * /api/finance/expense-stats-category:
+ *   get:
+ *     summary: Get expense statistics by category
+ *     description: Returns the count and percentage of expenses grouped by expense category for a specific business.
+ *     tags:
+ *       - Finance
+ *       - Analytics
+ *     security:
+ *       - bearerAuth: []  # assuming you are using JWT or similar auth
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The ID of the business to fetch expense stats for
+ *     responses:
+ *       200:
+ *         description: Successfully fetched expense statistics by category
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       category:
+ *                         type: string
+ *                         example: Maintenance
+ *                       count:
+ *                         type: integer
+ *                         example: 40
+ *                       percentage:
+ *                         type: number
+ *                         format: float
+ *                         example: 40.0
+ *       400:
+ *         description: Missing required business_id parameter
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "business_id is required."
+ *       500:
+ *         description: Server error while fetching expense statistics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Failed to fetch expense statistics by category."
+ */
+router.get(
+  '/expense-stats-category',
+  ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_EXPENSE_OVERVIEW),
+  controller.expenseStatsByCategory
+);
+
 /**
  * @swagger
  * /api/finance/stock-movement-analytics:
