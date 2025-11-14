@@ -499,37 +499,63 @@ payStaffSalary: async (req, res) => {
     }
 
     
-    const expenseInsert = await client.query(
-      `
-      INSERT INTO expenses (
-        business_id, category_id, staff_id, amount, description, expense_date,
-        status, receipt_url, payment_status, payment_method,
-        approved_by_role, approved_by_user, approved_by_staff,
-        status_updated_by, status_updated_by_role, status_updated_at, approved_at
-      )
-      VALUES (
-        $1, $2, $3, $4, $5, CURRENT_DATE,
-        'approved', $6, 'completed', $7,
-        $8, $9, $10,
-        $11, $12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-      )
-      RETURNING *;
-      `,
-      [
-        business_id,
-        category_id,
-        staff_id,
-        amount,
-        description || `Salary payment for ${staff.full_name}`,
-        receipt_url,
-        payment_method || null,
-        approvedByRole,
-        approvedByUser,
-        approvedByStaff,
-        updaterId,
-        updaterRole,
-      ]
-    );
+   const expenseInsert = await client.query(
+  `
+  INSERT INTO expenses (
+    business_id,
+    category_id,
+    staff_id,
+    amount,
+    description,
+    expense_date,
+    status,
+    approved_at,
+    receipt_url,
+    payment_method,
+    payment_status,
+    status_updated_by,
+    status_updated_by_role,
+    status_updated_at,
+    approved_by_user,
+    approved_by_staff,
+    approved_by_role
+  )
+  VALUES (
+    $1,  -- business_id
+    $2,  -- category_id
+    $3,  -- staff_id
+    $4,  -- amount
+    $5,  -- description
+    CURRENT_DATE, -- expense_date
+    'approved',   -- status
+    CURRENT_TIMESTAMP, -- approved_at
+    $6,  -- receipt_url
+    $7,  -- payment_method
+    'completed',  -- payment_status
+    $8,  -- status_updated_by
+    $9,  -- status_updated_by_role
+    CURRENT_TIMESTAMP, -- status_updated_at
+    $10, -- approved_by_user
+    $11, -- approved_by_staff
+    $12  -- approved_by_role
+  )
+  RETURNING *;
+  `,
+  [
+    business_id,
+    category_id,
+    staff_id,
+    amount,
+    description || `Salary payment for ${staff.full_name}`,
+    receipt_url,
+    payment_method || null,
+    updaterId,
+    updaterRole,
+    approvedByUser,
+    approvedByStaff,
+    approvedByRole
+  ]
+);
 
     const expense = expenseInsert.rows[0];
 
