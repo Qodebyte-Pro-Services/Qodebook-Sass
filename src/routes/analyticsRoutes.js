@@ -396,28 +396,120 @@ router.get('/supplier-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISS
 
 /**
  * @swagger
- * /api/finance/expense-analytics:
+ * /api/finance/budget-analytics:
  *   get:
- *     summary: Get expense analytics (trends, categories, anomalies)
+ *     summary: Get budget analytics for a business
  *     tags: [Analytics]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: business_id
+ *         required: true
  *         schema:
  *           type: string
- *         description: Business ID to filter
- *       - in: query
- *         name: branch_id
- *         schema:
- *           type: string
- *         description: Branch ID to filter
+ *         description: Business ID to filter budgets
  *       - in: query
  *         name: period
  *         schema:
  *           type: string
- *         description: Period to group by
+ *           enum: [today, yesterday, this_week, month, year, custom]
+ *         description: Predefined period or 'custom' for date range
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Custom end date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Budget analytics data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 period:
+ *                   type: string
+ *                 filters:
+ *                   type: object
+ *                   properties:
+ *                     start_date:
+ *                       type: string
+ *                       format: date
+ *                     end_date:
+ *                       type: string
+ *                       format: date
+ *                 analytics:
+ *                   type: object
+ *                   properties:
+ *                     total_budget:
+ *                       type: number
+ *                       description: Sum of approved budgets
+ *                     total_budget_spent:
+ *                       type: number
+ *                     total_remaining:
+ *                       type: number
+ *                     total_pending_budget:
+ *                       type: number
+ *                       description: Count of pending budgets
+ *                     total_approved_budget:
+ *                       type: number
+ *                     total_rejected_budget:
+ *                       type: number
+ *                     highest_budget_category:
+ *                       type: object
+ *                       nullable: true
+ *                       properties:
+ *                         category_name:
+ *                           type: string
+ *                         amount:
+ *                           type: number
+ *                     lowest_budget_category:
+ *                       type: object
+ *                       nullable: true
+ *                       properties:
+ *                         category_name:
+ *                           type: string
+ *                         amount:
+ *                           type: number
+ */
+router.get('/budget-analytics', ...requirePermission(FINANCIAL_PERMISSIONS.VIEW_BUDGETS_OVERVIEW), controller.getBudgetAnalytics);
+
+/**
+ * @swagger
+ * /api/finance/expense-analytics:
+ *   get:
+ *     summary: Get expense analytics (totals, trends, categories, anomalies)
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: business_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Business ID to filter expenses
+ *       - in: query
+ *         name: branch_id
+ *         schema:
+ *           type: string
+ *         description: Branch ID to filter expenses
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [today, yesterday, this_week, last_7_days, this_month, this_year, custom]
+ *         description: Predefined period or 'custom' for date range
  *       - in: query
  *         name: start_date
  *         schema:
@@ -433,6 +525,67 @@ router.get('/supplier-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISS
  *     responses:
  *       200:
  *         description: Expense analytics data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalExpenses:
+ *                   type: object
+ *                   properties:
+ *                     total_approved_expense:
+ *                       type: number
+ *                     lowest_approved_expense:
+ *                       type: number
+ *                     highest_approved_expense:
+ *                       type: number
+ *                     total_pending_expense:
+ *                       type: number
+ *                     total_pending_count:
+ *                       type: number
+ *                     total_rejected_expense:
+ *                       type: number
+ *                     total_rejected_count:
+ *                       type: number
+ *                     highest_expense_category:
+ *                       type: string
+ *                     lowest_expense_category:
+ *                       type: string
+ *                 monthlyExpenses:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       month:
+ *                         type: string
+ *                         format: date
+ *                       total_expense:
+ *                         type: number
+ *                 topExpenseCategories:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       category:
+ *                         type: string
+ *                       total_expense:
+ *                         type: number
+ *                 anomalies:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       amount:
+ *                         type: number
+ *                       category:
+ *                         type: string
+ *                       expense_date:
+ *                         type: string
+ *                         format: date
+ *                       description:
+ *                         type: string
  */
 router.get('/expense-analytics', ...requirePermission(REPORTS_ANALYTICS_PERMISSIONS.VIEW_EXPENSE_OVERVIEW), controller.expenseAnalytics);
 

@@ -236,7 +236,121 @@ exports.budgetOverTime = async (req, res) => {
   }
 };
 
+exports.getBudgetAnalytics = async (req, res) => {
+  try {
+   
+    const {business_id, period, start_date, end_date } = req.query;
 
+    if (!business_id)
+      return res.status(400).json({ message: "business_id is required" });
+
+   
+    let dateFilter = "";
+    let values = [business_id];
+
+    switch (period) {
+      case "today":
+        dateFilter = `AND TO_DATE(period_start, 'YYYY-MM-DD') = CURRENT_DATE`;
+        break;
+
+      case "yesterday":
+        dateFilter = `AND TO_DATE(period_start, 'YYYY-MM-DD') = CURRENT_DATE - INTERVAL '1 day'`;
+        break;
+
+      case "this_week":
+        dateFilter = `AND TO_DATE(period_start, 'YYYY-MM-DD') >= date_trunc('week', CURRENT_DATE)`;
+        break;
+
+      case "month":
+        dateFilter = `AND budget_month = TO_CHAR(NOW(), 'Month') 
+                      AND budget_year = TO_CHAR(NOW(), 'YYYY')`;
+        break;
+
+      case "year":
+        dateFilter = `AND budget_year = TO_CHAR(NOW(), 'YYYY')`;
+        break;
+
+      case "custom":
+        if (!start_date || !end_date) {
+          return res.status(400).json({
+            message: "start_date and end_date are required for custom period",
+          });
+        }
+        dateFilter = `AND TO_DATE(period_start, 'YYYY-MM-DD') BETWEEN $2 AND $3`;
+        values.push(start_date, end_date);
+        break;
+    }
+
+    
+    const query = `
+      SELECT 
+        COALESCE(SUM(amount) FILTER (WHERE status = 'approved'), 0) AS total_budget,
+        COALESCE(SUM(budget_spent), 0) AS total_budget_spent,
+        COALESCE(SUM(budget_remaining), 0) AS total_remaining,
+        COUNT(*) FILTER (WHERE status = 'pending') AS total_pending_budget,
+        COUNT(*) FILTER (WHERE status = 'approved') AS total_approved_budget,
+        COUNT(*) FILTER (WHERE status = 'rejected') AS total_rejected_budget
+      FROM budgets
+      WHERE business_id = $1
+      ${dateFilter}
+    `;
+
+   
+    const highestCategoryQuery = `
+      SELECT ec.name AS category_name, b.amount
+      FROM budgets b
+      JOIN expense_categories ec ON b.category_id = ec.id
+      WHERE b.business_id = $1
+        AND b.status = 'approved'
+        ${dateFilter.replace(/\$1/g, '$1')} 
+      ORDER BY b.amount DESC
+      LIMIT 1
+    `;
+
+    
+    const lowestCategoryQuery = `
+      SELECT ec.name AS category_name, b.amount
+      FROM budgets b
+      JOIN expense_categories ec ON b.category_id = ec.id
+      WHERE b.business_id = $1
+        AND b.status = 'approved'
+        ${dateFilter.replace(/\$1/g, '$1')} 
+      ORDER BY b.amount ASC
+      LIMIT 1
+    `;
+
+    const [analyticsResult, highestCatResult, lowestCatResult] = await Promise.all([
+      pool.query(query, values),
+      pool.query(highestCategoryQuery, values),
+      pool.query(lowestCategoryQuery, values)
+    ]);
+
+    const data = analyticsResult.rows[0];
+
+    return res.status(200).json({
+      success: true,
+      period,
+      filters: { start_date, end_date },
+      analytics: {
+        total_budget: Number(data.total_budget),
+        total_budget_spent: Number(data.total_budget_spent),
+        total_remaining: Number(data.total_remaining),
+        total_pending_budget: Number(data.total_pending_budget),
+        total_approved_budget: Number(data.total_approved_budget),
+        total_rejected_budget: Number(data.total_rejected_budget),
+        highest_budget_category: highestCatResult.rows[0] || null,
+        lowest_budget_category: lowestCatResult.rows[0] || null
+      },
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message,
+    });
+  }
+};
 
 exports.budgetAllocationByCategory = async (req, res) => {
   try {
@@ -2052,70 +2166,134 @@ exports.supplierAnalytics = async (req, res) => {
 };
 
 
-exports.expenseAnalytics = async (req, res) => {
+  exports.expenseAnalytics = async (req, res) => {
   try {
-    const { business_id, branch_id, date_filter, start_date, end_date } = req.query;
-    let params = [];
-    let wheres = [];
-    let idx = 1;
-    if (business_id) { wheres.push(`e.business_id = $${idx}`); params.push(business_id); idx++; }
-    if (branch_id) { wheres.push(`e.branch_id = $${idx}`); params.push(branch_id); idx++; }
-    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
+    const { business_id, branch_id, period, start_date, end_date } = req.query;
 
-    let dateWhere = '';
-    if (date_filter) {
-      if (date_filter === 'today') dateWhere = ` AND e.created_at::date = CURRENT_DATE`;
-      else if (date_filter === 'yesterday') dateWhere = ` AND e.created_at::date = CURRENT_DATE - INTERVAL '1 day'`;
-      else if (date_filter === 'this_week') dateWhere = ` AND e.created_at >= date_trunc('week', CURRENT_DATE)`;
-      else if (date_filter === 'last_7_days') dateWhere = ` AND e.created_at >= CURRENT_DATE - INTERVAL '7 days'`;
-      else if (date_filter === 'this_month') dateWhere = ` AND e.created_at >= date_trunc('month', CURRENT_DATE)`;
-      else if (date_filter === 'this_year') dateWhere = ` AND e.created_at >= date_trunc('year', CURRENT_DATE)`;
-      else if (date_filter === 'custom' && start_date && end_date) dateWhere = ` AND e.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
-    } else if (start_date && end_date) {
-      dateWhere = ` AND e.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
+    if (!business_id) return res.status(400).json({ message: 'business_id is required' });
+
+    let values = [business_id];
+    let idx = 2;
+    let whereClause = `e.business_id = $1`;
+
+    if (branch_id) {
+      whereClause += ` AND e.branch_id = $${idx}`;
+      values.push(branch_id);
+      idx++;
     }
 
-    const whereClauseWithDate = whereClause + (dateWhere ? dateWhere : '');
+    // Date filter
+    let dateFilter = '';
+    switch (period) {
+      case 'today':
+        dateFilter = ` AND e.expense_date = CURRENT_DATE`;
+        break;
+      case 'yesterday':
+        dateFilter = ` AND e.expense_date = CURRENT_DATE - INTERVAL '1 day'`;
+        break;
+      case 'this_week':
+        dateFilter = ` AND e.expense_date >= date_trunc('week', CURRENT_DATE)`;
+        break;
+      case 'last_7_days':
+        dateFilter = ` AND e.expense_date >= CURRENT_DATE - INTERVAL '7 days'`;
+        break;
+      case 'this_month':
+        dateFilter = ` AND date_trunc('month', e.expense_date) = date_trunc('month', CURRENT_DATE)`;
+        break;
+      case 'this_year':
+        dateFilter = ` AND date_trunc('year', e.expense_date) = date_trunc('year', CURRENT_DATE)`;
+        break;
+      case 'custom':
+        if (!start_date || !end_date)
+          return res.status(400).json({ message: 'start_date and end_date are required for custom period' });
+        dateFilter = ` AND e.expense_date BETWEEN $${idx} AND $${idx + 1}`;
+        values.push(start_date, end_date);
+        idx += 2;
+        break;
+      default:
+        break;
+    }
 
-    const monthlyExpensesResult = await pool.query(
-      `SELECT DATE_TRUNC('month', e.created_at) AS month, SUM(e.amount) AS total_expense
-       FROM expenses e
-       ${whereClauseWithDate}
-       GROUP BY month
-       ORDER BY month DESC`,
-      params
-    );
+    const approvedWhere = `WHERE ${whereClause} AND e.status = 'approved' ${dateFilter}`;
+    const pendingWhere = `WHERE ${whereClause} AND e.status = 'pending' ${dateFilter}`;
+    const rejectedWhere = `WHERE ${whereClause} AND e.status = 'rejected' ${dateFilter}`;
 
-    const topExpenseCategoriesResult = await pool.query(
-      `SELECT ec.name AS category, SUM(e.amount) AS total_expense
-       FROM expenses e
-       JOIN expense_categories ec ON e.category_id = ec.id
-       ${whereClauseWithDate}
-       GROUP BY ec.name
-       ORDER BY total_expense DESC
-       LIMIT 5`,
-      params
-    );
+    // Total expenses by status + highest/lowest categories
+    const totalExpensesQuery = `
+      SELECT 
+        COALESCE(SUM(e.amount), 0) AS total_approved_expense,
+        COALESCE(MIN(e.amount), 0) AS lowest_approved_expense,
+        COALESCE(MAX(e.amount), 0) AS highest_approved_expense,
+        (SELECT COALESCE(SUM(amount),0) FROM expenses e2 ${pendingWhere}) AS total_pending_expense,
+        (SELECT COALESCE(COUNT(*),0) FROM expenses e2 ${pendingWhere}) AS total_pending_count,
+        (SELECT COALESCE(SUM(amount),0) FROM expenses e3 ${rejectedWhere}) AS total_rejected_expense,
+        (SELECT COALESCE(COUNT(*),0) FROM expenses e3 ${rejectedWhere}) AS total_rejected_count,
+        (SELECT ec.name FROM expenses e4
+         JOIN expense_categories ec ON e4.category_id = ec.id
+         ${approvedWhere}
+         GROUP BY ec.name
+         ORDER BY SUM(e4.amount) DESC
+         LIMIT 1) AS highest_expense_category,
+        (SELECT ec.name FROM expenses e5
+         JOIN expense_categories ec ON e5.category_id = ec.id
+         ${approvedWhere}
+         GROUP BY ec.name
+         ORDER BY SUM(e5.amount) ASC
+         LIMIT 1) AS lowest_expense_category
+      FROM expenses e
+      ${approvedWhere}
+    `;
 
-    const anomalyResult = await pool.query(
-      `SELECT e.id, e.amount, ec.name AS category, e.created_at
-       FROM expenses e
-       JOIN expense_categories ec ON e.category_id = ec.id
-       ${whereClauseWithDate}
-       AND e.amount > 2 * (SELECT AVG(amount) FROM expenses WHERE status = 'approved')`,
-      params
-    );
+    // Monthly aggregation (approved only)
+    const monthlyExpensesQuery = `
+      SELECT DATE_TRUNC('month', e.expense_date) AS month, SUM(e.amount) AS total_expense
+      FROM expenses e
+      ${approvedWhere}
+      GROUP BY month
+      ORDER BY month DESC
+    `;
+
+    // Top categories (approved only)
+    const topCategoriesQuery = `
+      SELECT ec.name AS category, SUM(e.amount) AS total_expense
+      FROM expenses e
+      JOIN expense_categories ec ON e.category_id = ec.id
+      ${approvedWhere}
+      GROUP BY ec.name
+      ORDER BY total_expense DESC
+      LIMIT 5
+    `;
+
+    // Anomalies (approved only)
+    const anomalyQuery = `
+      SELECT e.id, e.amount, ec.name AS category, e.expense_date, e.description
+      FROM expenses e
+      JOIN expense_categories ec ON e.category_id = ec.id
+      ${approvedWhere}
+      AND e.amount > 2 * (SELECT AVG(amount) FROM expenses WHERE status = 'approved')
+      ORDER BY e.amount DESC
+    `;
+
+    const [totalRes, monthlyRes, topCatRes, anomalyRes] = await Promise.all([
+      pool.query(totalExpensesQuery, values),
+      pool.query(monthlyExpensesQuery, values),
+      pool.query(topCategoriesQuery, values),
+      pool.query(anomalyQuery, values),
+    ]);
 
     res.json({
-      monthlyExpenses: monthlyExpensesResult.rows,
-      topExpenseCategories: topExpenseCategoriesResult.rows,
-      anomalies: anomalyResult.rows
+      totalExpenses: totalRes.rows[0],
+      monthlyExpenses: monthlyRes.rows,
+      topExpenseCategories: topCatRes.rows,
+      anomalies: anomalyRes.rows
     });
+
   } catch (err) {
     console.error('Expense analytics error:', err);
-    res.status(500).json({ message: 'Failed to fetch expense analytics.' });
+    res.status(500).json({ message: 'Failed to fetch expense analytics.', error: err.message });
   }
 };
+
 
 
 exports.serviceAnalytics = async (req, res) => {
