@@ -15,7 +15,7 @@ const {
 const { error } = require('console');
 const { uploadFilesToCloudinary, uploadToCloudinary, deleteFileFromCloudinary, ComplexDeleteFileFromCloudinary } = require('../utils/uploadToCloudinary');
 const { logStaffAction } = require('../utils/staffAction');
-
+const UAParser = require("ua-parser-js");
 
 exports.listStaffActions = async (req, res) => {
   try {
@@ -1063,14 +1063,25 @@ exports.staffLogin = async (req, res) => {
 
     const sessionId = crypto.randomBytes(32).toString('hex');
     const { city, country, region } = await getGeoFromIp(req.ip);
-    await pool.query(`
-      INSERT INTO staff_login_logs (staff_id, business_id, success, ip_address, user_agent, session_id, country, city)
-      VALUES ($1, $2, true, $3, $4, $5, $6, $7)
+    const ua = new UAParser(req.get("User-Agent"));
+    const browser = ua.getBrowser().name || "Unknown";
+    const os = ua.getOS().name || "Unknown";
+    const deviceType = ua.getDevice().type || "desktop";
+      await pool.query(`
+      INSERT INTO staff_login_logs (
+        staff_id, business_id, success, ip_address, user_agent, 
+        browser, os, device_type, 
+        session_id, country, city
+      )
+      VALUES ($1, $2, true, $3, $4, $5, $6, $7, $8, $9, $10)
     `, [
       staff.staff_id,
       business_id,
       req.ip,
       req.get('User-Agent'),
+      browser,
+      os,
+      deviceType,
       sessionId,
       country,
       city
@@ -1153,20 +1164,30 @@ exports.verifyStaffOtp = async (req, res) => {
 
       const sessionId = crypto.randomBytes(32).toString('hex');
        const { city, country } = await getGeoFromIp(req.ip);
-      
-    
-    await pool.query(`
-      INSERT INTO staff_login_logs (staff_id, business_id, success, ip_address, user_agent, session_id, country, city)
-      VALUES ($1, $2, true, $3, $4, $5, $6, $7)
-    `, [
-      staff.staff_id,
-      business_id,
-      req.ip,
-      req.get('User-Agent'),
-      sessionId,
-      country,
-      city
-    ]);
+    const ua = new UAParser(req.get("User-Agent"));
+      const browser = ua.getBrowser().name || "Unknown";
+      const os = ua.getOS().name || "Unknown";
+      const deviceType = ua.getDevice().type || "desktop";
+
+      await pool.query(`
+        INSERT INTO staff_login_logs (
+          staff_id, business_id, success, ip_address, user_agent, 
+          browser, os, device_type,
+          session_id, country, city
+        )
+        VALUES ($1, $2, true, $3, $4, $5, $6, $7, $8, $9, $10)
+      `, [
+        staff.staff_id,
+        business_id,
+        req.ip,
+        req.get("User-Agent"),
+        browser,
+        os,
+        deviceType,
+        sessionId,
+        country,
+        city
+      ]);
 
     return res.status(200).json({
       message: 'OTP verified. Login successful.',
