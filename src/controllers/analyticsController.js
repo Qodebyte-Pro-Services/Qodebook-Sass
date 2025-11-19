@@ -7,10 +7,12 @@ const fs = require('fs');
 
 
 
+
 exports.incomeExpenseOverTime = async (req, res) => {
   try {
     const { business_id, branch_id, period = 'day', start_date, end_date } = req.query;
 
+   
     let orderWheres = [];
     let orderParams = [];
     let idx = 1;
@@ -31,10 +33,9 @@ exports.incomeExpenseOverTime = async (req, res) => {
       idx += 2;
     }
 
- 
     orderWheres.push(`o.status = 'completed'`);
 
-    const orderWhereClause = orderWheres.length > 0 ? 'WHERE ' + orderWheres.join(' AND ') : '';
+    const orderWhereClause = orderWheres.length ? 'WHERE ' + orderWheres.join(' AND ') : '';
     const orderDateSelect = `DATE_TRUNC('${period}', o.created_at)`;
 
     const incomeResult = await pool.query(
@@ -47,7 +48,8 @@ exports.incomeExpenseOverTime = async (req, res) => {
       orderParams
     );
 
-    let expenseWheres = [];
+   
+    let expenseWheres = [`e.status = 'approved'`]; 
     let expenseParams = [];
     let expIdx = 1;
 
@@ -62,7 +64,7 @@ exports.incomeExpenseOverTime = async (req, res) => {
       expIdx += 2;
     }
 
-    const expenseWhereClause = expenseWheres.length > 0 ? 'WHERE ' + expenseWheres.join(' AND ') : '';
+    const expenseWhereClause = expenseWheres.length ? 'WHERE ' + expenseWheres.join(' AND ') : '';
     const expenseDateSelect = `DATE_TRUNC('${period}', e.created_at)`;
 
     const expenseResult = await pool.query(
@@ -81,9 +83,10 @@ exports.incomeExpenseOverTime = async (req, res) => {
     });
   } catch (err) {
     console.error('Income vs Expense over time error:', err);
-    res.status(500).json({ message: 'Failed to fetch income vs expense over time.', error: err.message});
+    res.status(500).json({ message: 'Failed to fetch income vs expense over time.', error: err.message });
   }
 };
+
 
 
 
@@ -155,10 +158,12 @@ exports.expenseOverTime = async (req, res) => {
 
     
     const allowedPeriods = ['day', 'week', 'month', 'year'];
-    if (!allowedPeriods.includes(period)) return res.status(400).json({ message: 'Invalid period' });
+    if (!allowedPeriods.includes(period)) {
+      return res.status(400).json({ message: `Invalid period. Allowed: ${allowedPeriods.join(', ')}` });
+    }
 
+    let wheres = ['e.status = \'approved\'']; 
     let params = [];
-    let wheres = [];
     let idx = 1;
 
     if (business_id) {
@@ -189,7 +194,7 @@ exports.expenseOverTime = async (req, res) => {
 
   } catch (err) {
     console.error('Expense over time error:', err);
-    res.status(500).json({ message: 'Failed to fetch expense over time.' });
+    res.status(500).json({ message: 'Failed to fetch expense over time.', error: err.message });
   }
 };
 
@@ -197,11 +202,14 @@ exports.budgetOverTime = async (req, res) => {
   try {
     const { business_id, period = 'day', start_date, end_date } = req.query;
 
+    
     const allowedPeriods = ['day', 'week', 'month', 'year'];
-    if (!allowedPeriods.includes(period)) return res.status(400).json({ message: 'Invalid period' });
+    if (!allowedPeriods.includes(period)) {
+      return res.status(400).json({ message: `Invalid period. Allowed: ${allowedPeriods.join(', ')}` });
+    }
 
+    let wheres = ['b.status = \'approved\'']; 
     let params = [];
-    let wheres = [];
     let idx = 1;
 
     if (business_id) {
@@ -232,7 +240,7 @@ exports.budgetOverTime = async (req, res) => {
 
   } catch (err) {
     console.error('Budget over time error:', err);
-    res.status(500).json({ message: 'Failed to fetch budget over time.' });
+    res.status(500).json({ message: 'Failed to fetch budget over time.', error: err.message });
   }
 };
 
@@ -352,31 +360,62 @@ exports.getBudgetAnalytics = async (req, res) => {
   }
 };
 
+
 exports.budgetAllocationByCategory = async (req, res) => {
   try {
     const { business_id, branch_id, period = 'day', start_date, end_date } = req.query;
+
+    
+    const allowedPeriods = ['day', 'week', 'month', 'year'];
+    if (!allowedPeriods.includes(period)) {
+      return res.status(400).json({ message: `Invalid period. Allowed: ${allowedPeriods.join(', ')}` });
+    }
+
+   
+    let wheres = ['b.status = \'approved\'']; 
     let params = [];
-    let wheres = [];
     let idx = 1;
-    if (business_id) { wheres.push(`b.business_id = $${idx}`); params.push(business_id); idx++; }
-    if (branch_id) { wheres.push(`b.branch_id = $${idx}`); params.push(branch_id); idx++; }
-    let whereClause = wheres.length > 0 ? 'WHERE ' + wheres.join(' AND ') : '';
-    let dateSelect = `DATE_TRUNC('${period}', b.created_at)`;
-    let dateWhere = '';
-    if (start_date && end_date) dateWhere = ` AND b.created_at::date BETWEEN '${start_date}' AND '${end_date}'`;
-    const allocationResult = await pool.query(
-      `SELECT ec.name AS category, ${dateSelect} AS period, SUM(b.amount) AS total_budget
-       FROM budgets b
-       JOIN expense_categories ec ON b.category_id = ec.id
-       ${whereClause}${dateWhere}
-       GROUP BY ec.name, period
-       ORDER BY period ASC, total_budget DESC`,
-      params
-    );
+
+    if (business_id) {
+      wheres.push(`b.business_id = $${idx}`);
+      params.push(business_id);
+      idx++;
+    }
+
+    if (branch_id) {
+      wheres.push(`b.branch_id = $${idx}`);
+      params.push(branch_id);
+      idx++;
+    }
+
+    if (start_date && end_date) {
+      wheres.push(`b.created_at::date BETWEEN $${idx} AND $${idx + 1}`);
+      params.push(start_date, end_date);
+      idx += 2;
+    }
+
+    const whereClause = wheres.length ? 'WHERE ' + wheres.join(' AND ') : '';
+
+    
+    const dateSelect = `DATE_TRUNC('${period}', b.created_at)`;
+
+    const allocationQuery = `
+      SELECT ec.name AS category,
+             ${dateSelect} AS period,
+             SUM(b.amount) AS total_budget
+      FROM budgets b
+      JOIN expense_categories ec ON b.category_id = ec.id
+      ${whereClause}
+      GROUP BY ec.name, period
+      ORDER BY period ASC, total_budget DESC
+    `;
+
+    const allocationResult = await pool.query(allocationQuery, params);
+
     res.json({ allocation: allocationResult.rows });
   } catch (err) {
     console.error('Budget allocation by category error:', err);
-    res.status(500).json({ message: 'Failed to fetch budget allocation by category.' });
+    res.status(500).json({ message: 'Failed to fetch budget allocation by category.', error: err.message });
   }
 };
 
