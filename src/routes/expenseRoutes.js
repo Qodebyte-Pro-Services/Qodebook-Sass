@@ -527,7 +527,7 @@ router.patch('/expense-status/:id', ...requirePermission(FINANCIAL_PERMISSIONS.A
  *       500:
  *         description: Failed to update payment status.
  */
-router.patch('payment_status/:id', ...requirePermission(FINANCIAL_PERMISSIONS.UPDATE_EXPENSE), rateLimitMiddleware, controller.updatePayment);
+router.patch('/payment_status/:id', ...requirePermission(FINANCIAL_PERMISSIONS.UPDATE_EXPENSE), rateLimitMiddleware, controller.updatePayment);
 
 
 
