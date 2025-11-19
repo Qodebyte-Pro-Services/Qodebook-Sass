@@ -379,11 +379,11 @@ LEFT JOIN staff sa ON e.approved_by_staff = sa.staff_id
       UPDATE expenses
       SET 
         status = $1,
-        approved_by_role = $1,
-        approved_by_user = $2,
-        approved_by_staff = $3,
+        approved_by_role = $2,
+        approved_by_user = $3,
+        approved_by_staff = $4,
         approved_at = CURRENT_TIMESTAMP
-      WHERE id = $4
+      WHERE id = $5
       RETURNING *;
       `,
       [status, approvedByRole, approvedByUser, approvedByStaff, id]
@@ -399,7 +399,12 @@ LEFT JOIN staff sa ON e.approved_by_staff = sa.staff_id
       expense: result.rows[0]
     });
     } catch (err) {
-      
+       console.error(err);
+  return res.status(500).json({
+    success: false,
+    message: "Internal server error.",
+    error: err.message
+  });
     }
   },
 
