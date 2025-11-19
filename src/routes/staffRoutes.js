@@ -1980,199 +1980,212 @@ router.get('/settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.V
  */
 router.put('/settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_BUSINESS_SETTINGS), rateLimitMiddleware,  staffController.updateBusinessStaffSettings);
 
-// Staff Login History Routes
 /**
  * @swagger
  * /api/staff/logins/{business_id}:
  *   get:
- *     summary: Retrieve comprehensive staff login audit trail
+ *     summary: Retrieve staff login history for a business
  *     description: |
- *       Gets a detailed audit trail of all staff login attempts for a business.
- *       This includes successful logins, failed attempts, IP addresses, user agents,
- *       and timestamps for security monitoring and compliance.
- *       
- *       **Audit Information Includes:**
- *       - Login success/failure status
- *       - Staff member details
- *       - IP address and user agent
- *       - Timestamp of login attempt
- *       - Branch location (if applicable)
- *       
- *       **Filtering Options:**
- *       - Filter by specific staff member
- *       - Filter by date range
- *       - Pagination support
- *       
- *       **Access Control:** Only business owners can view login history
+ *       Returns detailed login history for staff under a business, including:
+ *       - Success/failed login attempts
+ *       - Timestamps
+ *       - Staff details
+ *       - IP address, user agent
+ *       - Country & city (if logged)
+ *
+ *       Supports filtering by:
+ *       - staff_id
+ *       - date range
+ *       - pagination
+ *
  *     tags: [StaffLogs]
  *     security:
  *       - bearerAuth: []
+ *
  *     parameters:
  *       - in: path
  *         name: business_id
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID of the business to get login history for
- *         example: 1
+ *         description: Business ID
+ *
  *       - in: query
  *         name: staff_id
  *         schema:
  *           type: string
- *         description: Filter by specific staff member ID
- *         example: "STF001"
+ *         required: false
+ *         description: Filter by staff ID
+ *
  *       - in: query
  *         name: start_date
  *         schema:
  *           type: string
- *           format: date
- *         description: Start date for filtering (YYYY-MM-DD)
- *         example: "2024-01-01"
+ *           format: date-time
+ *         required: false
+ *         description: Filter logs from this date (YYYY-MM-DD)
+ *
  *       - in: query
  *         name: end_date
  *         schema:
  *           type: string
- *           format: date
- *         description: End date for filtering (YYYY-MM-DD)
- *         example: "2024-01-31"
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum: [success, failed]
- *         description: Filter by login status
- *         example: "success"
+ *           format: date-time
+ *         required: false
+ *         description: Filter logs until this date (YYYY-MM-DD)
+ *
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
  *           default: 50
- *         description: Number of records to return (max 100)
- *         example: 25
+ *         required: false
+ *         description: Number of records to return
+ *
  *       - in: query
  *         name: offset
  *         schema:
  *           type: integer
  *           default: 0
- *         description: Number of records to skip for pagination
- *         example: 0
+ *         required: false
+ *         description: Number of records to skip (pagination)
+ *
  *     responses:
  *       200:
- *         description: Staff login history retrieved successfully
+ *         description: Login history fetched successfully
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 message:
- *                   type: string
- *                   example: "Login history retrieved successfully"
- *                 logins:
+ *                 success:
+ *                   type: boolean
+ *                 total:
+ *                   type: integer
+ *                 count:
+ *                   type: integer
+ *                 login_history:
  *                   type: array
  *                   items:
  *                     type: object
  *                     properties:
- *                       id:
- *                         type: integer
- *                         example: 1
- *                       staff_id:
- *                         type: string
- *                         example: "STF001"
- *                       staff_name:
- *                         type: string
- *                         example: "John Doe"
- *                       business_id:
- *                         type: integer
- *                         example: 1
- *                       branch_id:
- *                         type: integer
- *                         example: 1
- *                       branch_name:
- *                         type: string
- *                         example: "Main Branch"
- *                       login_status:
- *                         type: string
- *                         enum: [success, failed]
- *                         example: "success"
- *                       ip_address:
- *                         type: string
- *                         example: "192.168.1.100"
- *                       user_agent:
- *                         type: string
- *                         example: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
- *                       login_attempt_time:
- *                         type: string
- *                         format: date-time
- *                         example: "2024-01-15T10:30:00Z"
- *                       failure_reason:
- *                         type: string
- *                         description: Reason for failed login (if applicable)
- *                         example: "Invalid password"
- *                 pagination:
- *                   type: object
- *                   properties:
- *                     total_records:
- *                       type: integer
- *                       example: 150
- *                     total_pages:
- *                       type: integer
- *                       example: 6
- *                     current_page:
- *                       type: integer
- *                       example: 1
- *                     limit:
- *                       type: integer
- *                       example: 25
- *                     offset:
- *                       type: integer
- *                       example: 0
- *                 summary:
- *                   type: object
- *                   properties:
- *                     total_logins:
- *                       type: integer
- *                       example: 150
- *                     successful_logins:
- *                       type: integer
- *                       example: 145
- *                     failed_logins:
- *                       type: integer
- *                       example: 5
- *                     unique_staff:
- *                       type: integer
- *                       example: 8
- *       403:
- *         description: Unauthorized - only business owners can view login history
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Only business owners can view login history"
- *       404:
- *         description: Business not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Business not found"
+ *                       id: { type: integer }
+ *                       staff_id: { type: string }
+ *                       business_id: { type: integer }
+ *                       login_time: { type: string, format: date-time }
+ *                       logout_time: { type: string, format: date-time, nullable: true }
+ *                       ip_address: { type: string }
+ *                       user_agent: { type: string }
+ *                       success: { type: boolean }
+ *                       failure_reason: { type: string, nullable: true }
+ *                       session_id: { type: string }
+ *                       country: { type: string, nullable: true }
+ *                       city: { type: string, nullable: true }
+ *                       full_name: { type: string }
+ *                       email: { type: string }
+ *
  *       500:
  *         description: Server error
+ */
+router.get('/logins/:business_id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_LOGINS), staffController.getStaffLoginHistory);
+
+/**
+ * @swagger
+ * /api/staff/logs/{business_id}:
+ *   get:
+ *     summary: Retrieve all staff login logs for a business
+ *     description: |
+ *       Returns all login logs (success & failed) for all staff under a business.
+ *       Supports filtering by:
+ *       - success status
+ *       - date range
+ *       - pagination
+ *
+ *     tags: [StaffLogs]
+ *     security:
+ *       - bearerAuth: []
+ *
+ *     parameters:
+ *       - in: path
+ *         name: business_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *
+ *       - in: query
+ *         name: success
+ *         schema:
+ *           type: string
+ *           enum: [true, false]
+ *         description: Filter by success/failure
+ *
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *
+ *     responses:
+ *       200:
+ *         description: Staff login logs retrieved successfully
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 message:
- *                   type: string
- *                   example: "Server error"
+ *                 success:
+ *                   type: boolean
+ *                 total:
+ *                   type: integer
+ *                 count:
+ *                   type: integer
+ *                 login_logs:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id: { type: integer }
+ *                       staff_id: { type: string }
+ *                       business_id: { type: integer }
+ *                       login_time: { type: string, format: date-time }
+ *                       logout_time: { type: string, format: date-time, nullable: true }
+ *                       ip_address: { type: string }
+ *                       user_agent: { type: string }
+ *                       success: { type: boolean }
+ *                       failure_reason: { type: string, nullable: true }
+ *                       session_id: { type: string }
+ *                       country: { type: string, nullable: true }
+ *                       city: { type: string, nullable: true }
+ *                       full_name: { type: string }
+ *                       email: { type: string }
+ *                       position_name: { type: string }
+ *                       assigned_position: { type: string }
+ *
+ *       500:
+ *         description: Server error
  */
-router.get('/logins/:business_id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_LOGINS), staffController.getStaffLoginHistory);
+router.get(
+  '/logs/:business_id',
+  ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_LOGINS),
+  staffController.getAllStaffLoginLogs
+);
 
 // Password Change Request Management Routes
 /**

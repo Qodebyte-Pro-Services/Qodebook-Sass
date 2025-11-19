@@ -958,7 +958,18 @@ async function sendPasswordToOwner(ownerEmail, staffName, password, businessName
   }
 };
 
-
+async function getGeoFromIp(ip) {
+  try {
+    const response = await axios.get(`https://ipapi.co/${ip}/json/`);
+    return {
+      city: response.data.city || null,
+      country: response.data.country_name || null,
+      region: response.data.region || null
+    };
+  } catch {
+    return { city: null, country: null, region: null };
+  }
+}
 
 
 exports.staffLogin = async (req, res) => {
@@ -992,6 +1003,19 @@ exports.staffLogin = async (req, res) => {
       `, [staff.staff_id, business_id, req.ip, req.get('User-Agent')]);
 
       return res.status(401).json({ message: 'Invalid credentials.' });
+    }
+
+        const activeSession = await pool.query(`
+      SELECT * FROM staff_login_logs
+      WHERE staff_id = $1 AND logout_time IS NULL
+      ORDER BY login_time DESC LIMIT 1
+    `, [staff.staff_id]);
+
+    if (activeSession.rows.length > 0) {
+      return res.status(403).json({
+        message: "Another active session exists. Please logout first.",
+        active_session: activeSession.rows[0]
+      });
     }
 
 
@@ -1038,10 +1062,19 @@ exports.staffLogin = async (req, res) => {
     }, process.env.JWT_SECRET, { expiresIn: `${settings?.session_timeout_minutes || 480}m` });
 
     const sessionId = crypto.randomBytes(32).toString('hex');
+    const { city, country, region } = await getGeoFromIp(req.ip);
     await pool.query(`
-      INSERT INTO staff_login_logs (staff_id, business_id, success, ip_address, user_agent, session_id)
-      VALUES ($1, $2, true, $3, $4, $5)
-    `, [staff.staff_id, business_id, req.ip, req.get('User-Agent'), sessionId]);
+      INSERT INTO staff_login_logs (staff_id, business_id, success, ip_address, user_agent, session_id, country, city)
+      VALUES ($1, $2, true, $3, $4, $5, $6, $7)
+    `, [
+      staff.staff_id,
+      business_id,
+      req.ip,
+      req.get('User-Agent'),
+      sessionId,
+      country,
+      city
+    ]);
 
     return res.status(200).json({
       message: 'Login successful',
@@ -1083,6 +1116,19 @@ exports.verifyStaffOtp = async (req, res) => {
 
     await pool.query(`UPDATE staff_otps SET used = TRUE WHERE id = $1`, [otpResult.rows[0].id]);
 
+        const activeSession = await pool.query(`
+      SELECT * FROM staff_login_logs
+      WHERE staff_id = $1 AND logout_time IS NULL
+      ORDER BY login_time DESC LIMIT 1
+    `, [staff_id]);
+
+    if (activeSession.rows.length > 0) {
+      return res.status(403).json({
+        message: "Another active session exists.",
+        active_session: activeSession.rows[0]
+      });
+    }
+
   
     const staffResult = await pool.query(
       `SELECT s.*, r.permissions 
@@ -1105,6 +1151,23 @@ exports.verifyStaffOtp = async (req, res) => {
       isStaff: true
     }, process.env.JWT_SECRET, { expiresIn: `${settings?.session_timeout_minutes || 480}m` });
 
+      const sessionId = crypto.randomBytes(32).toString('hex');
+       const { city, country } = await getGeoFromIp(req.ip);
+      
+    
+    await pool.query(`
+      INSERT INTO staff_login_logs (staff_id, business_id, success, ip_address, user_agent, session_id, country, city)
+      VALUES ($1, $2, true, $3, $4, $5, $6, $7)
+    `, [
+      staff.staff_id,
+      business_id,
+      req.ip,
+      req.get('User-Agent'),
+      sessionId,
+      country,
+      city
+    ]);
+
     return res.status(200).json({
       message: 'OTP verified. Login successful.',
       token,
@@ -1121,7 +1184,28 @@ exports.verifyStaffOtp = async (req, res) => {
 
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(500).json({ message: 'Server error.', err });
+  }
+};
+
+exports.staffLogout = async (req, res) => {
+  try {
+    const { session_id } = req.body;
+
+    if (!session_id)
+      return res.status(400).json({ message: "session_id is required." });
+
+    await pool.query(`
+      UPDATE staff_login_logs 
+      SET logout_time = NOW()
+      WHERE session_id = $1 AND logout_time IS NULL
+    `, [session_id]);
+
+    return res.status(200).json({ message: "Logout recorded." });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error." });
   }
 };
 
@@ -1517,51 +1601,178 @@ exports.updateBusinessStaffSettings = async (req, res) => {
 };
 
 
-exports.getStaffLoginHistory = async (req, res) => {
+  exports.getStaffLoginHistory = async (req, res) => {
   try {
     const { business_id } = req.params;
-    const { staff_id, start_date, end_date, limit = 50, offset = 0 } = req.query;
+    const { 
+      staff_id, 
+      start_date, 
+      end_date, 
+      limit = 50, 
+      offset = 0 
+    } = req.query;
 
+   
     let query = `
-      SELECT l.*, s.full_name, s.email 
-      FROM staff_login_logs l 
-      JOIN staff s ON l.staff_id = s.staff_id 
+      SELECT 
+        l.*, 
+        s.full_name, 
+        s.email
+      FROM staff_login_logs l
+      JOIN staff s ON l.staff_id = s.staff_id
       WHERE l.business_id = $1
     `;
-    let params = [business_id];
-    let paramIndex = 2;
 
+    let countQuery = `
+      SELECT COUNT(*) AS total
+      FROM staff_login_logs l
+      WHERE l.business_id = $1
+    `;
+
+    const params = [business_id];
+    const countParams = [business_id];
+    let index = 2;
+
+    
     if (staff_id) {
-      query += ` AND l.staff_id = $${paramIndex}`;
+      query += ` AND l.staff_id = $${index}`;
+      countQuery += ` AND l.staff_id = $${index}`;
       params.push(staff_id);
-      paramIndex++;
+      countParams.push(staff_id);
+      index++;
     }
 
+   
     if (start_date) {
-      query += ` AND l.login_time >= $${paramIndex}`;
+      query += ` AND l.login_time >= $${index}`;
+      countQuery += ` AND l.login_time >= $${index}`;
       params.push(start_date);
-      paramIndex++;
+      countParams.push(start_date);
+      index++;
     }
 
+    
     if (end_date) {
-      query += ` AND l.login_time <= $${paramIndex}`;
+      query += ` AND l.login_time <= $${index}`;
+      countQuery += ` AND l.login_time <= $${index}`;
       params.push(end_date);
-      paramIndex++;
+      countParams.push(end_date);
+      index++;
     }
 
-    query += ` ORDER BY l.login_time DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    
+    query += ` ORDER BY l.login_time DESC LIMIT $${index} OFFSET $${index + 1}`;
     params.push(limit, offset);
 
-    const result = await pool.query(query, params);
+    
+    const [dataResult, countResult] = await Promise.all([
+      pool.query(query, params),
+      pool.query(countQuery, countParams)
+    ]);
 
-    return res.status(200).json({ 
-      login_history: result.rows,
-      total: result.rows.length
+    return res.status(200).json({
+      success: true,
+      total: Number(countResult.rows[0].total),
+      count: dataResult.rows.length,
+      login_history: dataResult.rows
     });
 
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(500).json({ 
+      success: false,
+      message: "Server error.",
+      error: err.message
+    });
+  }
+};
+
+
+exports.getAllStaffLoginLogs = async (req, res) => {
+  try {
+    const { business_id } = req.params;
+    const { 
+      start_date, 
+      end_date, 
+      success,    
+      limit = 50, 
+      offset = 0 
+    } = req.query;
+
+   
+    let query = `
+      SELECT 
+        l.*, 
+        s.full_name, 
+        s.email,
+        s.position_name,
+        s.assigned_position
+      FROM staff_login_logs l
+      JOIN staff s ON l.staff_id = s.staff_id
+      WHERE l.business_id = $1
+    `;
+
+    
+    let countQuery = `
+      SELECT COUNT(*) AS total
+      FROM staff_login_logs l
+      WHERE l.business_id = $1
+    `;
+
+    const params = [business_id];
+    const countParams = [business_id];
+    let index = 2;
+
+    
+    if (start_date) {
+      query += ` AND l.login_time >= $${index}`;
+      countQuery += ` AND l.login_time >= $${index}`;
+      params.push(start_date);
+      countParams.push(start_date);
+      index++;
+    }
+
+    
+    if (end_date) {
+      query += ` AND l.login_time <= $${index}`;
+      countQuery += ` AND l.login_time <= $${index}`;
+      params.push(end_date);
+      countParams.push(end_date);
+      index++;
+    }
+
+    
+    if (success === "true" || success === "false") {
+      query += ` AND l.success = $${index}`;
+      countQuery += ` AND l.success = $${index}`;
+      params.push(success === "true");
+      countParams.push(success === "true");
+      index++;
+    }
+
+    
+    query += ` ORDER BY l.login_time DESC LIMIT $${index} OFFSET $${index + 1}`;
+    params.push(limit, offset);
+
+    const [logsResult, countResult] = await Promise.all([
+      pool.query(query, params),
+      pool.query(countQuery, countParams)
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      total: Number(countResult.rows[0].total),
+      count: logsResult.rows.length,
+      login_logs: logsResult.rows
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message
+    });
   }
 };
 
