@@ -2205,7 +2205,8 @@ exports.supplierAnalytics = async (req, res) => {
 };
 
 
-  exports.expenseAnalytics = async (req, res) => {
+
+exports.expenseAnalytics = async (req, res) => {
   try {
     const { business_id, branch_id, period, start_date, end_date } = req.query;
 
@@ -2221,27 +2222,15 @@ exports.supplierAnalytics = async (req, res) => {
       idx++;
     }
 
-    // Date filter
+ 
     let dateFilter = '';
     switch (period) {
-      case 'today':
-        dateFilter = ` AND e.expense_date = CURRENT_DATE`;
-        break;
-      case 'yesterday':
-        dateFilter = ` AND e.expense_date = CURRENT_DATE - INTERVAL '1 day'`;
-        break;
-      case 'this_week':
-        dateFilter = ` AND e.expense_date >= date_trunc('week', CURRENT_DATE)`;
-        break;
-      case 'last_7_days':
-        dateFilter = ` AND e.expense_date >= CURRENT_DATE - INTERVAL '7 days'`;
-        break;
-      case 'this_month':
-        dateFilter = ` AND date_trunc('month', e.expense_date) = date_trunc('month', CURRENT_DATE)`;
-        break;
-      case 'this_year':
-        dateFilter = ` AND date_trunc('year', e.expense_date) = date_trunc('year', CURRENT_DATE)`;
-        break;
+      case 'today': dateFilter = ` AND e.expense_date = CURRENT_DATE`; break;
+      case 'yesterday': dateFilter = ` AND e.expense_date = CURRENT_DATE - INTERVAL '1 day'`; break;
+      case 'this_week': dateFilter = ` AND e.expense_date >= date_trunc('week', CURRENT_DATE)`; break;
+      case 'last_7_days': dateFilter = ` AND e.expense_date >= CURRENT_DATE - INTERVAL '7 days'`; break;
+      case 'this_month': dateFilter = ` AND date_trunc('month', e.expense_date) = date_trunc('month', CURRENT_DATE)`; break;
+      case 'this_year': dateFilter = ` AND date_trunc('year', e.expense_date) = date_trunc('year', CURRENT_DATE)`; break;
       case 'custom':
         if (!start_date || !end_date)
           return res.status(400).json({ message: 'start_date and end_date are required for custom period' });
@@ -2249,83 +2238,40 @@ exports.supplierAnalytics = async (req, res) => {
         values.push(start_date, end_date);
         idx += 2;
         break;
-      default:
-        break;
+      default: break;
     }
 
-    const approvedWhere = `WHERE ${whereClause} AND e.status = 'approved' ${dateFilter}`;
-    const pendingWhere = `WHERE ${whereClause} AND e.status = 'pending' ${dateFilter}`;
-    const rejectedWhere = `WHERE ${whereClause} AND e.status = 'rejected' ${dateFilter}`;
-
-    // Total expenses by status + highest/lowest categories
+    
     const totalExpensesQuery = `
       SELECT 
-        COALESCE(SUM(e.amount), 0) AS total_approved_expense,
-        COALESCE(MIN(e.amount), 0) AS lowest_approved_expense,
-        COALESCE(MAX(e.amount), 0) AS highest_approved_expense,
-        (SELECT COALESCE(SUM(amount),0) FROM expenses e2 ${pendingWhere}) AS total_pending_expense,
-        (SELECT COALESCE(COUNT(*),0) FROM expenses e2 ${pendingWhere}) AS total_pending_count,
-        (SELECT COALESCE(SUM(amount),0) FROM expenses e3 ${rejectedWhere}) AS total_rejected_expense,
-        (SELECT COALESCE(COUNT(*),0) FROM expenses e3 ${rejectedWhere}) AS total_rejected_count,
-        (SELECT ec.name FROM expenses e4
-         JOIN expense_categories ec ON e4.category_id = ec.id
-         ${approvedWhere}
+        COALESCE(SUM(e.amount),0) AS total_approved_expense,
+        COALESCE(MIN(e.amount),0) AS lowest_approved_expense,
+        COALESCE(MAX(e.amount),0) AS highest_approved_expense,
+        (SELECT COALESCE(SUM(e2.amount),0) FROM expenses e2 WHERE e2.business_id = $1 AND e2.status='pending') AS total_pending_expense,
+        (SELECT COALESCE(COUNT(*),0) FROM expenses e3 WHERE e3.business_id = $1 AND e3.status='pending') AS total_pending_count,
+        (SELECT COALESCE(SUM(e4.amount),0) FROM expenses e4 WHERE e4.business_id = $1 AND e4.status='rejected') AS total_rejected_expense,
+        (SELECT COALESCE(COUNT(*),0) FROM expenses e5 WHERE e5.business_id = $1 AND e5.status='rejected') AS total_rejected_count,
+        (SELECT ec.name 
+         FROM expenses e6 
+         JOIN expense_categories ec ON e6.category_id = ec.id
+         WHERE e6.business_id = $1 AND e6.status='approved'
          GROUP BY ec.name
-         ORDER BY SUM(e4.amount) DESC
+         ORDER BY SUM(e6.amount) DESC
          LIMIT 1) AS highest_expense_category,
-        (SELECT ec.name FROM expenses e5
-         JOIN expense_categories ec ON e5.category_id = ec.id
-         ${approvedWhere}
+        (SELECT ec.name 
+         FROM expenses e7 
+         JOIN expense_categories ec ON e7.category_id = ec.id
+         WHERE e7.business_id = $1 AND e7.status='approved'
          GROUP BY ec.name
-         ORDER BY SUM(e5.amount) ASC
+         ORDER BY SUM(e7.amount) ASC
          LIMIT 1) AS lowest_expense_category
       FROM expenses e
-      ${approvedWhere}
+      WHERE ${whereClause} AND e.status = 'approved' ${dateFilter};
     `;
 
-    // Monthly aggregation (approved only)
-    const monthlyExpensesQuery = `
-      SELECT DATE_TRUNC('month', e.expense_date) AS month, SUM(e.amount) AS total_expense
-      FROM expenses e
-      ${approvedWhere}
-      GROUP BY month
-      ORDER BY month DESC
-    `;
+    const totalRes = await pool.query(totalExpensesQuery, values);
 
-    // Top categories (approved only)
-    const topCategoriesQuery = `
-      SELECT ec.name AS category, SUM(e.amount) AS total_expense
-      FROM expenses e
-      JOIN expense_categories ec ON e.category_id = ec.id
-      ${approvedWhere}
-      GROUP BY ec.name
-      ORDER BY total_expense DESC
-      LIMIT 5
-    `;
-
-    // Anomalies (approved only)
-    const anomalyQuery = `
-      SELECT e.id, e.amount, ec.name AS category, e.expense_date, e.description
-      FROM expenses e
-      JOIN expense_categories ec ON e.category_id = ec.id
-      ${approvedWhere}
-      AND e.amount > 2 * (SELECT AVG(amount) FROM expenses WHERE status = 'approved')
-      ORDER BY e.amount DESC
-    `;
-
-    const [totalRes, monthlyRes, topCatRes, anomalyRes] = await Promise.all([
-      pool.query(totalExpensesQuery, values),
-      pool.query(monthlyExpensesQuery, values),
-      pool.query(topCategoriesQuery, values),
-      pool.query(anomalyQuery, values),
-    ]);
-
-    res.json({
-      totalExpenses: totalRes.rows[0],
-      monthlyExpenses: monthlyRes.rows,
-      topExpenseCategories: topCatRes.rows,
-      anomalies: anomalyRes.rows
-    });
+    res.json({ totalExpenses: totalRes.rows[0] });
 
   } catch (err) {
     console.error('Expense analytics error:', err);
