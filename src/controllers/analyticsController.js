@@ -2222,7 +2222,7 @@ exports.expenseAnalytics = async (req, res) => {
       idx++;
     }
 
- 
+    
     let dateFilter = '';
     switch (period) {
       case 'today': dateFilter = ` AND e.expense_date = CURRENT_DATE`; break;
@@ -2269,15 +2269,36 @@ exports.expenseAnalytics = async (req, res) => {
       WHERE ${whereClause} AND e.status = 'approved' ${dateFilter};
     `;
 
-    const totalRes = await pool.query(totalExpensesQuery, values);
+    
+    const topCategoriesQuery = `
+      SELECT ec.name AS category,
+             SUM(e.amount) AS total_expense,
+             COUNT(*) AS expense_count
+      FROM expenses e
+      JOIN expense_categories ec ON e.category_id = ec.id
+      WHERE ${whereClause} AND e.status = 'approved' ${dateFilter}
+      GROUP BY ec.name
+      ORDER BY total_expense DESC
+      LIMIT 5;
+    `;
 
-    res.json({ totalExpenses: totalRes.rows[0] });
+    
+    const [totalRes, topCatRes] = await Promise.all([
+      pool.query(totalExpensesQuery, values),
+      pool.query(topCategoriesQuery, values),
+    ]);
+
+    res.json({
+      totalExpenses: totalRes.rows[0],
+      topExpenseCategories: topCatRes.rows,
+    });
 
   } catch (err) {
     console.error('Expense analytics error:', err);
     res.status(500).json({ message: 'Failed to fetch expense analytics.', error: err.message });
   }
 };
+
 
 
 
