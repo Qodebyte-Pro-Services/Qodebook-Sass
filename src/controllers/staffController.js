@@ -677,12 +677,15 @@ function generateStaffPassword(businessName) {
 }
 
 
-async function getBusinessStaffSettings(businessId, branchId = null) {
+async function getBusinessStaffSettings(businessId, branchId = null, client = null) {
+ 
+  const queryFn = client ? client.query.bind(client) : pool.query.bind(pool);
+
   let result;
 
   if (branchId) {
-
-    result = await pool.query(
+    
+    result = await queryFn(
       `SELECT * 
        FROM business_staff_settings 
        WHERE business_id = $1 AND branch_id = $2 
@@ -692,7 +695,7 @@ async function getBusinessStaffSettings(businessId, branchId = null) {
 
     
     if (result.rows.length === 0) {
-      result = await pool.query(
+      result = await queryFn(
         `SELECT * 
          FROM business_staff_settings 
          WHERE business_id = $1 AND branch_id IS NULL 
@@ -701,8 +704,8 @@ async function getBusinessStaffSettings(businessId, branchId = null) {
       );
     }
   } else {
-  
-    result = await pool.query(
+   
+    result = await queryFn(
       `SELECT * 
        FROM business_staff_settings 
        WHERE business_id = $1 AND branch_id IS NULL 
@@ -710,9 +713,9 @@ async function getBusinessStaffSettings(businessId, branchId = null) {
       [businessId]
     );
 
-
+   
     if (result.rows.length === 0) {
-      result = await pool.query(
+      result = await queryFn(
         `SELECT * 
          FROM business_staff_settings 
          WHERE business_id = $1 
@@ -725,6 +728,7 @@ async function getBusinessStaffSettings(businessId, branchId = null) {
 
   return result.rows[0] || null;
 }
+
 
 
 async function sendPasswordToStaff(staffEmail, staffPhone, password, businessName, staffName = null, loginUrl) {
@@ -771,7 +775,7 @@ async function sendPasswordToOwner(ownerEmail, staffName, password, businessName
     let staff_id = req.body.staff_id || uuidv4();
 
    
-    const existingStaffById = await pool.query(
+    const existingStaffById = await client.query(
       `SELECT staff_id FROM staff WHERE staff_id = $1`,
       [staff_id]
     );
@@ -816,7 +820,7 @@ async function sendPasswordToOwner(ownerEmail, staffName, password, businessName
     const password = generateStaffPassword(businessName);
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const settings = await getBusinessStaffSettings(business_id, branch_id);
+    const settings = await getBusinessStaffSettings(business_id, branch_id, client);
     if (!settings) {
       await client.query("ROLLBACK");
       return res.status(500).json({ message: "Business staff settings not found." });
