@@ -74,7 +74,7 @@ exports.deleteStaffAction = async (req, res) => {
 
 exports.createStaffDoc = async (req, res) => {
   const client = await pool.connect();
-
+  const user = req.user;
   try {
     const { business_id, staff_id } = req.body;
     if (!business_id || !staff_id) {
@@ -197,7 +197,7 @@ exports.listStaffDocs = async (req, res) => {
 
 exports.updateStaffDoc = async (req, res) => {
   const client = await pool.connect();
-
+  const user = req.user;
   try {
     const { staff_id } = req.params;
     const { removed_docs } = req.body; 
@@ -348,6 +348,9 @@ if ((removed_docs && removed_docs.length > 0) || insertedDocs.length > 0) {
 
 
 exports.createStaffShift = async (req, res) => {
+
+  const user = req.user;
+
   try {
     const {
       staff_id,
@@ -436,6 +439,7 @@ exports.listStaffShifts = async (req, res) => {
   }
 };
 exports.updateStaffShift = async (req, res) => {
+  const user = req.user;
   try {
     const { id } = req.params;
     const fields = req.body;
@@ -506,6 +510,7 @@ exports.deleteStaffShift = async (req, res) => {
 
 
 exports.createStaffSubcharge = async (req, res) => {
+  const user = req.user;
   try {
     const { business_id, staff_id, sub_charge_amt, reason } = req.body;
 
@@ -583,6 +588,7 @@ exports.listStaffSubcharges = async (req, res) => {
   }
 };
 exports.updateStaffSubcharge = async (req, res) => {
+  const user = req.user;
   try {
     const { id } = req.params;
     const fields = req.body;
@@ -635,6 +641,7 @@ exports.updateStaffSubcharge = async (req, res) => {
   }
 };
 exports.deleteStaffSubcharge = async (req, res) => {
+  const user = req.user;
   try {
     const { id } = req.params;
 
@@ -1856,7 +1863,7 @@ exports.getStaff = async (req, res) => {
 
   exports.updateStaff = async (req, res) => {
   const client = await pool.connect();
-
+  const user = req.user;
   try {
     const { id } = req.params;
     const fields = req.body;
