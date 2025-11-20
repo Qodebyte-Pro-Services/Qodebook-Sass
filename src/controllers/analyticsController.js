@@ -622,26 +622,30 @@ exports.overview = async (req, res) => {
     );
 
    
-const discountsResult = await pool.query(
+    const totalDiscountsResult = await pool.query(
   `
-  SELECT COALESCE(SUM(d.amount), 0) + COALESCE(SUM(c.discount_amount), 0) AS total_discounts
-  FROM discounts d
-  FULL OUTER JOIN coupons c ON d.business_id = c.business_id::int
-  ${business_id ? "WHERE d.business_id = $1 OR c.business_id::int = $1" : ""}
+  SELECT 
+    COALESCE(SUM(o.discount_total), 0) 
+    + COALESCE(SUM(o.coupon_total), 0) AS total_discounts
+  FROM orders o
+  WHERE o.status = 'completed'
+  ${orderWhere}${dateWhere}
   `,
-  business_id ? [business_id] : []
+  orderParams
 );
-const discounts = Number(discountsResult.rows[0]?.total_discounts || 0);
+const discounts = Number(totalDiscountsResult.rows[0]?.total_discounts || 0);
 
-const taxesResult = await pool.query(
+  const totalTaxesResult = await pool.query(
   `
-  SELECT COALESCE(SUM(rate), 0) AS total_tax_rate
-  FROM taxes
-  ${business_id ? "WHERE business_id::int = $1" : ""}
+  SELECT 
+    COALESCE(SUM(o.tax_total), 0) AS total_taxes
+  FROM orders o
+  WHERE o.status = 'completed'
+  ${orderWhere}${dateWhere}
   `,
-  business_id ? [business_id] : []
+  orderParams
 );
-const taxes = Number(taxesResult.rows[0]?.total_tax_rate || 0);
+const taxes = Number(totalTaxesResult.rows[0]?.total_taxes || 0);
 
 
     const staffSalaryExpenseResult = await pool.query(
