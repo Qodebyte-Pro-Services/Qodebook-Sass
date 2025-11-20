@@ -911,10 +911,16 @@ async function sendPasswordToOwner(ownerEmail, staffName, password, businessName
     if (settings.password_delivery_method === "staff") {
       await sendPasswordToStaff(email, contact_no, password, businessName, full_name, loginUrl);
     } else {
-      const ownerResult = await client.query(
-        "SELECT email FROM users WHERE business_id = $1 LIMIT 1",
-        [business_id]
-      );
+     const ownerResult = await client.query(
+  `
+  SELECT u.email 
+  FROM businesses b
+  JOIN users u ON u.id = b.user_id
+  WHERE b.id = $1
+  LIMIT 1
+  `,
+  [business_id]
+);
       const ownerEmail = ownerResult.rows[0]?.email;
       if (ownerEmail) {
         await sendPasswordToOwner(ownerEmail, full_name, password, businessName, loginUrl);
