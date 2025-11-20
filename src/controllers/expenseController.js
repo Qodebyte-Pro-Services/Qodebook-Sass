@@ -2,8 +2,9 @@ const pool = require('../config/db');
 const upload = require('../middlewares/upload');
 const { io, userSockets } = require('../realtime');
 const { logStaffAction } = require('../utils/staffAction');
+const { uploadToCloudinary } = require('../utils/uploadToCloudinary');
 // const uploadToFirebase = require('../utils/uploadToFireBase');
-const uploadToCloudinary = require('../utils/uploadToCloudinary');
+
 
 
 module.exports = {
