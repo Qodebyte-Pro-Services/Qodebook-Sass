@@ -170,73 +170,85 @@ LEFT JOIN staff sa ON e.approved_by_staff = sa.staff_id
   }
 },
 
-  listSalaryForStaff: async (req, res) => {
-    try {
-
-        const { staff_id } = req.params;
+listSalaryForStaff: async (req, res) => {
+  try {
+    const { staff_id } = req.params;
     const { page = 1, limit = 10 } = req.query;
-
     const offset = (page - 1) * limit;
 
-
-      if (!staff_id) {
+    if (!staff_id) {
       return res.status(400).json({ success: false, message: "Staff ID is required." });
     }
 
-   
+
     const staffCheck = await pool.query(
-  "SELECT full_name AS staff_name FROM staff WHERE staff_id = $1",
-  [staff_id]
-);
+      "SELECT full_name FROM staff WHERE staff_id = $1",
+      [staff_id]
+    );
+
     if (staffCheck.rowCount === 0) {
       return res.status(404).json({ success: false, message: "Staff not found." });
     }
 
-     const query = `
+    const staffName = staffCheck.rows[0].full_name;
+
+
+    const query = `
       SELECT 
         e.id,
         e.amount,
         e.description,
         e.payment_method,
-        e.created_at AS payment_date,
+        e.expense_date AS payment_date,
         e.approved_by_role,
         e.approved_at,
-        e.receipt_url
+        e.receipt_url,
+        s.full_name AS staff_name
       FROM expenses e
+      INNER JOIN expense_categories c 
+        ON e.category_id = c.id
+      INNER JOIN staff s
+        ON s.staff_id = e.staff_id
       WHERE e.staff_id = $1
-        AND e.expense_type = 'staff_salary'
-      ORDER BY e.created_at DESC
+        AND LOWER(c.name) IN ('salary', 'salaries')
+      ORDER BY e.expense_date DESC
       LIMIT $2 OFFSET $3
     `;
 
+    const { rows } = await pool.query(query, [staff_id, limit, offset]);
 
-     const { rows } = await pool.query(query, [staff_id, limit, offset]);
-     const countQuery = `
+
+    const countQuery = `
       SELECT COUNT(*) AS total
-      FROM expenses
-      WHERE staff_id = $1 AND expense_type = 'staff_salary'
+      FROM expenses e
+      INNER JOIN expense_categories c 
+        ON e.category_id = c.id
+      WHERE e.staff_id = $1
+        AND LOWER(c.name) IN ('salary', 'salaries')
     `;
+
     const totalResult = await pool.query(countQuery, [staff_id]);
     const total = parseInt(totalResult.rows[0].total, 10);
 
     return res.status(200).json({
       success: true,
-      staff_name: staffCheck.rows[0].staff_name,
+      staff_name: staffName,
       current_page: Number(page),
       total_pages: Math.ceil(total / limit),
       total_records: total,
       data: rows,
     });
-      
-    } catch (err) {
+
+  } catch (err) {
     console.error("Error fetching staff salary history:", err);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch staff salary history.",
-      err
+      error: err.message,
     });
-    }
-  },
+  }
+},
+
 
   listExpense: async (req, res) => {
   try {
