@@ -185,9 +185,9 @@ LEFT JOIN staff sa ON e.approved_by_staff = sa.staff_id
 
    
     const staffCheck = await pool.query(
-      "SELECT staff_name FROM staff WHERE staff_id = $1",
-      [staff_id]
-    );
+  "SELECT full_name AS staff_name FROM staff WHERE staff_id = $1",
+  [staff_id]
+);
     if (staffCheck.rowCount === 0) {
       return res.status(404).json({ success: false, message: "Staff not found." });
     }
