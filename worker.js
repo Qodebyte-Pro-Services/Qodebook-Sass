@@ -78,33 +78,22 @@ async function generatePDF(data, filePath) {
 }
 
 
-async function sendNotifications() {
+async function checkAllStockLevels() {
   try {
-    // Get all variants with their product and business info
     const variantsRes = await pool.query(`
-      SELECT 
-        v.id AS variant_id, 
-        v.quantity, 
-        v.threshold, 
-        p.business_id
+      SELECT v.id, p.business_id
       FROM variants v
       JOIN products p ON v.product_id = p.id
     `);
 
     for (const variant of variantsRes.rows) {
-      // Low stock: quantity <= threshold and > 0
-      if (variant.quantity <= variant.threshold && variant.quantity > 0) {
-        await StockNotificationService.checkLowStock(variant.variant_id, variant.business_id);
-      }
-      // Out of stock: quantity == 0
-      if (variant.quantity === 0) {
-        await StockNotificationService.checkOutOfStock(variant.variant_id, variant.business_id);
-      }
+      await StockNotificationService.checkLowStock(variant.id, variant.business_id);
+      await StockNotificationService.checkOutOfStock(variant.id, variant.business_id);
     }
-    console.log('Stock notifications checked and sent.');
+    console.log('✅ Stock levels checked for all variants');
   } catch (err) {
-    console.error('Error sending notifications:', err);
+    console.error('❌ Error checking stock levels:', err);
   }
 }
 
-module.exports = { processReports, sendNotifications };
+module.exports = { processReports, checkAllStockLevels };
