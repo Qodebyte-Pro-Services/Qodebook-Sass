@@ -33,10 +33,22 @@ async function init(server) {
       if (socket.userId) userSockets.delete(socket.userId);
     });
   });
+
+  return io;
+}
+
+function getIo() {
+  return io;
 }
 
 function emitStockUpdate(data) {
   if (io) io.emit('stock_update', data);
 }
 
-module.exports = { init, get io() { return io; }, userSockets, emitStockUpdate };
+module.exports = { 
+  init, 
+  io: () => io,        
+  getIo,               
+  userSockets, 
+  emitStockUpdate 
+};
