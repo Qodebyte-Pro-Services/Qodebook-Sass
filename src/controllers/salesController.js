@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const StockNotificationService = require('../services/stockNotificationService');
 
 
 
@@ -188,6 +189,13 @@ exports.createSale = async (req, res) => {
           );
         }
       }
+
+  try {
+    await StockNotificationService.checkLowStock(item.variant_id, business_id);
+    await StockNotificationService.checkOutOfStock(item.variant_id, business_id);
+  } catch (e) {
+    console.error('Failed to create stock notifications:', e.message);
+  }
     }
 
     // --- Commit ---

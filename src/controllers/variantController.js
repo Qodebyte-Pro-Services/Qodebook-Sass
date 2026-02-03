@@ -1,5 +1,6 @@
 
 const pool = require('../config/db');
+const StockNotificationService = require('../services/stockNotificationService');
 // const uploadToFirebase = require('../utils/uploadToFireBase');
 const {uploadToCloudinary, uploadFilesToCloudinary, deleteFileFromCloudinary} = require('../utils/uploadToCloudinary');
 
@@ -163,6 +164,15 @@ exports.generateVariants = async (req, res) => {
         flatValues
       );
     }
+
+    try {
+  for (const variant of inserted) {
+    await StockNotificationService.checkLowStock(variant.id, business_id);
+    await StockNotificationService.checkOutOfStock(variant.id, business_id);
+  }
+} catch (e) {
+  console.error('Failed to create stock notifications:', e.message);
+}
 
     return res.status(201).json({ message: 'Variants generated.', variants: inserted });
   } catch (err) {

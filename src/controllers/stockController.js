@@ -153,6 +153,9 @@ exports.completeTransfer = async (req, res) => {
       [quantity, destVariantId]
     );
 
+    await StockNotificationService.checkLowStock(destVariantId, req.user?.business_id);
+    await StockNotificationService.checkOutOfStock(destVariantId, req.user?.business_id);
+
   
     await pool.query(`
       UPDATE stock_transfers SET 
@@ -698,6 +701,13 @@ if (supply_status === 'delivered') {
           recorded_by_type
         ]
       );
+    })
+  );
+
+  await Promise.all(
+    items.map(async (item) => {
+      await StockNotificationService.checkLowStock(item.variant_id, business_id);
+      await StockNotificationService.checkOutOfStock(item.variant_id, business_id);
     })
   );
 }

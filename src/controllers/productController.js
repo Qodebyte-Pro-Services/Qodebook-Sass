@@ -3,6 +3,7 @@ const pool = require('../config/db');
 // const uploadToFirebase = require('../utils/uploadToFireBase');
 const {uploadToCloudinary, uploadFilesToCloudinary} = require('../utils/uploadToCloudinary');
 const AuditService = require('../services/auditService');
+const StockNotificationService = require('../services/stockNotificationService');
 
 exports.countProductsInStock = async (req, res) => {
   try {
@@ -595,6 +596,15 @@ exports.createProductWithVariants = async (req, res) => {
      VALUES ${valuesPlaceholders}`,
     flatValues
   );
+}
+
+try {
+  for (const variant of createdVariants) {
+    await StockNotificationService.checkLowStock(variant.id, product.business_id);
+    await StockNotificationService.checkOutOfStock(variant.id, product.business_id);
+  }
+} catch (e) {
+  console.error('Failed to create stock notifications:', e.message);
 }
 
     return res.status(201).json({

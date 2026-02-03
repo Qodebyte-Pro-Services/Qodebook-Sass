@@ -33,7 +33,8 @@ const STOCK_PERMISSIONS = {
   MANAGE_STOCK: 'manage_stock',
   VIEW_STOCK_HISTORY: 'view_stock_history',
   MANAGE_SUPPLIERS: 'manage_suppliers',
-  RESTOCK_ITEMS: 'restock_items'
+  RESTOCK_ITEMS: 'restock_items',
+  MANAGE_STOCK_NOTIFICATIONS: 'manage_stock_notifications'
 };
 
 

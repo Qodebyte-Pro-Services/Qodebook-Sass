@@ -3,6 +3,8 @@ const express = require('express');
 const router = express.Router();
 const controller = require('../controllers/notificationController');
 const auth = require('../middlewares/authMiddleware');
+const { requirePermission } = require('../utils/routeHelpers');
+const { STOCK_PERMISSIONS } = require('../constants/permissions');
 
 
 
@@ -34,7 +36,7 @@ const auth = require('../middlewares/authMiddleware');
  *       500:
  *         description: Failed to create notification or send email
  */
-router.post('/', auth.authenticateToken, controller.createAndNotify);
+router.post('/', ...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK_NOTIFICATIONS), controller.createAndNotify);
 
 
 /**
@@ -49,7 +51,21 @@ router.post('/', auth.authenticateToken, controller.createAndNotify);
  *       200:
  *         description: List of notifications
  */
-router.get('/', auth.authenticateToken, controller.getNotifications);
+router.get('/', ...requirePermission(STOCK_PERMISSIONS.VIEW_STOCK_HISTORY), controller.getNotifications);
+
+
+/** * @swagger
+ * /api/notifications/unread-count:
+ *   get:
+ *    summary: Get count of unread notifications
+ *    tags: [Notification]
+ *   security:
+ *     - bearerAuth: []
+ *   responses:
+ *    200:
+ *     description: Unread notifications count
+ */
+router.get('/unread-count', ...requirePermission(STOCK_PERMISSIONS.VIEW_STOCK_HISTORY), controller.getUnreadCount);
 
 /**
  * @swagger
@@ -65,6 +81,20 @@ router.get('/', auth.authenticateToken, controller.getNotifications);
  *       200:
  *         description: Notifications marked as read
  */
-router.post('/mark-read', auth.authenticateToken, controller.markRead);
+router.patch('/:id/read',...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK_NOTIFICATIONS), controller.markRead);
+
+/**
+ * @swagger
+ * /api/notifications/read-all:
+ *   patch:
+ *      summary: Mark all notifications as read
+ *      tags: [Notification]
+ *      security:
+ *         - bearerAuth: []
+ *      responses:
+ *        200:
+ *          description: All notifications marked as read
+ */
+router.patch('/read-all',...requirePermission(STOCK_PERMISSIONS.MANAGE_STOCK_NOTIFICATIONS), controller.markAllRead);
 
 module.exports = router;
