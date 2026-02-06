@@ -1226,18 +1226,57 @@ exports.verifyStaffOtp = async (req, res) => {
   }
 };
 
+exports.getActiveSessions = async (req, res) => {
+  try {
+    const user = req.user;
+    
+    // ✅ FIX: Extract business_id correctly
+    const business_id = req.query.business_id || req.headers['x-business-id'];
+
+    // ✅ FIX: Compare as numbers, not check if it converts to a number
+    if (!business_id || Number(business_id) !== Number(user.business_id)) {
+      return res.status(403).json({ 
+        message: "Unauthorized: You can only view your own business sessions." 
+      });
+    }
+
+    const result = await pool.query(
+      `SELECT 
+        session_id, login_time, ip_address, browser, os, device_type, country, city, logout_time
+       FROM staff_login_logs 
+       WHERE staff_id = $1 AND business_id = $2 AND logout_time IS NULL
+       ORDER BY login_time DESC`,
+      [user.staff_id, Number(business_id)]
+    );
+
+    return res.status(200).json({
+      active_sessions_count: result.rows.length,
+      active_sessions: result.rows
+    });
+
+  } catch (err) {
+    console.error('Error fetching active sessions:', err);
+    return res.status(500).json({ 
+      message: "Server error while fetching sessions.",
+      error: err.message 
+    });
+  }
+};
+
 exports.staffLogout = async (req, res) => {
   try {
     const { session_id } = req.body;
     const user = req.user;
-     const business_id = req.query.business_id || req.headers['x-business-id'];
+    
+    
+    const business_id = req.query.business_id || req.headers['x-business-id'];
 
     if (!session_id) {
       return res.status(400).json({ message: "session_id is required." });
     }
 
     
-    if (!business_id || Number(business_id)) {
+    if (!business_id || Number(business_id) !== Number(user.business_id)) {
       return res.status(403).json({ 
         message: "Unauthorized: You can only logout from your own business." 
       });
@@ -1246,7 +1285,7 @@ exports.staffLogout = async (req, res) => {
     const sessionResult = await pool.query(
       `SELECT * FROM staff_login_logs 
        WHERE session_id = $1 AND staff_id = $2 AND business_id = $3 AND logout_time IS NULL`,
-      [session_id, user.staff_id, business_id]
+      [session_id, user.staff_id, Number(business_id)]
     );
 
     if (sessionResult.rows.length === 0) {
@@ -1262,7 +1301,7 @@ exports.staffLogout = async (req, res) => {
        SET logout_time = NOW(), logout_reason = $1
        WHERE session_id = $2 AND staff_id = $3 AND business_id = $4
        RETURNING *`,
-      ['user_logout', session_id, user.staff_id, business_id]
+      ['user_logout', session_id, user.staff_id, Number(business_id)]
     );
 
     await logStaffAction({
@@ -1272,7 +1311,9 @@ exports.staffLogout = async (req, res) => {
       action_value: session_id,
       reason: 'Staff logout',
       performed_by: user.staff_id,
-      performed_by_role: 'staff'
+      performed_by_role: 'staff',
+      notify: true,
+      notify_email: user.email
     });
 
     const loginTime = new Date(session.login_time);
@@ -1301,47 +1342,16 @@ exports.staffLogout = async (req, res) => {
   }
 };
 
-exports.getActiveSessions = async (req, res) => {
-  try {
-    const user = req.user;
-      const business_id = req.query.business_id || req.headers['x-business-id'];
-   
-     if (!business_id || Number(business_id)) {
-      return res.status(403).json({ 
-        message: "Unauthorized: You can only view your own business sessions." 
-      });
-    }
-
-    const result = await pool.query(
-      `SELECT 
-        session_id, login_time, ip_address, browser, os, device_type, country, city, logout_time
-       FROM staff_login_logs 
-       WHERE staff_id = $1 AND business_id = $2 AND logout_time IS NULL
-       ORDER BY login_time DESC`,
-      [user.staff_id, business_id]
-    );
-
-    return res.status(200).json({
-      active_sessions_count: result.rows.length,
-      active_sessions: result.rows
-    });
-
-  } catch (err) {
-    console.error('Error fetching active sessions:', err);
-    return res.status(500).json({ 
-      message: "Server error while fetching sessions.",
-      error: err.message 
-    });
-  }
-};
-
 exports.logoutAllSessions = async (req, res) => {
   try {
     const user = req.user;
     const { reason = 'user_logout_all' } = req.body;
+    
+    
     const business_id = req.query.business_id || req.headers['x-business-id'];
 
-    if (!business_id || Number(business_id)) {
+
+    if (!business_id || Number(business_id) !== Number(user.business_id)) {
       return res.status(403).json({ 
         message: "Unauthorized: You can only logout from your own business." 
       });
@@ -1352,7 +1362,7 @@ exports.logoutAllSessions = async (req, res) => {
        SET logout_time = NOW(), logout_reason = $1
        WHERE staff_id = $2 AND business_id = $3 AND logout_time IS NULL
        RETURNING session_id`,
-      [reason, user.staff_id, business_id]
+      [reason, user.staff_id, Number(business_id)]
     );
 
     await logStaffAction({
@@ -1362,7 +1372,9 @@ exports.logoutAllSessions = async (req, res) => {
       action_value: result.rowCount.toString(),
       reason: reason,
       performed_by: user.staff_id,
-      performed_by_role: 'staff'
+      performed_by_role: 'staff',
+      notify: true,
+      notify_email: user.email
     });
 
     return res.status(200).json({
@@ -1384,9 +1396,12 @@ exports.logoutOtherSessions = async (req, res) => {
   try {
     const user = req.user;
     const { current_session_id } = req.body;
-   const business_id = req.query.business_id || req.headers['x-business-id'];
+    
+    
+    const business_id = req.query.business_id || req.headers['x-business-id'];
 
-    if (!business_id || Number(business_id)) {
+   
+    if (!business_id || Number(business_id) !== Number(user.business_id)) {
       return res.status(403).json({ 
         message: "Unauthorized: You can only manage your own business sessions." 
       });
@@ -1401,7 +1416,7 @@ exports.logoutOtherSessions = async (req, res) => {
     const currentSessionResult = await pool.query(
       `SELECT * FROM staff_login_logs 
        WHERE session_id = $1 AND staff_id = $2 AND business_id = $3 AND logout_time IS NULL`,
-      [current_session_id, user.staff_id, business_id]
+      [current_session_id, user.staff_id, Number(business_id)]
     );
 
     if (currentSessionResult.rows.length === 0) {
@@ -1415,7 +1430,7 @@ exports.logoutOtherSessions = async (req, res) => {
        SET logout_time = NOW(), logout_reason = $1
        WHERE staff_id = $2 AND business_id = $3 AND session_id != $4 AND logout_time IS NULL
        RETURNING session_id`,
-      ['logout_other_sessions', user.staff_id, business_id, current_session_id]
+      ['logout_other_sessions', user.staff_id, Number(business_id), current_session_id]
     );
 
     await logStaffAction({
@@ -1425,7 +1440,9 @@ exports.logoutOtherSessions = async (req, res) => {
       action_value: result.rowCount.toString(),
       reason: 'Logout from other devices',
       performed_by: user.staff_id,
-      performed_by_role: 'staff'
+      performed_by_role: 'staff',
+      notify: true,
+      notify_email: user.email
     });
 
     return res.status(200).json({
@@ -1442,7 +1459,6 @@ exports.logoutOtherSessions = async (req, res) => {
     });
   }
 };
-
 exports.resendStaffOtp = async (req, res) => {
   try {
     const { staff_id, business_id, purpose = 'login' } = req.body;
