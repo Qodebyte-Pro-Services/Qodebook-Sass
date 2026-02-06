@@ -1022,19 +1022,17 @@ exports.staffLogin = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
 
-   const activeSession = await pool.query(`
-  SELECT * FROM staff_login_logs
-  WHERE staff_id = $1 AND business_id = $2 AND logout_time IS NULL
-  ORDER BY login_time DESC LIMIT 1
-`, [staff.staff_id, business_id]);
+        const activeSession = await pool.query(`
+        SELECT * FROM staff_login_logs
+        WHERE staff_id = $1 AND business_id = $2 AND logout_time IS NULL AND success = true
+        ORDER BY login_time DESC LIMIT 1
+      `, [staff.staff_id, business_id]);
 
-
-    if (activeSession.rows.length > 0) {
-      return res.status(403).json({
-        message: "Another active session exists. Please logout first.",
-      });
-    }
-
+      if (activeSession.rows.length > 0) {
+        return res.status(403).json({
+          message: "Another active session exists. Please logout first.",
+        });
+      }
 
     const settings = await getBusinessStaffSettings(business_id, staff.branch_id);
 
