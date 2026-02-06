@@ -38,14 +38,20 @@ exports.verifyOtp = async (req, res) => {
     }
     
     await pool.query('UPDATE user_otps SET used = true WHERE id = $1', [otpResult.rows[0].id]);
+
+     const businessResult = await pool.query(
+      'SELECT id, business_name FROM businesses WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1',
+      [user.id]
+    );
+    const business_id = businessResult.rows.length > 0 ? businessResult.rows[0].id : null;
    
     if (purpose === 'register' && !user.is_verified) {
       await pool.query('UPDATE users SET is_verified = true WHERE id = $1', [user_id]);
-      const token = jwt.sign({ user_id: user.id, email: user.email, is_social_media: user.is_social_media }, process.env.JWT_SECRET, { expiresIn: '7d' });
+      const token = jwt.sign({ user_id: user.id, email: user.email, is_social_media: user.is_social_media, business_id }, process.env.JWT_SECRET, { expiresIn: '7d' });
       return res.status(200).json({ message: 'OTP verified. Registration complete.', token });
     }
     if (purpose === 'login') {
-      const token = jwt.sign({ user_id: user.id, email: user.email, is_social_media: user.is_social_media }, process.env.JWT_SECRET, { expiresIn: '7d' });
+      const token = jwt.sign({ user_id: user.id, email: user.email, is_social_media: user.is_social_media, business_id }, process.env.JWT_SECRET, { expiresIn: '7d' });
       return res.status(200).json({ message: 'OTP verified. Login successful.', token });
     }
 
@@ -98,7 +104,14 @@ exports.googleLogin = async (req, res) => {
       await pool.query(`UPDATE users SET is_verified = true WHERE id = $1`, [user.id]);
     }
 
-    const token = jwt.sign({ user_id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
+        const businessResult = await pool.query(
+      'SELECT id, business_name FROM businesses WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1',
+      [user.id]
+    );
+    const business_id = businessResult.rows.length > 0 ? businessResult.rows[0].id : null;
+
+
+    const token = jwt.sign({ user_id: user.id, email: user.email, business_id }, process.env.JWT_SECRET, { expiresIn: '7d' });
     return res.status(200).json({ message: 'Google login successful.', token, profile_image: user.profile_image });
   } catch (err) {
     console.error(err);
@@ -145,7 +158,7 @@ exports.signup = async (req, res) => {
     }
 
 
-    const token = jwt.sign({ user_id: user.id, email: user.email, is_social_media: user.is_social_media || true }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ user_id: user.id, email: user.email, is_social_media: user.is_social_media || true, business_id: null }, process.env.JWT_SECRET, { expiresIn: '7d' });
     return res.status(201).json({ message: 'User registered via social login.', token });
   } catch (err) {
     console.error(err);

@@ -26,6 +26,7 @@ function authenticateToken(req, res, next) {
       req.user = {
         user_id: payload.user_id,
         email: payload.email,
+        business_id: payload.business_id,
         is_social_media: payload.is_social_media || false,
         isStaff: false
       };
