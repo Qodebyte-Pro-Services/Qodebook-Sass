@@ -5,6 +5,8 @@ const { requirePermission, requireAuth } = require('../utils/routeHelpers');
 const { STAFF_PERMISSIONS, BUSINESS_PERMISSIONS } = require('../constants/permissions');
 const upload = require('../middlewares/upload');
 const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
+const { authenticateToken } = require('../middlewares/authMiddleware');
+const tenantMiddleware = require('../middlewares/tenantMiddleware');
  
 /**
  * @swagger
@@ -202,19 +204,14 @@ router.patch('/business_settings/:business_id', ...requirePermission(BUSINESS_PE
  * @swagger
  * /api/staff/sessions/active:
  *   get:
- *     summary: Get all active sessions for current staff
+ *     summary: Get all active staff sessions for a business
  *     description: |
- *       Returns list of all active sessions (logged in devices) for the authenticated staff member.
+ *       Returns all currently active staff sessions.
  *     tags: [StaffAuth]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: header
- *         name: x-business-id
- *         required: true
- *         schema:
- *           type: integer
- *         description: Business ID (must match authenticated staff's business)
+ *        required: false
  *     responses:
  *       200:
  *         description: Active sessions retrieved
@@ -238,11 +235,7 @@ router.get(
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: header
- *         name: x-business-id
- *         required: true
- *         schema:
- *           type: integer
+ *        required: fal
  *     requestBody:
  *       required: true
  *       content:
@@ -275,16 +268,12 @@ router.post(
  * @swagger
  * /api/staff/logout/all:
  *   post:
- *     summary: Logout from all sessions
- *     tags: [StaffAuth]
+ *     summary: Returns all currently active staff sessions.
+ *     tags: [OwnerAuth]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: header
- *         name: x-business-id
- *         required: true
- *         schema:
- *           type: integer
+ *        required: false
  *     requestBody:
  *       required: false
  *       content:
@@ -297,7 +286,8 @@ router.post(
  */
 router.post(
   '/logout/all',
-  ...requireAuth(),
+  authenticateToken,
+  tenantMiddleware,
   rateLimitMiddleware,
   staffController.logoutAllSessions
 );
@@ -306,16 +296,12 @@ router.post(
  * @swagger
  * /api/staff/logout/others:
  *   post:
- *     summary: Logout from other sessions
+ *     summary: Logs out all other active sessions except the current one.
  *     tags: [StaffAuth]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: header
- *         name: x-business-id
- *         required: true
- *         schema:
- *           type: integer
+ *        required: false
  *     requestBody:
  *       required: true
  *       content:
@@ -330,10 +316,12 @@ router.post(
  */
 router.post(
   '/logout/others',
-  ...requireAuth(),
+  authenticateToken,
+  tenantMiddleware,
   rateLimitMiddleware,
   staffController.logoutOtherSessions
 );
+
 
 /**
  * @swagger
