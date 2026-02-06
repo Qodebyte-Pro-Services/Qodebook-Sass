@@ -1230,14 +1230,14 @@ exports.staffLogout = async (req, res) => {
   try {
     const { session_id } = req.body;
     const user = req.user;
-    const { business_id } = req.query || req.headers['x-business-id'];
+     const business_id = req.query.business_id || req.headers['x-business-id'];
 
     if (!session_id) {
       return res.status(400).json({ message: "session_id is required." });
     }
 
     
-    if (!business_id || Number(business_id) !== user.business_id) {
+    if (!business_id || Number(business_id)) {
       return res.status(403).json({ 
         message: "Unauthorized: You can only logout from your own business." 
       });
@@ -1304,10 +1304,9 @@ exports.staffLogout = async (req, res) => {
 exports.getActiveSessions = async (req, res) => {
   try {
     const user = req.user;
-    const { business_id } = req.query || req.headers['x-business-id'];
-
+      const business_id = req.query.business_id || req.headers['x-business-id'];
    
-    if (!business_id || Number(business_id) !== user.business_id) {
+     if (!business_id || Number(business_id)) {
       return res.status(403).json({ 
         message: "Unauthorized: You can only view your own business sessions." 
       });
@@ -1340,10 +1339,9 @@ exports.logoutAllSessions = async (req, res) => {
   try {
     const user = req.user;
     const { reason = 'user_logout_all' } = req.body;
-    const { business_id } = req.query || req.headers['x-business-id'];
+    const business_id = req.query.business_id || req.headers['x-business-id'];
 
-    
-    if (!business_id || Number(business_id) !== user.business_id) {
+    if (!business_id || Number(business_id)) {
       return res.status(403).json({ 
         message: "Unauthorized: You can only logout from your own business." 
       });
@@ -1386,10 +1384,9 @@ exports.logoutOtherSessions = async (req, res) => {
   try {
     const user = req.user;
     const { current_session_id } = req.body;
-    const { business_id } = req.query || req.headers['x-business-id'];
+   const business_id = req.query.business_id || req.headers['x-business-id'];
 
-    
-    if (!business_id || Number(business_id) !== user.business_id) {
+    if (!business_id || Number(business_id)) {
       return res.status(403).json({ 
         message: "Unauthorized: You can only manage your own business sessions." 
       });
