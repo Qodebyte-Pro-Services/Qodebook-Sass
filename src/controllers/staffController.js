@@ -1229,21 +1229,220 @@ exports.verifyStaffOtp = async (req, res) => {
 exports.staffLogout = async (req, res) => {
   try {
     const { session_id } = req.body;
+    const user = req.user;
+    const { business_id } = req.query || req.headers['x-business-id'];
 
-    if (!session_id)
+    if (!session_id) {
       return res.status(400).json({ message: "session_id is required." });
+    }
 
-    await pool.query(`
-      UPDATE staff_login_logs 
-      SET logout_time = NOW()
-      WHERE session_id = $1 AND logout_time IS NULL
-    `, [session_id]);
+    
+    if (!business_id || Number(business_id) !== user.business_id) {
+      return res.status(403).json({ 
+        message: "Unauthorized: You can only logout from your own business." 
+      });
+    }
 
-    return res.status(200).json({ message: "Logout recorded." });
+    const sessionResult = await pool.query(
+      `SELECT * FROM staff_login_logs 
+       WHERE session_id = $1 AND staff_id = $2 AND business_id = $3 AND logout_time IS NULL`,
+      [session_id, user.staff_id, business_id]
+    );
+
+    if (sessionResult.rows.length === 0) {
+      return res.status(404).json({ 
+        message: "Active session not found or already logged out." 
+      });
+    }
+
+    const session = sessionResult.rows[0];
+
+    const logoutResult = await pool.query(
+      `UPDATE staff_login_logs 
+       SET logout_time = NOW(), logout_reason = $1
+       WHERE session_id = $2 AND staff_id = $3 AND business_id = $4
+       RETURNING *`,
+      ['user_logout', session_id, user.staff_id, business_id]
+    );
+
+    await logStaffAction({
+      business_id: user.business_id,
+      staff_id: user.staff_id,
+      action_type: 'logout',
+      action_value: session_id,
+      reason: 'Staff logout',
+      performed_by: user.staff_id,
+      performed_by_role: 'staff'
+    });
+
+    const loginTime = new Date(session.login_time);
+    const logoutTime = new Date();
+    const sessionDurationMinutes = Math.round((logoutTime - loginTime) / 60000);
+
+    return res.status(200).json({
+      message: "Logout successful.",
+      session: {
+        session_id: session.session_id,
+        login_time: session.login_time,
+        logout_time: logoutResult.rows[0].logout_time,
+        duration_minutes: sessionDurationMinutes,
+        ip_address: session.ip_address,
+        browser: session.browser,
+        device_type: session.device_type
+      }
+    });
 
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Server error." });
+    console.error('Error logging out staff:', err);
+    return res.status(500).json({ 
+      message: "Server error during logout.",
+      error: err.message 
+    });
+  }
+};
+
+exports.getActiveSessions = async (req, res) => {
+  try {
+    const user = req.user;
+    const { business_id } = req.query || req.headers['x-business-id'];
+
+   
+    if (!business_id || Number(business_id) !== user.business_id) {
+      return res.status(403).json({ 
+        message: "Unauthorized: You can only view your own business sessions." 
+      });
+    }
+
+    const result = await pool.query(
+      `SELECT 
+        session_id, login_time, ip_address, browser, os, device_type, country, city, logout_time
+       FROM staff_login_logs 
+       WHERE staff_id = $1 AND business_id = $2 AND logout_time IS NULL
+       ORDER BY login_time DESC`,
+      [user.staff_id, business_id]
+    );
+
+    return res.status(200).json({
+      active_sessions_count: result.rows.length,
+      active_sessions: result.rows
+    });
+
+  } catch (err) {
+    console.error('Error fetching active sessions:', err);
+    return res.status(500).json({ 
+      message: "Server error while fetching sessions.",
+      error: err.message 
+    });
+  }
+};
+
+exports.logoutAllSessions = async (req, res) => {
+  try {
+    const user = req.user;
+    const { reason = 'user_logout_all' } = req.body;
+    const { business_id } = req.query || req.headers['x-business-id'];
+
+    
+    if (!business_id || Number(business_id) !== user.business_id) {
+      return res.status(403).json({ 
+        message: "Unauthorized: You can only logout from your own business." 
+      });
+    }
+
+    const result = await pool.query(
+      `UPDATE staff_login_logs 
+       SET logout_time = NOW(), logout_reason = $1
+       WHERE staff_id = $2 AND business_id = $3 AND logout_time IS NULL
+       RETURNING session_id`,
+      [reason, user.staff_id, business_id]
+    );
+
+    await logStaffAction({
+      business_id: user.business_id,
+      staff_id: user.staff_id,
+      action_type: 'logout_all',
+      action_value: result.rowCount.toString(),
+      reason: reason,
+      performed_by: user.staff_id,
+      performed_by_role: 'staff'
+    });
+
+    return res.status(200).json({
+      message: `Logged out from ${result.rows.length} session(s).`,
+      sessions_closed: result.rows.length,
+      session_ids: result.rows.map(r => r.session_id)
+    });
+
+  } catch (err) {
+    console.error('Error logging out all sessions:', err);
+    return res.status(500).json({ 
+      message: "Server error during logout.",
+      error: err.message 
+    });
+  }
+};
+
+exports.logoutOtherSessions = async (req, res) => {
+  try {
+    const user = req.user;
+    const { current_session_id } = req.body;
+    const { business_id } = req.query || req.headers['x-business-id'];
+
+    
+    if (!business_id || Number(business_id) !== user.business_id) {
+      return res.status(403).json({ 
+        message: "Unauthorized: You can only manage your own business sessions." 
+      });
+    }
+
+    if (!current_session_id) {
+      return res.status(400).json({ 
+        message: "current_session_id is required." 
+      });
+    }
+
+    const currentSessionResult = await pool.query(
+      `SELECT * FROM staff_login_logs 
+       WHERE session_id = $1 AND staff_id = $2 AND business_id = $3 AND logout_time IS NULL`,
+      [current_session_id, user.staff_id, business_id]
+    );
+
+    if (currentSessionResult.rows.length === 0) {
+      return res.status(404).json({ 
+        message: "Current session not found or invalid." 
+      });
+    }
+
+    const result = await pool.query(
+      `UPDATE staff_login_logs 
+       SET logout_time = NOW(), logout_reason = $1
+       WHERE staff_id = $2 AND business_id = $3 AND session_id != $4 AND logout_time IS NULL
+       RETURNING session_id`,
+      ['logout_other_sessions', user.staff_id, business_id, current_session_id]
+    );
+
+    await logStaffAction({
+      business_id: user.business_id,
+      staff_id: user.staff_id,
+      action_type: 'logout_other_sessions',
+      action_value: result.rowCount.toString(),
+      reason: 'Logout from other devices',
+      performed_by: user.staff_id,
+      performed_by_role: 'staff'
+    });
+
+    return res.status(200).json({
+      message: `Logged out from ${result.rows.length} other session(s).`,
+      sessions_closed: result.rows.length,
+      current_session_active: true
+    });
+
+  } catch (err) {
+    console.error('Error logging out other sessions:', err);
+    return res.status(500).json({ 
+      message: "Server error during logout.",
+      error: err.message 
+    });
   }
 };
 

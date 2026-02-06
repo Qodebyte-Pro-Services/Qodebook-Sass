@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const staffController = require('../controllers/staffController');
-const { requirePermission } = require('../utils/routeHelpers');
+const { requirePermission, requireAuth } = require('../utils/routeHelpers');
 const { STAFF_PERMISSIONS, BUSINESS_PERMISSIONS } = require('../constants/permissions');
 const upload = require('../middlewares/upload');
 const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
@@ -198,6 +198,142 @@ router.post('/business_settings/:business_id', ...requirePermission(BUSINESS_PER
 router.get('/business_settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_BUSINESS_SETTINGS), staffController.getBusinessStaffSettings);
 router.patch('/business_settings/:business_id', ...requirePermission(BUSINESS_PERMISSIONS.MANAGE_BUSINESS_SETTINGS), rateLimitMiddleware, staffController.updateBusinessStaffSettings);
 
+/**
+ * @swagger
+ * /api/staff/sessions/active:
+ *   get:
+ *     summary: Get all active sessions for current staff
+ *     description: |
+ *       Returns list of all active sessions (logged in devices) for the authenticated staff member.
+ *     tags: [StaffAuth]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: header
+ *         name: x-business-id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Business ID (must match authenticated staff's business)
+ *     responses:
+ *       200:
+ *         description: Active sessions retrieved
+ *       403:
+ *         description: Unauthorized - business_id mismatch
+ *       500:
+ *         description: Server error
+ */
+router.get(
+  '/sessions/active',
+  ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF_LOGINS),
+  staffController.getActiveSessions
+);
+
+/**
+ * @swagger
+ * /api/staff/logout:
+ *   post:
+ *     summary: Logout staff member from current session
+ *     tags: [StaffAuth]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: header
+ *         name: x-business-id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - session_id
+ *             properties:
+ *               session_id:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Logout successful
+ *       400:
+ *         description: Missing session_id
+ *       403:
+ *         description: Unauthorized
+ *       404:
+ *         description: Session not found
+ */
+router.post(
+  '/logout',
+  ...requireAuth(),
+  rateLimitMiddleware,
+  staffController.staffLogout
+);
+
+/**
+ * @swagger
+ * /api/staff/logout/all:
+ *   post:
+ *     summary: Logout from all sessions
+ *     tags: [StaffAuth]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: header
+ *         name: x-business-id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ */
+router.post(
+  '/logout/all',
+  ...requireAuth(),
+  rateLimitMiddleware,
+  staffController.logoutAllSessions
+);
+
+/**
+ * @swagger
+ * /api/staff/logout/others:
+ *   post:
+ *     summary: Logout from other sessions
+ *     tags: [StaffAuth]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: header
+ *         name: x-business-id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - current_session_id
+ *             properties:
+ *               current_session_id:
+ *                 type: string
+ */
+router.post(
+  '/logout/others',
+  ...requireAuth(),
+  rateLimitMiddleware,
+  staffController.logoutOtherSessions
+);
 
 /**
  * @swagger
