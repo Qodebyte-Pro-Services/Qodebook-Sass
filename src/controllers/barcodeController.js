@@ -22,7 +22,7 @@ module.exports = {
       res.set('Content-Type', 'image/png');
       res.send(png);
     } catch (err) {
-      console.error('Barcode generation error:', err);
+      console.error('Barcode generation error:');
       res.status(500).json({ message: 'Failed to generate barcode' });
     }
   },
@@ -46,7 +46,7 @@ module.exports = {
       res.set('Content-Type', 'image/png');
       res.send(png);
     } catch (err) {
-      console.error('Barcode download error:', err);
+      console.error('Barcode download error:');
       res.status(500).json({ message: 'Failed to download barcode' });
     }
   },
@@ -72,7 +72,7 @@ module.exports = {
       await pool.query('UPDATE variants SET barcode_image_url = $1 WHERE id = $2', [url, variantId]);
       return res.status(200).json({ message: 'Barcode image saved.', url });
     } catch (err) {
-      console.error('Barcode save error:', err);
+      console.error('Barcode save error:');
       res.status(500).json({ message: 'Failed to save barcode image' });
     }
   },

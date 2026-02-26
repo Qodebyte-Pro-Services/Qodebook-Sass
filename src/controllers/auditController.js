@@ -39,7 +39,7 @@ exports.getAuditLogs = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error getting audit logs:', error);
+    console.error('Error getting audit logs:');
     return res.status(500).json({ message: 'Server error.' });
   }
 };
@@ -63,7 +63,7 @@ exports.getAuditStats = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error getting audit stats:', error);
+    console.error('Error getting audit stats:');
     return res.status(500).json({ message: 'Server error.' });
   }
 };
@@ -95,7 +95,7 @@ exports.getResourceAuditLogs = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error getting resource audit logs:', error);
+    console.error('Error getting resource audit logs:');
     return res.status(500).json({ message: 'Server error.' });
   }
 };
@@ -140,7 +140,7 @@ exports.getUserActivity = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error getting user activity:', error);
+    console.error('Error getting user activity:');
     return res.status(500).json({ message: 'Server error.' });
   }
 };
@@ -213,7 +213,7 @@ exports.exportAuditLogs = async (req, res) => {
     }
 
   } catch (error) {
-    console.error('Error exporting audit logs:', error);
+    console.error('Error exporting audit logs:');
     return res.status(500).json({ message: 'Server error.' });
   }
 }; 

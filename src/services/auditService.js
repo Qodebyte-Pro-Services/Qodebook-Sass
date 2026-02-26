@@ -102,7 +102,7 @@ class AuditService {
         await pool.query(query, values);
       }
     } catch (error) {
-      console.error('AuditService: Error logging action', error);
+      console.error('AuditService: Error logging action');
     
     }
   }
@@ -317,7 +317,7 @@ class AuditService {
         return result.rows;
       }
     } catch (error) {
-      console.error('AuditService: Error getting audit logs', error);
+      console.error('AuditService: Error getting audit logs');
       throw error;
     }
   }
@@ -390,7 +390,7 @@ class AuditService {
         }));
       }
     } catch (error) {
-      console.error('AuditService: Error getting audit stats', error);
+      console.error('AuditService: Error getting audit stats');
       throw error;
     }
   }

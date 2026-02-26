@@ -35,7 +35,7 @@ module.exports = {
    
       res.json({ message: status === 'success' ? 'Import started' : summary, summary, rows: data.length });
     } catch (err) {
-      console.error('Import upload error:', err);
+      console.error('Import upload error:');
       res.status(500).json({ message: 'Failed to process import.' });
     }
   },
@@ -49,7 +49,7 @@ module.exports = {
         res.status(404).json({ message: 'Template not found.' });
       }
     } catch (err) {
-      console.error('Import template error:', err);
+      console.error('Import template error:');
       res.status(500).json({ message: 'Failed to download template.' });
     }
   },
@@ -62,7 +62,7 @@ module.exports = {
       );
       res.json({ history: result.rows });
     } catch (err) {
-      console.error('Import history error:', err);
+      console.error('Import history error:');
       res.status(500).json({ message: 'Failed to fetch import history.' });
     }
   },

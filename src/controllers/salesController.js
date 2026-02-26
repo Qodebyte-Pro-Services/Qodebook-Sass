@@ -233,8 +233,8 @@ exports.createSale = async (req, res) => {
     });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("❌ createSale error:", err);
-    return res.status(500).json({ message: "Server error.", details: err.message });
+    console.error("❌ createSale error:");
+    return res.status(500).json({ message: "Server error.",  });
   } finally {
     client.release();
   }
@@ -308,7 +308,7 @@ exports.listSales = async (req, res) => {
 
     return res.status(200).json({ sales: result.rows });
   } catch (err) {
-    console.error('❌ Error listing sales:', err);
+    console.error('❌ Error listing sales:');
     return res.status(500).json({ message: 'Server error.' });
   }
 };

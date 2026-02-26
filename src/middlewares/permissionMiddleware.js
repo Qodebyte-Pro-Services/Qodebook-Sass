@@ -57,7 +57,7 @@ module.exports = (requiredPermission) => async (req, res, next) => {
     });
 
   } catch (error) {
-    console.error('Permission middleware error:', error);
+    console.error('Permission middleware error:');
     return res.status(500).json({ message: 'Permission verification failed.' });
   }
 };

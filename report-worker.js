@@ -10,7 +10,7 @@ async function runReports() {
     await sendNotifications();
     console.log('✅ Finished processing reports.');
   } catch (err) {
-    console.error('❌ Error processing reports:', err);
+    console.error('❌ Error processing reports:');
   }
 }
 

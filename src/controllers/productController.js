@@ -289,7 +289,7 @@ exports.updateProduct = async (req, res) => {
     return res.status(200).json({ message: 'Product updated.', product: result.rows[0] });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.', details: err.message });
+    return res.status(500).json({ message: 'Server error.',  });
   }
 };
 
@@ -615,7 +615,7 @@ try {
 
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error.", details: err.message });
+    return res.status(500).json({ message: "Server error.",  });
   }
 };
 

@@ -56,8 +56,8 @@ exports.unlinkTaxFromProducts = async (req, res) => {
     await pool.query('DELETE FROM product_taxes WHERE tax_id = $1', [tax_id]);
     return res.status(200).json({ message: 'Tax unlinked from products successfully.', unlinked_count: check.rows.length });
   } catch (error) {
-    console.error('Error unlinking tax from products:', error);
-    return res.status(500).json({ message: 'Server error.', error: error.message });
+    console.error('Error unlinking tax from products:');
+    return res.status(500).json({ message: 'Server error.',  });
   }
 } 
 
@@ -86,8 +86,8 @@ exports.unlinkTaxFromProduct = async (req, res) => {
       message: `Successfully unlinked product ${product_id} from tax ${tax_id}.`,
     });
   } catch (error) {
-    console.error('Error unlinking product from tax:', error);
-    return res.status(500).json({ message: 'Server error.', error: error.message });
+    console.error('Error unlinking product from tax:');
+    return res.status(500).json({ message: 'Server error.',  });
   }
 }
 

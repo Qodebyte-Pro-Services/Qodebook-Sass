@@ -218,7 +218,7 @@ exports.getVariantsByBusiness = async (req, res) => {
     return res.status(200).json({ variants: result.rows });
 
   } catch (err) {
-    console.error('Error fetching variants by business:', err);
+    console.error('Error fetching variants by business:');
     return res.status(500).json({ message: 'Server error' });
   }
 };
@@ -505,7 +505,7 @@ if (forceImageUpdate || !areImagesSame) {
 
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error.", details: err.message });
+    return res.status(500).json({ message: "Server error.",  });
   }
 };
 

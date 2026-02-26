@@ -58,7 +58,7 @@ async function updateStaffPaymentStatus() {
     console.log("✅ Staff payment statuses updated and logged successfully.");
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("💥 Cron job error:", err);
+    console.error("💥 Cron job error:");
   } finally {
     client.release();
   }

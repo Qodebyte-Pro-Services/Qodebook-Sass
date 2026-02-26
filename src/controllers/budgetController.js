@@ -63,7 +63,7 @@ module.exports = {
       data: result.rows[0],
     });
   } catch (err) {
-    console.error("Create Budget Error:", err);
+    console.error("Create Budget Error:");
     res.status(500).json({ success: false, message: "Failed to create budget.", err });
   }
   },
@@ -158,7 +158,7 @@ module.exports = {
     });
   } catch (error) {
     await client.query("ROLLBACK");
-    console.error("Create Budgets for All Categories Error:", error);
+    console.error("Create Budgets for All Categories Error:");
     res.status(500).json({
       success: false,
       message: "Failed to create budgets for all categories.",
@@ -228,7 +228,7 @@ module.exports = {
       data: result.rows[0],
     });
   } catch (err) {
-    console.error("Manage Budget Error:", err);
+    console.error("Manage Budget Error:");
     res
       .status(500)
       .json({ success: false, message: "Failed to update budget status." });
@@ -293,7 +293,7 @@ module.exports = {
       data: result.rows,
     });
   } catch (err) {
-    console.error("List Budgets Error:", err);
+    console.error("List Budgets Error:");
     res.status(500).json({ success: false, message: "Failed to fetch budgets." });
   }
   },
@@ -329,7 +329,7 @@ module.exports = {
       data: result.rows[0],
     });
   } catch (err) {
-    console.error("Get Budget Error:", err);
+    console.error("Get Budget Error:");
     res.status(500).json({ success: false, message: "Failed to fetch budget." });
   }
 },
@@ -411,7 +411,7 @@ module.exports = {
     });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("Transfer Budget Error:", err);
+    console.error("Transfer Budget Error:");
     res.status(500).json({ success: false, message: err.message || "Budget transfer failed." });
   } finally {
     client.release();
@@ -495,7 +495,7 @@ module.exports = {
       data: updateRes.rows[0],
     });
   } catch (err) {
-    console.error("Update Budget Error:", err);
+    console.error("Update Budget Error:");
     res.status(500).json({
       success: false,
       message: "Failed to update budget.",
@@ -512,7 +512,7 @@ module.exports = {
       await pool.query('DELETE FROM budgets WHERE id = $1', [id]);
       res.json({ message: 'Budget deleted' });
     } catch (err) {
-      console.error('Delete budget error:', err);
+      console.error('Delete budget error:');
       res.status(500).json({ message: 'Failed to delete budget.' });
     }
   },

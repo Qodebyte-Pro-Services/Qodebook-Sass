@@ -22,7 +22,7 @@ module.exports = {
      
       res.status(201).json({ subscription: result.rows[0] });
     } catch (err) {
-      console.error('Subscription error:', err);
+      console.error('Subscription error:');
       res.status(500).json({ message: 'Failed to subscribe' });
     }
   },
@@ -41,7 +41,7 @@ module.exports = {
       const sub = result.rows[0];
       res.json({ status: sub.status, plan: sub.plan, expires: sub.end_date });
     } catch (err) {
-      console.error('Status error:', err);
+      console.error('Status error:');
       res.status(500).json({ message: 'Failed to fetch subscription status' });
     }
   },
@@ -60,7 +60,7 @@ module.exports = {
       }
       res.json({ message: 'Subscription cancelled', subscription: result.rows[0] });
     } catch (err) {
-      console.error('Cancel error:', err);
+      console.error('Cancel error:');
       res.status(500).json({ message: 'Failed to cancel subscription' });
     }
   },

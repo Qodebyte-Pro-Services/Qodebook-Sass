@@ -55,7 +55,7 @@ module.exports = (action_type, resource_type = null, resource_info = null) => as
       `, [business_id, user_id, staff_id, action_type, details, ip_address, user_agent]);
     }
   } catch (err) {
-    console.error('Audit log error:', err);
+    console.error('Audit log error:');
    
   }
   next();
@@ -100,7 +100,7 @@ module.exports.afterUpdate = async (req, res, next) => {
       })(req, res, () => {});
     }
   } catch (err) {
-    console.error('After update audit log error:', err);
+    console.error('After update audit log error:');
   }
   next();
 };

@@ -92,7 +92,7 @@ async function checkAllStockLevels() {
     }
     console.log('✅ Stock levels checked for all variants');
   } catch (err) {
-    console.error('❌ Error checking stock levels:', err);
+    console.error('❌ Error checking stock levels:');
   }
 }
 

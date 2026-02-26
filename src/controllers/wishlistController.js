@@ -13,7 +13,7 @@ exports.addToWishlist = async (req, res) => {
     await db.query('INSERT INTO wishlist_items (wishlist_id, variant_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [wishlist_id, variant_id]);
     res.status(200).json({ message: 'Added to wishlist.' });
   } catch (err) {
-    res.status(500).json({ message: 'Failed to add to wishlist', details: err.message });
+    res.status(500).json({ message: 'Failed to add to wishlist',  });
   }
 };
 
@@ -27,7 +27,7 @@ exports.removeFromWishlist = async (req, res) => {
     await db.query('DELETE FROM wishlist_items WHERE wishlist_id = $1 AND variant_id = $2', [wishlist_id, variant_id]);
     res.status(200).json({ message: 'Removed from wishlist.' });
   } catch (err) {
-    res.status(500).json({ message: 'Failed to remove from wishlist', details: err.message });
+    res.status(500).json({ message: 'Failed to remove from wishlist',  });
   }
 };
 
@@ -43,6 +43,6 @@ exports.getWishlist = async (req, res) => {
       WHERE wi.wishlist_id = $1`, [wishlist_id]);
     res.status(200).json({ wishlist: wishlist.rows[0], items: items.rows });
   } catch (err) {
-    res.status(500).json({ message: 'Failed to fetch wishlist', details: err.message });
+    res.status(500).json({ message: 'Failed to fetch wishlist',  });
   }
 };

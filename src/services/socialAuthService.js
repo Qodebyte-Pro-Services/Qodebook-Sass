@@ -22,7 +22,7 @@ async function verifyGoogleToken(idToken) {
       picture: payload.picture,
     };
   } catch (err) {
-    console.error('Google token verification failed:', err);
+    console.error('Google token verification failed:');
     return null;
   }
 }

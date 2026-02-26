@@ -20,7 +20,7 @@ exports.listProducts = async (req, res) => {
     const { rows } = await db.query(query, params);
     res.json({ products: rows });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch products', details: err.message });
+    res.status(500).json({ error: 'Failed to fetch products',  });
   }
 };
 
@@ -44,7 +44,7 @@ exports.getProduct = async (req, res) => {
     product.variants = variantsResult.rows;
     res.json(product);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch product', details: err.message });
+    res.status(500).json({ error: 'Failed to fetch product',  });
   }
 };
 
@@ -64,6 +64,6 @@ exports.getVariant = async (req, res) => {
     }
     res.json(variantResult.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch variant', details: err.message });
+    res.status(500).json({ error: 'Failed to fetch variant',  });
   }
 };

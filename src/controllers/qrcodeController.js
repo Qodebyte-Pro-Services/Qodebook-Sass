@@ -10,7 +10,7 @@ module.exports = {
       res.set('Content-Type', 'image/png');
       res.send(qrPng);
     } catch (err) {
-      console.error('QR code generation error:', err);
+      console.error('QR code generation error:');
       res.status(500).json({ message: 'Failed to generate QR code' });
     }
   },
@@ -24,7 +24,7 @@ module.exports = {
       res.set('Content-Type', 'image/png');
       res.send(qrPng);
     } catch (err) {
-      console.error('QR code download error:', err);
+      console.error('QR code download error:');
       res.status(500).json({ message: 'Failed to download QR code' });
     }
   },

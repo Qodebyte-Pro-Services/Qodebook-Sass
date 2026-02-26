@@ -44,10 +44,10 @@ module.exports = {
         emailSent: !!email 
       });
     } catch (err) {
-      console.error('Error creating notification:', err);
+      console.error('Error creating notification:');
       return res.status(500).json({ 
         message: 'Failed to create notification',
-        details: err.message 
+         
       });
     }
   },
@@ -74,10 +74,10 @@ module.exports = {
         total: result.rows.length 
       });
     } catch (err) {
-      console.error('Error fetching notifications:', err);
+      console.error('Error fetching notifications:');
       return res.status(500).json({ 
         message: 'Failed to fetch notifications',
-        details: err.message 
+         
       });
     }
   },
@@ -104,10 +104,10 @@ module.exports = {
         notification: result.rows[0]
       });
     } catch (err) {
-      console.error('Error marking notification as read:', err);
+      console.error('Error marking notification as read:');
       return res.status(500).json({ 
         message: 'Failed to mark notification as read',
-        details: err.message 
+         
       });
     }
   },
@@ -130,10 +130,10 @@ module.exports = {
         marked_count: result.rows.length
       });
     } catch (err) {
-      console.error('Error marking all notifications as read:', err);
+      console.error('Error marking all notifications as read:');
       return res.status(500).json({ 
         message: 'Failed to mark notifications as read',
-        details: err.message 
+         
       });
     }
   },
@@ -153,10 +153,10 @@ module.exports = {
         unread_count: parseInt(result.rows[0].unread_count)
       });
     } catch (err) {
-      console.error('Error fetching unread count:', err);
+      console.error('Error fetching unread count:');
       return res.status(500).json({ 
         message: 'Failed to fetch unread count',
-        details: err.message 
+         
       });
     }
   }

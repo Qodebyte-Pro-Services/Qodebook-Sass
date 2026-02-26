@@ -35,7 +35,7 @@ async function logStaffAction({
   try {
     await executor.query(query, values);
   } catch (err) {
-    console.error('Error logging staff action:', err);
+    console.error('Error logging staff action:');
   }
 }
 

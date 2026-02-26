@@ -15,7 +15,7 @@ async function getBusinessOwnerEmail(business_id) {
     if (res.rows.length > 0) return res.rows[0].email;
     return null;
   } catch (err) {
-    console.error("Error fetching business owner email:", err);
+    console.error("Error fetching business owner email:");
     return null;
   }
 }
@@ -60,7 +60,7 @@ static async checkLowStock(variant_id, business_id) {
       await this.sendLowStockEmail(business_id, v);
     }
   } catch (error) {
-    console.error('Error checking low stock:', error);
+    console.error('Error checking low stock:');
   }
 }
 
@@ -103,7 +103,7 @@ static async checkOutOfStock(variant_id, business_id) {
       await this.sendOutOfStockEmail(business_id, v);
     }
   } catch (error) {
-    console.error('Error checking out of stock:', error);
+    console.error('Error checking out of stock:');
   }
 }
 
@@ -145,7 +145,7 @@ static async checkOutOfStock(variant_id, business_id) {
       // Send email notification to destination branch staff
       await this.sendTransferNotificationEmail(business_id, t);
     } catch (error) {
-      console.error('Error creating transfer notification:', error);
+      console.error('Error creating transfer notification:');
     }
   }
 
@@ -158,7 +158,7 @@ static async checkOutOfStock(variant_id, business_id) {
         WHERE id = $2
       `, [user_id, notification_id]);
     } catch (error) {
-      console.error('Error marking notification as read:', error);
+      console.error('Error marking notification as read:');
     }
   }
 
@@ -181,7 +181,7 @@ static async checkOutOfStock(variant_id, business_id) {
 
       return result.rows;
     } catch (error) {
-      console.error('Error getting unread notifications:', error);
+      console.error('Error getting unread notifications:');
       return [];
     }
   }
@@ -201,7 +201,7 @@ static async checkOutOfStock(variant_id, business_id) {
 
       return result.rows;
     } catch (error) {
-      console.error('Error getting notification stats:', error);
+      console.error('Error getting notification stats:');
       return [];
     }
   }
@@ -238,7 +238,7 @@ static async checkOutOfStock(variant_id, business_id) {
         await sendNotificationEmail(email, subject, message);
       }
     } catch (error) {
-      console.error('Error sending low stock email:', error);
+      console.error('Error sending low stock email:');
     }
   }
 
@@ -272,7 +272,7 @@ static async checkOutOfStock(variant_id, business_id) {
         await sendNotificationEmail(email, subject, message);
       }
     } catch (error) {
-      console.error('Error sending out of stock email:', error);
+      console.error('Error sending out of stock email:');
     }
   }
 
@@ -310,7 +310,7 @@ static async checkOutOfStock(variant_id, business_id) {
         await sendNotificationEmail(email, subject, message);
       }
     } catch (error) {
-      console.error('Error sending transfer notification email:', error);
+      console.error('Error sending transfer notification email:');
     }
   }
 
@@ -322,7 +322,7 @@ static async checkOutOfStock(variant_id, business_id) {
         WHERE business_id = $1 AND created_at < NOW() - INTERVAL '${daysOld} days'
       `, [business_id]);
     } catch (error) {
-      console.error('Error cleaning up old notifications:', error);
+      console.error('Error cleaning up old notifications:');
     }
   }
 }

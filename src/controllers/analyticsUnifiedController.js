@@ -17,7 +17,7 @@ exports.salesOverview = async (req, res) => {
     const { rows } = await db.query(query, params);
     res.json({ sales: rows });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch sales analytics', details: err.message });
+    res.status(500).json({ error: 'Failed to fetch sales analytics',  });
   }
 };
 
@@ -33,7 +33,7 @@ exports.inventoryOverview = async (req, res) => {
     const { rows } = await db.query(query, [business_id]);
     res.json({ inventory: rows });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch inventory analytics', details: err.message });
+    res.status(500).json({ error: 'Failed to fetch inventory analytics',  });
   }
 };
 
@@ -45,6 +45,6 @@ exports.customerOverview = async (req, res) => {
     const { rows } = await db.query(query, [business_id]);
     res.json({ customers: rows[0] });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch customer analytics', details: err.message });
+    res.status(500).json({ error: 'Failed to fetch customer analytics',  });
   }
 };

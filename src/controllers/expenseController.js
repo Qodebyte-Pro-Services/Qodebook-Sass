@@ -91,7 +91,7 @@ module.exports = {
       });
    
     } catch (err) {
-      console.error('Create expense error:', err);
+      console.error('Create expense error:');
       res.status(500).json({ message: 'Failed to create expense.', err });
     }
   },
@@ -165,7 +165,7 @@ LEFT JOIN staff sa ON e.approved_by_staff = sa.staff_id
       data: result.rows,
     });
   } catch (err) {
-    console.error("List expenses error:", err);
+    console.error("List expenses error:");
     res.status(500).json({ message: "Failed to list expenses.", err });
   }
 },
@@ -240,7 +240,7 @@ listSalaryForStaff: async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Error fetching staff salary history:", err);
+    console.error("Error fetching staff salary history:");
     return res.status(500).json({
       success: false,
       message: "Failed to fetch staff salary history.",
@@ -311,7 +311,7 @@ listSalaryForStaff: async (req, res) => {
       expense: result.rows[0],
     });
   } catch (err) {
-    console.error("Get expense by ID error:", err);
+    console.error("Get expense by ID error:");
     res.status(500).json({
       success: false,
       message: "Failed to fetch expense details.",
@@ -363,7 +363,7 @@ listSalaryForStaff: async (req, res) => {
     });
 
     } catch (err) {
-      console.error('❌ updatePaymentStatus error:', err);
+      console.error('❌ updatePaymentStatus error:');
     res.status(500).json({ success: false, message: 'Failed to update payment status.', err });
     }
   },
@@ -627,7 +627,7 @@ await logStaffAction({
     });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("💥 payStaffSalary error:", err);
+    console.error("💥 payStaffSalary error:");
     res.status(500).json({
       success: false,
       message: "Failed to process staff salary.",
@@ -644,7 +644,7 @@ await logStaffAction({
       await pool.query('DELETE FROM expenses WHERE id = $1', [id]);
       res.json({ message: 'Expense deleted' });
     } catch (err) {
-      console.error('Delete expense error:', err);
+      console.error('Delete expense error:');
       res.status(500).json({ message: 'Failed to delete expense.' });
     }
   },

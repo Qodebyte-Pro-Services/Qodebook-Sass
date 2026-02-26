@@ -8,7 +8,7 @@ exports.getPoints = async (req, res) => {
     const result = await db.query('SELECT points FROM loyalty_points WHERE customer_id = $1', [customer_id]);
     res.status(200).json({ points: result.rows[0]?.points || 0 });
   } catch (err) {
-    res.status(500).json({ message: 'Failed to fetch points', details: err.message });
+    res.status(500).json({ message: 'Failed to fetch points',  });
   }
 };
 
@@ -19,7 +19,7 @@ exports.getTransactions = async (req, res) => {
     const result = await db.query('SELECT * FROM loyalty_point_transactions WHERE customer_id = $1 ORDER BY created_at DESC', [customer_id]);
     res.status(200).json({ transactions: result.rows });
   } catch (err) {
-    res.status(500).json({ message: 'Failed to fetch transactions', details: err.message });
+    res.status(500).json({ message: 'Failed to fetch transactions',  });
   }
 };
 
@@ -36,7 +36,7 @@ exports.redeemPoints = async (req, res) => {
     await db.query('INSERT INTO loyalty_point_transactions (customer_id, points_change, reason) VALUES ($1, $2, $3)', [customer_id, -points, reason || 'Redeemed']);
     res.status(200).json({ message: 'Points redeemed.' });
   } catch (err) {
-    res.status(500).json({ message: 'Failed to redeem points', details: err.message });
+    res.status(500).json({ message: 'Failed to redeem points',  });
   }
 };
 
@@ -52,6 +52,6 @@ exports.addPoints = async (req, res) => {
     await db.query('INSERT INTO loyalty_point_transactions (customer_id, points_change, reason) VALUES ($1, $2, $3)', [customer_id, points, reason || 'Earned']);
     res.status(200).json({ message: 'Points added.' });
   } catch (err) {
-    res.status(500).json({ message: 'Failed to add points', details: err.message });
+    res.status(500).json({ message: 'Failed to add points',  });
   }
 };

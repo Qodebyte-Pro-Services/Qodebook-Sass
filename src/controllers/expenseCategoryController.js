@@ -24,7 +24,7 @@ create: async (req, res) => {
 
     res.status(201).json({ category: result.rows[0] });
   } catch (err) {
-    console.error('Create expense category error:', err);
+    console.error('Create expense category error:');
     res.status(500).json({ message: 'Failed to create expense category.' });
   }
 },
@@ -37,7 +37,7 @@ create: async (req, res) => {
       );
       res.json({ categories: result.rows });
     } catch (err) {
-      console.error('List expense categories error:', err);
+      console.error('List expense categories error:');
       res.status(500).json({ message: 'Failed to list expense categories.' });
     }
   },
@@ -65,7 +65,7 @@ create: async (req, res) => {
 
     res.json({ category: result.rows[0] });
   } catch (err) {
-    console.error('Update expense category error:', err);
+    console.error('Update expense category error:');
     res.status(500).json({ message: 'Failed to update expense category.' });
   }
 },
@@ -75,7 +75,7 @@ create: async (req, res) => {
       await pool.query('DELETE FROM expense_categories WHERE id = $1', [id]);
       res.json({ message: 'Expense category deleted' });
     } catch (err) {
-      console.error('Delete expense category error:', err);
+      console.error('Delete expense category error:');
       res.status(500).json({ message: 'Failed to delete expense category.' });
     }
   },

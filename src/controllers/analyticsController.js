@@ -82,7 +82,7 @@ exports.incomeExpenseOverTime = async (req, res) => {
       expense: expenseResult.rows,
     });
   } catch (err) {
-    console.error('Income vs Expense over time error:', err);
+    console.error('Income vs Expense over time error:');
     res.status(500).json({ message: 'Failed to fetch income vs expense over time.', error: err.message });
   }
 };
@@ -146,7 +146,7 @@ exports.grossNetProfitOverTime = async (req, res) => {
     });
     res.json({ profit: Object.values(profitMap) });
   } catch (err) {
-    console.error('Gross vs Net profit over time error:', err);
+    console.error('Gross vs Net profit over time error:');
     res.status(500).json({ message: 'Failed to fetch gross vs net profit over time.' });
   }
 };
@@ -193,7 +193,7 @@ exports.expenseOverTime = async (req, res) => {
     res.json({ expense: result.rows });
 
   } catch (err) {
-    console.error('Expense over time error:', err);
+    console.error('Expense over time error:');
     res.status(500).json({ message: 'Failed to fetch expense over time.', error: err.message });
   }
 };
@@ -239,7 +239,7 @@ exports.budgetOverTime = async (req, res) => {
     res.json({ budget: result.rows });
 
   } catch (err) {
-    console.error('Budget over time error:', err);
+    console.error('Budget over time error:');
     res.status(500).json({ message: 'Failed to fetch budget over time.', error: err.message });
   }
 };
@@ -414,7 +414,7 @@ exports.budgetAllocationByCategory = async (req, res) => {
 
     res.json({ allocation: allocationResult.rows });
   } catch (err) {
-    console.error('Budget allocation by category error:', err);
+    console.error('Budget allocation by category error:');
     res.status(500).json({ message: 'Failed to fetch budget allocation by category.', error: err.message });
   }
 };
@@ -443,7 +443,7 @@ exports.taxFlowOverTime = async (req, res) => {
     );
     res.json({ tax: taxResult.rows });
   } catch (err) {
-    console.error('Tax flow over time error:', err);
+    console.error('Tax flow over time error:');
     res.status(500).json({ message: 'Failed to fetch tax flow over time.' });
   }
 };
@@ -805,7 +805,7 @@ const serviceTrackingResult = await pool.query(
       serviceTracking: serviceTrackingResult.rows,
     });
   } catch (err) {
-    console.error("Analytics overview error:", err);
+    console.error("Analytics overview error:");
     res.status(500).json({ message: "Failed to fetch analytics overview." });
   }
 };
@@ -881,7 +881,7 @@ const serviceTrackingResult = await pool.query(
     });
 
   } catch (err) {
-    console.error('Variation analytics error:', err);
+    console.error('Variation analytics error:');
     res.status(500).json({ message: 'Failed to fetch variation analytics.' });
   }
 };
@@ -933,7 +933,7 @@ exports.expenseStatsByCategory = async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error("Expense stats by category error:", err);
+    console.error("Expense stats by category error:");
     res.status(500).json({
       success: false,
       message: "Failed to fetch expense statistics by category.",
@@ -986,7 +986,7 @@ exports.productAnalytics = async (req, res) => {
 
     res.json({ topProducts: topProductsResult.rows });
   } catch (err) {
-    console.error('Product analytics error:', err);
+    console.error('Product analytics error:');
     res.status(500).json({
       message: 'Failed to fetch product analytics.',
       error: err.message,
@@ -1143,7 +1143,7 @@ exports.stockAnalytics = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Stock analytics error:', err);
+    console.error('Stock analytics error:');
     res.status(500).json({ message: 'Failed to fetch stock analytics.' });
   }
 };
@@ -1240,7 +1240,7 @@ exports.stockAnalytics = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Sales analytics error:', err);
+    console.error('Sales analytics error:');
     res.status(500).json({ message: 'Failed to fetch sales analytics.' });
   }
 };
@@ -1272,7 +1272,7 @@ exports.stockAnalytics = async (req, res) => {
       );
       res.json({ totalStaff: Number(staffResult.rows[0]?.total_staff || 0) });
     } catch (err) {
-      console.error('Staff analytics error:', err);
+      console.error('Staff analytics error:');
       res.status(500).json({ message: 'Failed to fetch staff analytics.' });
     }
   };
@@ -1347,8 +1347,8 @@ exports.stockAnalytics = async (req, res) => {
       variants: breakdownRes.rows
     });
   } catch (err) {
-    console.error('productRevenue error:', err);
-    return res.status(500).json({ message: 'Failed to fetch product revenue.', details: err.message });
+    console.error('productRevenue error:');
+    return res.status(500).json({ message: 'Failed to fetch product revenue.',  });
   }
 };
 
@@ -1445,7 +1445,7 @@ if (["hour", "day"].includes(period)) {
     res.json({ movements: result.rows });
 
   } catch (err) {
-    console.error("Stock movement analytics error:", err);
+    console.error("Stock movement analytics error:");
     res.status(500).json({ message: "Failed to fetch stock movement analytics." });
   }
 };
@@ -1529,7 +1529,7 @@ if (["hour", "day"].includes(period)) {
       variants: Object.values(variantMap)
     });
   } catch (err) {
-    console.error('Product variant stock movement error:', err);
+    console.error('Product variant stock movement error:');
     res.status(500).json({ message: 'Failed to fetch product variant stock movement.', error: err.message });
   }
 };
@@ -1570,7 +1570,7 @@ if (["hour", "day"].includes(period)) {
       );
       res.json({ movements: movementResult.rows });
     } catch (err) {
-      console.error('Sales movement analytics error:', err);
+      console.error('Sales movement analytics error:');
       res.status(500).json({ message: 'Failed to fetch sales movement analytics.' });
     }
   };
@@ -1921,8 +1921,8 @@ else if (period === 'custom') {
     return res.json(reportObj);
 
   } catch (err) {
-    console.error('salesReport error:', err);
-    return res.status(500).json({ error: 'Failed to generate sales report', details: err.message });
+    console.error('salesReport error:');
+    return res.status(500).json({ error: 'Failed to generate sales report',  });
   }
 };
 
@@ -1960,7 +1960,7 @@ exports.reportStatus = async (req, res) => {
 
     res.json(response);
   } catch (err) {
-    console.error('Report status error:', err);
+    console.error('Report status error:');
     res.status(500).json({ error: 'Failed to fetch report status' });
   }
 };
@@ -1998,7 +1998,7 @@ exports.downloadReport = async (req, res) => {
 
     res.download(filePath, `sales-report-${report.id}.${report.format}`);
   } catch (err) {
-    console.error('Report download error:', err);
+    console.error('Report download error:');
     res.status(500).json({ error: 'Failed to download report' });
   }
 };
@@ -2061,7 +2061,7 @@ exports.downloadReport = async (req, res) => {
       churnedCustomers: Number(churnResult.rows[0]?.churned_customers || 0)
     });
   } catch (err) {
-    console.error('Customer analytics error:', err);
+    console.error('Customer analytics error:');
     res.status(500).json({ message: 'Failed to fetch customer analytics.' });
   }
 };
@@ -2203,7 +2203,7 @@ exports.supplierAnalytics = async (req, res) => {
       supplyOrderStats: supplyOrderStatsResult.rows
     });
   } catch (err) {
-    console.error('Supplier analytics error:', err);
+    console.error('Supplier analytics error:');
     res.status(500).json({ message: 'Failed to fetch supplier analytics.' });
   }
 };
@@ -2298,7 +2298,7 @@ exports.expenseAnalytics = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Expense analytics error:', err);
+    console.error('Expense analytics error:');
     res.status(500).json({ message: 'Failed to fetch expense analytics.', error: err.message });
   }
 };
@@ -2353,7 +2353,7 @@ exports.serviceAnalytics = async (req, res) => {
       staffPerformance: staffPerfResult.rows
     });
   } catch (err) {
-    console.error('Service analytics error:', err);
+    console.error('Service analytics error:');
     res.status(500).json({ message: 'Failed to fetch service analytics.' });
   }
 };
@@ -2417,7 +2417,7 @@ exports.inventoryAnalytics = async (req, res) => {
       deadStock: deadStockResult.rows
     });
   } catch (err) {
-    console.error('Inventory analytics error:', err);
+    console.error('Inventory analytics error:');
     res.status(500).json({ message: 'Failed to fetch inventory analytics.' });
   }
 };
@@ -2523,7 +2523,7 @@ exports.discountAnalytics = async (req, res) => {
       leastUsedDiscount: leastUsedDiscountResult.rows[0] || null
     });
   } catch (err) {
-    console.error('Discount analytics error:', err);
+    console.error('Discount analytics error:');
     res.status(500).json({ message: 'Failed to fetch discount analytics.' });
   }
 };
@@ -2588,7 +2588,7 @@ exports.auditLogAnalytics = async (req, res) => {
       suspiciousActivities: suspiciousResult.rows
     });
   } catch (err) {
-    console.error('Audit log analytics error:', err);
+    console.error('Audit log analytics error:');
     res.status(500).json({ message: 'Failed to fetch audit log analytics.' });
   }
 };
@@ -2646,7 +2646,7 @@ exports.appointmentAnalytics = async (req, res) => {
       noShows: Number(noShowsResult.rows[0]?.no_shows || 0)
     });
   } catch (err) {
-    console.error('Appointment analytics error:', err);
+    console.error('Appointment analytics error:');
     res.status(500).json({ message: 'Failed to fetch appointment analytics.' });
   }
 };
@@ -2700,7 +2700,7 @@ exports.loyaltyAnalytics = async (req, res) => {
       redemption: redemptionResult.rows
     });
   } catch (err) {
-    console.error('Loyalty analytics error:', err);
+    console.error('Loyalty analytics error:');
     res.status(500).json({ message: 'Failed to fetch loyalty analytics.' });
   }
 };
@@ -2724,7 +2724,7 @@ exports.realtimeAnalytics = async (req, res) => {
       latestStaff: latestStaff.rows
     });
   } catch (err) {
-    console.error('Real-time analytics error:', err);
+    console.error('Real-time analytics error:');
     res.status(500).json({ message: 'Failed to fetch real-time analytics.' });
   }
 };
@@ -2759,7 +2759,7 @@ exports.categoryStockDistribution = async (req, res) => {
 
     res.status(200).json({ categories: result.rows });
   } catch (err) {
-    console.error('Category stock distribution error:', err);
+    console.error('Category stock distribution error:');
     res.status(500).json({ message: 'Failed to fetch category stock distribution.' });
   }
 };
@@ -2827,7 +2827,7 @@ exports.salesOverView = async (req, res) => {
       variants: result.rows
     });
   } catch (err) {
-    console.error('Sales overview error:', err);
+    console.error('Sales overview error:');
     return res.status(500).json({ message: 'Failed to fetch sales overview.', error: err.message });
   }
 };

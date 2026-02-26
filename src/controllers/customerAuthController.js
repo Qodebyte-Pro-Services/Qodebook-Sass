@@ -14,7 +14,7 @@ exports.signup = async (req, res) => {
     await sendOTP(email, 'signup');
     res.status(201).json({ customer: result.rows[0], message: 'Signup successful. Please verify OTP.' });
   } catch (err) {
-    res.status(500).json({ message: 'Signup failed', details: err.message });
+    res.status(500).json({ message: 'Signup failed',  });
   }
 };
 
@@ -32,7 +32,7 @@ exports.login = async (req, res) => {
     const token = jwt.sign({ id: customer.id, email: customer.email,  business_id: customer.business_id, }, process.env.CUSTOMER_JWT_SECRET || process.env.JWT_SECRET, { expiresIn: '7d' });
     res.json({ token, customer });
   } catch (err) {
-    res.status(500).json({ message: 'Login failed', details: err.message });
+    res.status(500).json({ message: 'Login failed',  });
   }
 };
 
@@ -44,7 +44,7 @@ exports.me = async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ message: 'Customer not found.' });
     res.json({ customer: result.rows[0] });
   } catch (err) {
-    res.status(500).json({ message: 'Failed to fetch profile', details: err.message });
+    res.status(500).json({ message: 'Failed to fetch profile',  });
   }
 };
 
@@ -57,7 +57,7 @@ exports.forgotPassword = async (req, res) => {
     await sendOTP(email, 'reset');
     res.json({ message: 'OTP sent to email.' });
   } catch (err) {
-    res.status(500).json({ message: 'Failed to send OTP', details: err.message });
+    res.status(500).json({ message: 'Failed to send OTP',  });
   }
 };
 
@@ -70,7 +70,7 @@ exports.resetPassword = async (req, res) => {
     await db.query('UPDATE customers SET password = $1 WHERE email = $2', [hashed, email]);
     res.json({ message: 'Password reset successful.' });
   } catch (err) {
-    res.status(500).json({ message: 'Failed to reset password', details: err.message });
+    res.status(500).json({ message: 'Failed to reset password',  });
   }
 };
 
@@ -81,7 +81,7 @@ exports.verifyOtp = async (req, res) => {
     if (!await verifyOTP(email, otp, purpose)) return res.status(400).json({ message: 'Invalid OTP.' });
     res.json({ message: 'OTP verified.' });
   } catch (err) {
-    res.status(500).json({ message: 'OTP verification failed', details: err.message });
+    res.status(500).json({ message: 'OTP verification failed',  });
   }
 };
 
@@ -110,6 +110,6 @@ exports.socialLogin = async (req, res) => {
     const jwtToken = jwt.sign({ id: customer.id, email: customer.email, business_id:customer.business_id }, process.env.CUSTOMER_JWT_SECRET || process.env.JWT_SECRET, { expiresIn: '7d' });
     res.json({ token: jwtToken, customer });
   } catch (err) {
-    res.status(500).json({ message: 'Social login failed', details: err.message });
+    res.status(500).json({ message: 'Social login failed',  });
   }
 };

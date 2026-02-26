@@ -43,6 +43,6 @@ for (const item of itemsResult.rows) {
     await db.query('DELETE FROM cart_items WHERE cart_id = $1', [cart_id]);
     res.status(201).json({ order: orderResult.rows[0] });
   } catch (err) {
-    res.status(500).json({ message: 'Checkout failed', details: err.message });
+    res.status(500).json({ message: 'Checkout failed',  });
   }
 };

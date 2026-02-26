@@ -55,7 +55,7 @@ exports.listStaffActions = async (req, res) => {
       staff_actions: result.rows,
     });
   } catch (err) {
-    console.error('Error listing staff actions:', err);
+    console.error('Error listing staff actions:');
     return res.status(500).json({ message: 'Server error while listing staff actions.' });
   }
 };
@@ -66,7 +66,7 @@ exports.deleteStaffAction = async (req, res) => {
     await pool.query('DELETE FROM staff_actions WHERE id = $1', [id]);
     return res.status(200).json({ message: `Staff action with ID ${id} deleted.` });
   } catch (err) {
-    console.error('Error deleting staff action:', err);
+    console.error('Error deleting staff action:');
     return res.status(500).json({ message: 'Server error while deleting staff action.' });
   }
 };
@@ -139,7 +139,7 @@ exports.createStaffDoc = async (req, res) => {
       staff_docs: insertedDocs,
     });
   } catch (err) {
-    console.error("❌ Error uploading staff documents:", err);
+    console.error("❌ Error uploading staff documents:");
     await client.query("ROLLBACK");
     return res
       .status(500)
@@ -190,7 +190,7 @@ exports.listStaffDocs = async (req, res) => {
       staff_docs: result.rows,
     });
   } catch (err) {
-    console.error('❌ Error fetching staff documents:', err);
+    console.error('❌ Error fetching staff documents:');
     return res.status(500).json({ message: 'Server error while fetching staff documents.' });
   }
 };
@@ -281,7 +281,7 @@ if ((removed_docs && removed_docs.length > 0) || insertedDocs.length > 0) {
       removed: removed_docs || [],
     });
   } catch (err) {
-    console.error("❌ Error updating staff documents:", err);
+    console.error("❌ Error updating staff documents:");
     await client.query("ROLLBACK");
     return res.status(500).json({
       message: "Server error while updating staff documents. All changes rolled back.",
@@ -337,7 +337,7 @@ if ((removed_docs && removed_docs.length > 0) || insertedDocs.length > 0) {
       },
     });
   } catch (err) {
-    console.error("❌ Error deleting staff document:", err);
+    console.error("❌ Error deleting staff document:");
     await pool.query("ROLLBACK");
     return res.status(500).json({ message: "Server error while deleting document." });
   } finally {
@@ -411,7 +411,7 @@ exports.createStaffShift = async (req, res) => {
       staff_shift: result.rows[0]
     });
   } catch (err) {
-    console.error('Error creating staff shift:', err);
+    console.error('Error creating staff shift:');
     return res.status(500).json({ message: 'Server error while creating staff shift.' });
   }
 };
@@ -434,7 +434,7 @@ exports.listStaffShifts = async (req, res) => {
 
     return res.status(200).json({ staff_shifts: result.rows });
   } catch (err) {
-    console.error('Error fetching staff shifts:', err);
+    console.error('Error fetching staff shifts:');
     return res.status(500).json({ message: 'Server error while fetching staff shifts.' });
   }
 };
@@ -490,7 +490,7 @@ exports.updateStaffShift = async (req, res) => {
       staff_shift: result.rows[0]
     });
   } catch (err) {
-    console.error('Error updating staff shift:', err);
+    console.error('Error updating staff shift:');
     return res.status(500).json({ message: 'Server error while updating staff shift.', err });
   }
 };
@@ -546,7 +546,7 @@ exports.createStaffSubcharge = async (req, res) => {
       staff_subcharge: result.rows[0],
     });
   } catch (err) {
-    console.error('Error creating staff subcharge:', err);
+    console.error('Error creating staff subcharge:');
     return res.status(500).json({ message: 'Server error while creating staff subcharge.' });
   }
 };
@@ -583,7 +583,7 @@ exports.listStaffSubcharges = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Error listing staff subcharges:', err);
+    console.error('Error listing staff subcharges:');
     return res.status(500).json({ message: 'Server error while listing staff subcharges.' });
   }
 };
@@ -636,7 +636,7 @@ exports.updateStaffSubcharge = async (req, res) => {
       staff_subcharge: updated,
     });
   } catch (err) {
-    console.error('Error updating staff subcharge:', err);
+    console.error('Error updating staff subcharge:');
     return res.status(500).json({ message: 'Server error while updating staff subcharge.', err });
   }
 };
@@ -669,7 +669,7 @@ exports.deleteStaffSubcharge = async (req, res) => {
 
     return res.status(200).json({ message: 'Staff subcharge deleted successfully.' });
   } catch (err) {
-    console.error('Error deleting staff subcharge:', err);
+    console.error('Error deleting staff subcharge:');
     return res.status(500).json({ message: 'Server error while deleting staff subcharge.' });
   }
 };
@@ -749,7 +749,7 @@ async function sendPasswordToStaff(staffEmail, staffPhone, password, businessNam
       console.log(`Password SMS should be sent to: ${staffPhone}`);
     }
   } catch (error) {
-    console.error('Error sending password email to staff:', error);
+    console.error('Error sending password email to staff:');
   }
 }
 
@@ -759,7 +759,7 @@ async function sendPasswordToOwner(ownerEmail, staffName, password, businessName
     await sendOwnerPasswordNotification(ownerEmail, staffName, password, businessName, loginUrl);
     console.log(`Password email sent to owner: ${ownerEmail}`);
   } catch (error) {
-    console.error('Error sending password email to owner:', error);
+    console.error('Error sending password email to owner:');
   }
 }
 
@@ -957,7 +957,7 @@ async function sendPasswordToOwner(ownerEmail, staffName, password, businessName
       }.`,
     });
   } catch (err) {
-    console.error("❌ Error creating staff:", err);
+    console.error("❌ Error creating staff:");
     await client.query("ROLLBACK");
 
    
@@ -1253,7 +1253,7 @@ exports.verifyStaffOtp = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Error fetching active sessions:', err);
+    console.error('Error fetching active sessions:');
     return res.status(500).json({
       message: 'Server error while fetching sessions',
       error: err.message
@@ -1329,7 +1329,7 @@ exports.staffLogout = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Error logging out all sessions:', err);
+    console.error('Error logging out all sessions:');
     return res.status(500).json({
       message: 'Server error during logout',
       error: err.message
@@ -1382,7 +1382,7 @@ exports.staffLogout = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Error logging out other sessions:', err);
+    console.error('Error logging out other sessions:');
     return res.status(500).json({
       message: 'Server error during logout',
       error: err.message
@@ -1455,7 +1455,7 @@ exports.resendStaffOtp = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Error resending OTP:', err);
+    console.error('Error resending OTP:');
     return res.status(500).json({ message: 'Server error while resending OTP.' });
   }
 };
@@ -2094,7 +2094,7 @@ exports.getStaff = async (req, res) => {
       staff: updatedStaff,
     });
   } catch (err) {
-    console.error('❌ Error updating staff:', err);
+    console.error('❌ Error updating staff:');
     return res.status(500).json({ message: 'Server error.', error: err.message });
   } finally {
     client.release();

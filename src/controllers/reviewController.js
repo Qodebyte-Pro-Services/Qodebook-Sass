@@ -9,7 +9,7 @@ exports.addReview = async (req, res) => {
     await db.query('INSERT INTO reviews (customer_id, product_id, rating, comment) VALUES ($1, $2, $3, $4)', [customer_id, product_id, rating, comment]);
     res.status(201).json({ message: 'Review added.' });
   } catch (err) {
-    res.status(500).json({ message: 'Failed to add review', details: err.message });
+    res.status(500).json({ message: 'Failed to add review',  });
   }
 };
 
@@ -19,6 +19,6 @@ exports.getReviews = async (req, res) => {
     const result = await db.query('SELECT r.*, c.name as customer_name FROM reviews r JOIN customers c ON r.customer_id = c.id WHERE r.product_id = $1 ORDER BY r.created_at DESC', [product_id]);
     res.status(200).json({ reviews: result.rows });
   } catch (err) {
-    res.status(500).json({ message: 'Failed to fetch reviews', details: err.message });
+    res.status(500).json({ message: 'Failed to fetch reviews',  });
   }
 };

@@ -87,8 +87,8 @@ exports.unlinkDiscountFromProducts = async (req, res) => {
       unlinked_count: check.rows.length,
     });
   } catch (error) {
-    console.error('Error unlinking discount from products:', error);
-    return res.status(500).json({ message: 'Server error.', error: error.message });
+    console.error('Error unlinking discount from products:');
+    return res.status(500).json({ message: 'Server error.',  });
   }
 };
 
@@ -121,8 +121,8 @@ exports.unlinkDiscountFromProduct = async (req, res) => {
       message: `Successfully unlinked product ${product_id} from discount ${discount_id}.`,
     });
   } catch (error) {
-    console.error('Error unlinking product from discount:', error);
-    return res.status(500).json({ message: 'Server error.', error: error.message });
+    console.error('Error unlinking product from discount:');
+    return res.status(500).json({ message: 'Server error.',  });
   }
 };
 
@@ -224,6 +224,6 @@ exports.updateDiscount = async (req, res) => {
     return res.status(200).json({ discount: { id: discount_id, ...updatedDiscount } });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: 'Server error.', details: error.message });
+    return res.status(500).json({ message: 'Server error.',   });
   }
 }

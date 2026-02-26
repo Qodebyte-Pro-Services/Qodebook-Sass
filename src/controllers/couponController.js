@@ -63,8 +63,8 @@ exports.unlinkCouponFromProducts = async (req, res) => {
     await pool.query('DELETE FROM product_coupons WHERE coupon_id = $1', [coupon_id]);
     return res.status(200).json({ message: 'Coupon unlinked from products successfully.', unlinked_count: check.rows.length });
   } catch (error) {
-    console.error('Error unlinking coupon from products:', error);
-    return res.status(500).json({ message: 'Server error.', error: error.message });
+    console.error('Error unlinking coupon from products:');
+    return res.status(500).json({ message: 'Server error.',  });
   }
 }
 
@@ -82,8 +82,8 @@ exports.unlinkCouponFromProduct = async (req, res) => {
     await pool.query('DELETE FROM product_coupons WHERE product_id = $1 AND coupon_id = $2', [product_id, coupon_id]);
     return res.status(200).json({ message: 'Coupon unlinked from product successfully.' });
   } catch (error) {
-    console.error('Error unlinking coupon from product:', error);
-    return res.status(500).json({ message: 'Server error.', error: error.message });
+    console.error('Error unlinking coupon from product:');
+    return res.status(500).json({ message: 'Server error.',  });
   }
 }
 
@@ -154,7 +154,7 @@ exports.deleteCoupon = async (req, res) => {
     return res.status(200).json({ message: 'Coupon deleted successfully.' });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: 'Server error.', details: error.message });
+    return res.status(500).json({ message: 'Server error.',   });
   }
 }
 
@@ -181,6 +181,6 @@ exports.deleteCoupon = async (req, res) => {
       return res.status(200).json({ coupon: result.rows[0] });
     } catch (error) {
       console.error(error);
-      return res.status(500).json({ message: 'Server error.', details: error.message });
+      return res.status(500).json({ message: 'Server error.',   });
     }
   }
