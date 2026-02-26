@@ -3,6 +3,11 @@ const multer = require('multer');
 const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
+  console.error("🚨 Multer upload error");
+  console.error("➡️ Route:", req.method, req.originalUrl);
+  console.error("➡️ Field:", file.fieldname);
+  console.error("➡️ Mime:", file.mimetype);
+
   const allowedDocs = [
     "application/pdf",
     "application/msword",
@@ -47,7 +52,7 @@ const fileFilter = (req, file, cb) => {
   }
   return cb(new Error("image_url must be an image file!"), false);
 }
-  
+    console.error("❌ Unexpected field:", file.fieldname);  
   return cb(new Error(`Unexpected field: ${file.fieldname}`), false);
 };
 
