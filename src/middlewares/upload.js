@@ -41,6 +41,12 @@ const fileFilter = (req, file, cb) => {
     return cb(new Error("Documents must be images, PDFs, or Word files!"), false);
   }
 
+  if (file.fieldname === "image_url") {
+  if (file.mimetype.startsWith("image/")) {
+    return cb(null, true);
+  }
+  return cb(new Error("image_url must be an image file!"), false);
+}
   
   return cb(new Error(`Unexpected field: ${file.fieldname}`), false);
 };
