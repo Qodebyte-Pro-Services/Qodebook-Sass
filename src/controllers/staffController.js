@@ -1050,7 +1050,22 @@ exports.staffLogin = async (req, res) => {
       if (settings.otp_delivery_method === 'staff') {
         await sendStaffOtpEmail(staff.email, otp, staff.full_name);
       } else {
-        const ownerResult = await pool.query(`SELECT owner_email, business_name FROM businesses WHERE id = $1`, [business_id]);
+      const ownerResult = await pool.query(
+  `
+  SELECT 
+    u.email AS owner_email,
+    b.business_name
+  FROM businesses b
+  JOIN users u ON u.id = b.user_id
+  WHERE b.id = $1
+  `,
+  [business_id]
+); 
+  if (!ownerResult.rows.length) {
+  return res.status(500).json({
+    message: "Business owner not found for OTP delivery."
+  });
+}
         if (ownerResult.rows.length > 0) {
           await sendOwnerOtpNotification(ownerResult.rows[0].owner_email, otp, ownerResult.rows[0].business_name);
         }
@@ -1440,10 +1455,17 @@ exports.resendStaffOtp = async (req, res) => {
     if (settings.otp_delivery_method === 'staff') {
       await sendStaffOtpEmail(staff.email, otp, staff.full_name);
     } else {
-      const ownerResult = await pool.query(`
-        SELECT owner_email, business_name 
-        FROM businesses WHERE id = $1
-      `, [business_id]);
+     const ownerResult = await pool.query(
+  `
+  SELECT 
+    u.email AS owner_email,
+    b.business_name
+  FROM businesses b
+  JOIN users u ON u.id = b.user_id
+  WHERE b.id = $1
+  `,
+  [business_id]
+);
       if (ownerResult.rows.length > 0) {
         await sendOwnerOtpNotification(ownerResult.rows[0].owner_email, otp, ownerResult.rows[0].business_name);
       }
