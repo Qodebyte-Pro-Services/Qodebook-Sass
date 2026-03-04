@@ -1620,7 +1620,7 @@ router.get('/business/:id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF), 
  *                   type: string
  *                   example: "Server error."
  */
-router.post('/login', rateLimitMiddleware, staffController.staffLogin);
+router.post('/login', staffController.staffLogin);
 
 
 /**
