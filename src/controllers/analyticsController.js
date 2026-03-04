@@ -83,7 +83,7 @@ exports.incomeExpenseOverTime = async (req, res) => {
     });
   } catch (err) {
     console.error('Income vs Expense over time error:');
-    res.status(500).json({ message: 'Failed to fetch income vs expense over time.', error: err.message });
+    res.status(500).json({ message: 'Failed to fetch income vs expense over time.'});
   }
 };
 
@@ -194,7 +194,7 @@ exports.expenseOverTime = async (req, res) => {
 
   } catch (err) {
     console.error('Expense over time error:');
-    res.status(500).json({ message: 'Failed to fetch expense over time.', error: err.message });
+    res.status(500).json({ message: 'Failed to fetch expense over time.'});
   }
 };
 
@@ -240,7 +240,7 @@ exports.budgetOverTime = async (req, res) => {
 
   } catch (err) {
     console.error('Budget over time error:');
-    res.status(500).json({ message: 'Failed to fetch budget over time.', error: err.message });
+    res.status(500).json({ message: 'Failed to fetch budget over time.'});
   }
 };
 
@@ -354,8 +354,7 @@ exports.getBudgetAnalytics = async (req, res) => {
   } catch (err) {
     console.error(err);
     return res.status(500).json({
-      message: "Server error",
-      error: err.message,
+      message: "Server error"
     });
   }
 };
@@ -415,7 +414,7 @@ exports.budgetAllocationByCategory = async (req, res) => {
     res.json({ allocation: allocationResult.rows });
   } catch (err) {
     console.error('Budget allocation by category error:');
-    res.status(500).json({ message: 'Failed to fetch budget allocation by category.', error: err.message });
+    res.status(500).json({ message: 'Failed to fetch budget allocation by category.' });
   }
 };
 
@@ -988,8 +987,7 @@ exports.productAnalytics = async (req, res) => {
   } catch (err) {
     console.error('Product analytics error:');
     res.status(500).json({
-      message: 'Failed to fetch product analytics.',
-      error: err.message,
+      message: 'Failed to fetch product analytics.'
     });
   }
 };
@@ -1530,7 +1528,7 @@ if (["hour", "day"].includes(period)) {
     });
   } catch (err) {
     console.error('Product variant stock movement error:');
-    res.status(500).json({ message: 'Failed to fetch product variant stock movement.', error: err.message });
+    res.status(500).json({ message: 'Failed to fetch product variant stock movement.' });
   }
 };
 
@@ -2299,7 +2297,7 @@ exports.expenseAnalytics = async (req, res) => {
 
   } catch (err) {
     console.error('Expense analytics error:');
-    res.status(500).json({ message: 'Failed to fetch expense analytics.', error: err.message });
+    res.status(500).json({ message: 'Failed to fetch expense analytics.' });
   }
 };
 
@@ -2828,6 +2826,6 @@ exports.salesOverView = async (req, res) => {
     });
   } catch (err) {
     console.error('Sales overview error:');
-    return res.status(500).json({ message: 'Failed to fetch sales overview.', error: err.message });
+    return res.status(500).json({ message: 'Failed to fetch sales overview.' });
   }
 };

@@ -498,8 +498,7 @@ module.exports = {
     console.error("Update Budget Error:");
     res.status(500).json({
       success: false,
-      message: "Failed to update budget.",
-      error: err.message,
+      message: "Failed to update budget."
     });
   }
 },

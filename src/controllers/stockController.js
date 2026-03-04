@@ -588,7 +588,7 @@ if (['paid', 'delivered'].includes(status)) {
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);
-    return res.status(500).json({ message: 'Server error.', error: err.message });
+    return res.status(500).json({ message: 'Server error.'});
   } finally {
     client.release();
   }
@@ -733,7 +733,7 @@ if (supply_status === 'delivered') {
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);
-    return res.status(500).json({ message: 'Server error.', error: err.message });
+    return res.status(500).json({ message: 'Server error.' });
   } finally {
     client.release();
   }
@@ -987,7 +987,7 @@ exports.adjustStock = async (req, res) => {
     return res.status(200).json({ results });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.', error: err.message });
+    return res.status(500).json({ message: 'Server error.' });
   }
 };
 

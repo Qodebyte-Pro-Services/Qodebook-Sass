@@ -54,7 +54,7 @@ exports.createBusiness = async (req, res) => {
     return res.status(201).json({ message: 'Business created successfully.', business, branch });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.', error: err.message });
+    return res.status(500).json({ message: 'Server error.'});
   }
 };
 

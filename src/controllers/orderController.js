@@ -36,7 +36,7 @@ exports.createOrder = async (req, res) => {
     return res.status(201).json({ order });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.', error: err.message });
+    return res.status(500).json({ message: 'Server error.'});
   }
 };
 

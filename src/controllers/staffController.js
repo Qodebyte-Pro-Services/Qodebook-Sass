@@ -1134,7 +1134,7 @@ exports.staffLogin = async (req, res) => {
 
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.', error: err.message });
+    return res.status(500).json({ message: 'Server error.' });
   }
 };
 
@@ -1270,8 +1270,7 @@ exports.verifyStaffOtp = async (req, res) => {
   } catch (err) {
     console.error('Error fetching active sessions:');
     return res.status(500).json({
-      message: 'Server error while fetching sessions',
-      error: err.message
+      message: 'Server error while fetching sessions'
     });
   }
 };
@@ -1346,8 +1345,7 @@ exports.staffLogout = async (req, res) => {
   } catch (err) {
     console.error('Error logging out all sessions:');
     return res.status(500).json({
-      message: 'Server error during logout',
-      error: err.message
+      message: 'Server error during logout'
     });
   }
 };
@@ -1399,8 +1397,7 @@ exports.staffLogout = async (req, res) => {
   } catch (err) {
     console.error('Error logging out other sessions:');
     return res.status(500).json({
-      message: 'Server error during logout',
-      error: err.message
+      message: 'Server error during logout'
     });
   }
 };
@@ -1887,8 +1884,7 @@ exports.updateBusinessStaffSettings = async (req, res) => {
     console.error(err);
     return res.status(500).json({ 
       success: false,
-      message: "Server error.",
-      error: err.message
+      message: "Server error."
     });
   }
 };
@@ -1976,8 +1972,7 @@ exports.getAllStaffLoginLogs = async (req, res) => {
     console.error(err);
     return res.status(500).json({
       success: false,
-      message: "Server error",
-      error: err.message
+      message: "Server error"
     });
   }
 };
@@ -2117,7 +2112,7 @@ exports.getStaff = async (req, res) => {
     });
   } catch (err) {
     console.error('❌ Error updating staff:');
-    return res.status(500).json({ message: 'Server error.', error: err.message });
+    return res.status(500).json({ message: 'Server error.'});
   } finally {
     client.release();
   }
@@ -2178,7 +2173,7 @@ exports.createRole = async (req, res) => {
       });
     }
 
-    return res.status(500).json({ message: 'Server error.', error: err } );
+    return res.status(500).json({ message: 'Server error.'} );
   }
 };
 
@@ -2204,7 +2199,7 @@ exports.listRoles = async (req, res) => {
     return res.status(200).json({ roles });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.', error: err });
+    return res.status(500).json({ message: 'Server error.'});
   }
 };
 
@@ -2234,7 +2229,7 @@ exports.getRoleById = async (req, res) => {
     return res.status(200).json({ role });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.', error: err });
+    return res.status(500).json({ message: 'Server error.'});
   }
 };
 

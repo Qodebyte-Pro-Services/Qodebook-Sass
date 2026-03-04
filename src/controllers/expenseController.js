@@ -243,8 +243,7 @@ listSalaryForStaff: async (req, res) => {
     console.error("Error fetching staff salary history:");
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch staff salary history.",
-      error: err.message,
+      message: "Failed to fetch staff salary history."
     });
   }
 },
@@ -314,8 +313,7 @@ listSalaryForStaff: async (req, res) => {
     console.error("Get expense by ID error:");
     res.status(500).json({
       success: false,
-      message: "Failed to fetch expense details.",
-      error: err.message,
+      message: "Failed to fetch expense details."
     });
   }
 },
@@ -415,8 +413,7 @@ listSalaryForStaff: async (req, res) => {
        console.error(err);
   return res.status(500).json({
     success: false,
-    message: "Internal server error.",
-    error: err.message
+    message: "Internal server error."
   });
     }
   },
@@ -630,8 +627,7 @@ await logStaffAction({
     console.error("💥 payStaffSalary error:");
     res.status(500).json({
       success: false,
-      message: "Failed to process staff salary.",
-      error: err.message,
+      message: "Failed to process staff salary."
     });
   } finally {
     client.release();
