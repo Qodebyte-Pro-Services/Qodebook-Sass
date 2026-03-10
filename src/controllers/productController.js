@@ -272,9 +272,9 @@ const uploadedFiles = (req.files || []).filter(f =>
     }
 
    
-   if (uploadedImages.length > 0 || removeImages.length > 0 || req.body.replace_images === 'true') {
+ if (uploadedImages.length > 0 || removeImages.length > 0 || req.body.replace_images === 'true') {
   setParts.push(`image_url = $${idx}`);
-  values.push(finalImages);
+  values.push(JSON.stringify(finalImages));
   idx++;
 }
 
