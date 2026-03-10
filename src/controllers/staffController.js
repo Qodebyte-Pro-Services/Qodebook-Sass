@@ -2030,9 +2030,6 @@ exports.updateStaff = async (req, res) => {
   try {
 const { id: staffId } = req.params;
 
-console.log("Incoming updateStaff request:", staffId);
-console.log("Request body:", req.body);
-
 const fields = { ...req.body };
 let uploadedPhoto = null;
 
