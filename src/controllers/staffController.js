@@ -2080,14 +2080,31 @@ if (existingStaffResult.rows.length === 0) {
     let values = [];
     let idx = 1;
 
-    const allowedFields = [
-  "name",
+const allowedFields = [
+  "full_name",
+  "contact_no",
   "email",
-  "phone",
-  "role",
+  "address",
+  "position_name",
+  "assigned_position",
+  "gender",
   "staff_status",
-  "photo"
-]; 
+  "date_of_birth",
+  "state_of_origin",
+  "emergency_contact",
+  "employment_type",
+  "start_date",
+  "salary",
+  "bank_account_number",
+  "bank_name",
+  "national_id",
+  "guarantor_name",
+  "guarantor_contact",
+  "guarantor_relationship",
+  "guarantor_address",
+  "photo",
+  "payment_status"
+];
 
     
 for (const key of allowedFields) {
