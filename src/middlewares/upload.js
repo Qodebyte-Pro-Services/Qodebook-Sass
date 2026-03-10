@@ -43,10 +43,11 @@ const fileFilter = (req, file, cb) => {
   }
 
 
-  if (
-    file.fieldname === "image_url" ||
-    /^variants\[\d+\]\[image_url\]$/.test(file.fieldname)
-  ) {
+if (
+  file.fieldname === "image_url" ||
+  file.fieldname.startsWith("image_url[") ||
+  /^variants\[\d+\]\[image_url\]$/.test(file.fieldname)
+){
     if (file.mimetype.startsWith("image/")) {
       return cb(null, true);
     }
