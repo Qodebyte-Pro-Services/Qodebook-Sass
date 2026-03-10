@@ -957,7 +957,7 @@ async function sendPasswordToOwner(ownerEmail, staffName, password, businessName
       }.`,
     });
   } catch (err) {
-    console.error("❌ Error creating staff:");
+    console.error("❌ Error creating staff:", err);
     await client.query("ROLLBACK");
 
    
@@ -969,7 +969,7 @@ async function sendPasswordToOwner(ownerEmail, staffName, password, businessName
       }
     }
 
-    return res.status(500).json({ message: "Server error. All changes rolled back.", err });
+    return res.status(500).json({ message: "Server error. All changes rolled back." });
   } finally {
     client.release();
   }
@@ -2032,12 +2032,17 @@ exports.updateStaff = async (req, res) => {
     const fields = req.body;
     let uploadedPhoto = null;
 
-    
-    const existingStaffResult = await client.query(
-      'SELECT * FROM staff WHERE staff_id = $1',
-      [id]
-    );
+    const staffId = parseInt(req.params.id, 10);
 
+if (isNaN(staffId)) {
+  return res.status(400).json({ message: "Invalid staff id." });
+}
+
+    
+   const existingStaffResult = await client.query(
+  'SELECT * FROM staff WHERE staff_id = $1',
+  [staffId]
+);
     if (existingStaffResult.rows.length === 0) {
       return res.status(404).json({ message: 'Staff not found.' });
     }
@@ -2077,16 +2082,27 @@ exports.updateStaff = async (req, res) => {
     let values = [];
     let idx = 1;
 
-    for (const key in fields) {
-      setParts.push(`${key} = $${idx}`);
-      values.push(fields[key]);
-      idx++;
-    }
+    const allowedFields = [
+  "name",
+  "email",
+  "phone",
+  "role",
+  "staff_status",
+  "photo"
+]; 
 
+    
+for (const key of allowedFields) {
+  if (fields[key] !== undefined) {
+    setParts.push(`${key} = $${idx}`);
+    values.push(fields[key]);
+    idx++;
+  }
+}
     if (setParts.length === 0)
       return res.status(400).json({ message: 'No fields to update.' });
 
-    values.push(id);
+   values.push(staffId);
     const setClause = setParts.join(', ');
     const query = `UPDATE staff SET ${setClause} WHERE staff_id = $${idx} RETURNING *`;
 
@@ -2111,8 +2127,8 @@ exports.updateStaff = async (req, res) => {
       staff: updatedStaff,
     });
   } catch (err) {
-    console.error('❌ Error updating staff:');
-    return res.status(500).json({ message: 'Server error.', error: err });
+    console.error('❌ Error updating staff:', err);
+    return res.status(500).json({ message: 'Server error.'});
   } finally {
     client.release();
   }
