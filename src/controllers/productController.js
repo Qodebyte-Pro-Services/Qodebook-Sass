@@ -1,7 +1,7 @@
 
 const pool = require('../config/db');
 // const uploadToFirebase = require('../utils/uploadToFireBase');
-const {uploadToCloudinary, uploadFilesToCloudinary} = require('../utils/uploadToCloudinary');
+const {uploadToCloudinary, uploadFilesToCloudinary, deleteFileFromCloudinary} = require('../utils/uploadToCloudinary');
 const AuditService = require('../services/auditService');
 const StockNotificationService = require('../services/stockNotificationService');
 
