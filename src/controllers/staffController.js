@@ -969,7 +969,7 @@ async function sendPasswordToOwner(ownerEmail, staffName, password, businessName
       }
     }
 
-    return res.status(500).json({ message: "Server error. All changes rolled back." });
+    return res.status(500).json({ message: "Server error. All changes rolled back.", err });
   } finally {
     client.release();
   }
@@ -2024,7 +2024,7 @@ exports.getStaff = async (req, res) => {
   }
 };
 
-  exports.updateStaff = async (req, res) => {
+exports.updateStaff = async (req, res) => {
   const client = await pool.connect();
   const user = req.user;
   try {
@@ -2112,7 +2112,7 @@ exports.getStaff = async (req, res) => {
     });
   } catch (err) {
     console.error('❌ Error updating staff:');
-    return res.status(500).json({ message: 'Server error.'});
+    return res.status(500).json({ message: 'Server error.', error: err });
   } finally {
     client.release();
   }

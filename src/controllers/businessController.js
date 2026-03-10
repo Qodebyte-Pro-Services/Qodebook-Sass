@@ -143,7 +143,7 @@ exports.updateBusiness = async (req, res) => {
     return res.status(200).json({ message: 'Business updated successfully.', business: result.rows[0] });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(500).json({ message: 'Server error.', error: err });
   }
 };
 

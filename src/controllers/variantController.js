@@ -379,7 +379,7 @@ if (req.body.replace_images === "true") {
           const tryParse = (y, m, d) => {
             const yy = Number(y), mm = Number(m), dd = Number(d);
             if (!Number.isInteger(yy) || !Number.isInteger(mm) || !Number.isInteger(dd)) return null;
-            // validate with Date object
+          
             const date = new Date(yy, mm - 1, dd);
             if (date.getFullYear() === yy && date.getMonth() === mm - 1 && date.getDate() === dd) {
               return `${yy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
@@ -387,15 +387,15 @@ if (req.body.replace_images === "true") {
             return null;
           };
           if (parts && parts.length === 3) {
-            // try common orders: YYYY-MM-DD, DD-MM-YYYY, MM-DD-YYYY
+          
             let parsed = null;
-            if (parts[0].length === 4) parsed = tryParse(parts[0], parts[1], parts[2]); // YYYY-M-D
-            if (!parsed) parsed = tryParse(parts[2], parts[1], parts[0]); // D-M-YYYY
-            if (!parsed) parsed = tryParse(parts[2], parts[0], parts[1]); // M-D-YYYY
+            if (parts[0].length === 4) parsed = tryParse(parts[0], parts[1], parts[2]); 
+            if (!parsed) parsed = tryParse(parts[2], parts[1], parts[0]);
+            if (!parsed) parsed = tryParse(parts[2], parts[0], parts[1]); 
             if (parsed) return parsed;
           }
         }
-        // if not parsable, return null so DB receives NULL instead of invalid date string
+      
         return null;
       }
       return val;
@@ -505,7 +505,7 @@ if (forceImageUpdate || !areImagesSame) {
 
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error.",  });
+    return res.status(500).json({ message: "Server error.",  error: err });
   }
 };
 

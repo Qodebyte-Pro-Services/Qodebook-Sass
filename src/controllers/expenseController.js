@@ -627,7 +627,8 @@ await logStaffAction({
     console.error("💥 payStaffSalary error:");
     res.status(500).json({
       success: false,
-      message: "Failed to process staff salary."
+      message: "Failed to process staff salary.",
+      err,
     });
   } finally {
     client.release();
