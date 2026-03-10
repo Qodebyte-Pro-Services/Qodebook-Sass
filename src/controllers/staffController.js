@@ -2028,11 +2028,15 @@ exports.updateStaff = async (req, res) => {
   const client = await pool.connect();
   const user = req.user;
   try {
-    const { id } = req.params;
+const { id } = req.params;
+const staffId = parseInt(id, 10);
+
+console.log("Incoming updateStaff request:", id);
+
+console.log("Request body:", staffId);
     const fields = req.body;
     let uploadedPhoto = null;
 
-    const staffId = parseInt(req.params.id, 10);
 
 if (isNaN(staffId)) {
   return res.status(400).json({ message: "Invalid staff id." });
@@ -2043,6 +2047,7 @@ if (isNaN(staffId)) {
   'SELECT * FROM staff WHERE staff_id = $1',
   [staffId]
 );
+
     if (existingStaffResult.rows.length === 0) {
       return res.status(404).json({ message: 'Staff not found.' });
     }
