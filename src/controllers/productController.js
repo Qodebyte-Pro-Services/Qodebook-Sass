@@ -202,7 +202,9 @@ exports.updateProduct = async (req, res) => {
       : [];
 
     
-    const uploadedFiles = (req.files || []).filter(f => f.fieldname === 'image_url');
+const uploadedFiles = (req.files || []).filter(f =>
+  /^image_url(\[\d+\])?$/.test(f.fieldname)
+);
     let uploadedImages = [];
     if (uploadedFiles.length > 0) {
       uploadedImages = await uploadFilesToCloudinary(uploadedFiles);
@@ -270,11 +272,11 @@ exports.updateProduct = async (req, res) => {
     }
 
    
-    if (JSON.stringify(currentProduct.image_url || []) !== JSON.stringify(finalImages)) {
-      setParts.push(`image_url = $${idx}`);
-      values.push(finalImages); 
-      idx++;
-    }
+   if (uploadedImages.length > 0 || removeImages.length > 0 || req.body.replace_images === 'true') {
+  setParts.push(`image_url = $${idx}`);
+  values.push(finalImages);
+  idx++;
+}
 
     if (setParts.length === 0) {
       return res.status(400).json({ message: 'No changes detected.' });
