@@ -1189,7 +1189,7 @@ exports.verifyStaffOtp = async (req, res) => {
       email: staff.email,
       full_name: staff.full_name,
       role: staff.assigned_position,
-      permissions: staff.permissions,
+    //  permissions: staff.permissions,
       isStaff: true
     }, process.env.JWT_SECRET, { expiresIn: `${settings?.session_timeout_minutes || 480}m` });
 
