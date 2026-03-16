@@ -1343,7 +1343,7 @@ exports.staffLogout = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Error logging out all sessions:');
+    console.error('Error logging out all sessions:', err);
     return res.status(500).json({
       message: 'Server error during logout'
     });
