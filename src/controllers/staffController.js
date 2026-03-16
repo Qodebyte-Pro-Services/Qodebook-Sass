@@ -1325,7 +1325,7 @@ exports.staffLogout = async (req, res) => {
       });
     }
 
-    const { reason = 'owner_logout_all' } = req.body;
+        const { reason = 'owner_logout_all' } = req.body || {};
 
     const result = await pool.query(
       `UPDATE staff_login_logs
