@@ -1171,14 +1171,12 @@ exports.verifyStaffOtp = async (req, res) => {
     }
 
   
-    const staffResult = await pool.query(
-      `SELECT s.*, r.permissions 
-       FROM staff s 
-       LEFT JOIN staff_roles r ON s.assigned_position = r.role_id 
-       WHERE s.staff_id = $1 AND s.business_id = $2
-`, [staff_id, business_id]
+      const staffResult = await pool.query(
+      `SELECT *
+      FROM staff
+      WHERE staff_id = $1 AND business_id = $2`,
+      [staff_id, business_id]
     );
-
     const staff = staffResult.rows[0];
     const settings = await getBusinessStaffSettings(business_id, staff.branch_id);
 
@@ -1189,7 +1187,6 @@ exports.verifyStaffOtp = async (req, res) => {
       email: staff.email,
       full_name: staff.full_name,
       role: staff.assigned_position,
-    //  permissions: staff.permissions,
       isStaff: true
     }, process.env.JWT_SECRET, { expiresIn: `${settings?.session_timeout_minutes || 480}m` });
 
