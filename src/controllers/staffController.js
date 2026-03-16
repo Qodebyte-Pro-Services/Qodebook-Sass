@@ -1281,49 +1281,95 @@ exports.verifyStaffOtp = async (req, res) => {
     const { staff_id, business_id } = req.user;
 
     if (!staff_id || !business_id) {
-      return res.status(400).json({ message: 'Invalid user context.' });
+      return res.status(400).json({ message: "Invalid user context." });
+    }
+
+    let result;
+
+  
+    if (session_id && session_id === staff_id) {
+
+      result = await pool.query(
+        `UPDATE staff_login_logs
+         SET logout_time = NOW(), logout_reason = 'user_logout'
+         WHERE staff_id = $1
+         AND business_id = $2
+         AND logout_time IS NULL
+         RETURNING session_id`,
+        [staff_id, business_id]
+      );
+
+      if (!result.rows.length) {
+        return res.status(404).json({
+          message: "No active sessions found."
+        });
+      }
+
+      return res.json({
+        message: "All sessions logged out successfully",
+        sessions: result.rows.map(r => r.session_id)
+      });
     }
 
    
-    let targetSessionId = session_id;
-    if (!targetSessionId) {
-      const active = await pool.query(
-        `SELECT session_id FROM staff_login_logs
-         WHERE staff_id = $1 AND business_id = $2 AND logout_time IS NULL
-         ORDER BY login_time DESC LIMIT 1`,
-        [staff_id, business_id]
-      );
-      if (!active.rows.length) return res.status(404).json({ message: 'No active session found.' });
-      targetSessionId = active.rows[0].session_id;
-    }
+    if (session_id) {
 
-    const sessionResult = await pool.query(
-      `SELECT * FROM staff_login_logs
-       WHERE session_id = $1
+      result = await pool.query(
+        `UPDATE staff_login_logs
+         SET logout_time = NOW(), logout_reason = 'user_logout'
+         WHERE session_id = $1
          AND staff_id = $2
          AND business_id = $3
-         AND logout_time IS NULL`,
-      [targetSessionId, staff_id, business_id]
-    );
+         AND logout_time IS NULL
+         RETURNING session_id`,
+        [session_id, staff_id, business_id]
+      );
 
-    if (!sessionResult.rows.length) {
-      return res.status(404).json({ message: 'Session not found' });
+      if (!result.rows.length) {
+        return res.status(404).json({
+          message: "Session not found or already logged out."
+        });
+      }
+
+      return res.json({
+        message: "Session logged out successfully",
+        session_id: result.rows[0].session_id
+      });
     }
 
-    await pool.query(
+   
+    const latest = await pool.query(
       `UPDATE staff_login_logs
        SET logout_time = NOW(), logout_reason = 'user_logout'
-       WHERE session_id = $1`,
-      [targetSessionId]
+       WHERE session_id = (
+           SELECT session_id
+           FROM staff_login_logs
+           WHERE staff_id = $1
+           AND business_id = $2
+           AND logout_time IS NULL
+           ORDER BY login_time DESC
+           LIMIT 1
+       )
+       RETURNING session_id`,
+      [staff_id, business_id]
     );
 
-    return res.json({ message: 'Logout successful', session_id: targetSessionId });
+    if (!latest.rows.length) {
+      return res.status(404).json({
+        message: "No active session found."
+      });
+    }
+
+    return res.json({
+      message: "Latest session logged out successfully",
+      session_id: latest.rows[0].session_id
+    });
+
   } catch (err) {
-    console.error('Error logging out session:', err);
-    return res.status(500).json({ message: 'Server error.' });
+    console.error("Error logging out session:", err);
+    return res.status(500).json({ message: "Server error." });
   }
 };
-
 
   exports.logoutAllSessions = async (req, res) => {
   try {
