@@ -1619,7 +1619,7 @@ router.get('/business/:id', ...requirePermission(STAFF_PERMISSIONS.VIEW_STAFF), 
  *                   type: string
  *                   example: "Server error."
  */
-router.post('/login', staffController.staffLogin);
+router.post('/login', rateLimitMiddleware, staffController.staffLogin);
 
 
 /**
@@ -1817,7 +1817,7 @@ router.post('/verify-otp', staffController.verifyStaffOtp);
  *                   type: string
  *                   example: "Server error while resending OTP."
  */
-router.post('/resend-otp', staffController.resendStaffOtp);
+router.post('/resend-otp', rateLimitMiddleware, staffController.resendStaffOtp);
 
 
 /**
