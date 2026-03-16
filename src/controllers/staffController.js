@@ -1159,7 +1159,7 @@ exports.verifyStaffOtp = async (req, res) => {
 
          const activeSession = await pool.query(`
       SELECT * FROM staff_login_logs
-      WHERE staff_id = $1 AND logout_time IS NULL AND success = TRUE
+      WHERE staff_id = $1 AND logout_time IS NULL AND success = true
       ORDER BY login_time DESC LIMIT 1
     `, [staff_id]);
     
