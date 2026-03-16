@@ -288,7 +288,6 @@ router.post(
   '/logout/all',
   authenticateToken,
   tenantMiddleware,
-  rateLimitMiddleware,
   staffController.logoutAllSessions
 );
 
@@ -1818,7 +1817,7 @@ router.post('/verify-otp', staffController.verifyStaffOtp);
  *                   type: string
  *                   example: "Server error while resending OTP."
  */
-router.post('/resend-otp', rateLimitMiddleware, staffController.resendStaffOtp);
+router.post('/resend-otp', staffController.resendStaffOtp);
 
 
 /**
