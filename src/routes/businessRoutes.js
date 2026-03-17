@@ -106,6 +106,30 @@ router.get('/:id', ...requirePermission(), businessController.getBusiness);
 
 /**
  * @swagger
+ * /api/business/staff-view:
+ *   get:
+ *     summary: Get a business by ID
+ *     tags: [Business]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: header
+ *         name: x-business-id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Business ID
+ *     responses:
+ *       200:
+ *         description: Business found
+ *       404:
+ *         description: Business not found
+ */
+router.get('/staff-view', ...requireAuthOnly(), businessController.StaffViewBusiness);
+
+
+/**
+ * @swagger
  * /api/business/{id}:
  *   put:
  *     summary: Update a business by ID

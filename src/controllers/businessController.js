@@ -87,6 +87,21 @@ exports.getBusiness = async (req, res) => {
 };
 
 
+exports.StaffViewBusiness = async (req, res) => {
+  try {
+    const business_id = req.headers['x-business-id'];
+    const result = await pool.query('SELECT * FROM businesses WHERE id = $1', [business_id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Business not found.' });
+    }
+    return res.status(200).json({ business: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+
 exports.updateBusiness = async (req, res) => {
   try {
     const user_id = req.user.user_id;
