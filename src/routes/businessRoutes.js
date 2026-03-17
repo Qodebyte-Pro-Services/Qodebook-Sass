@@ -17,7 +17,7 @@
  */
 const express = require('express');
 const router = express.Router();
-const { requirePermission, requirePermissionOnly, requireAuthOnly } = require('../utils/routeHelpers');
+const { requirePermission, requirePermissionOnly, requireAuthOnly, requireAuth } = require('../utils/routeHelpers');
 const { BUSINESS_PERMISSIONS } = require('../constants/permissions');
 const { validateBusiness } = require('../middlewares/validateInput');
 const upload = require('../middlewares/upload');
