@@ -125,7 +125,7 @@ router.get('/:id', ...requirePermission(), businessController.getBusiness);
  *       404:
  *         description: Business not found
  */
-router.get('/staff-view', ...requireAuthOnly(), businessController.StaffViewBusiness);
+router.get('/staff-view', businessController.StaffViewBusiness);
 
 
 /**
