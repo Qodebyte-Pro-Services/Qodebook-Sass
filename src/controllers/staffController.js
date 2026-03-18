@@ -988,6 +988,23 @@ async function getGeoFromIp(ip) {
   }
 }
 
+exports.staffviewbusinesssettings = async (req, res) => {
+  try {
+    const business_id = req.headers['x-business-id'];
+    if(!business_id) {
+      return res.status(400).json({ message: "Missing business ID in headers." });
+    }
+
+    const settings = await getBusinessStaffSettings(business_id);
+    if (!settings) {
+      return res.status(404).json({ message: "Business staff settings not found." });
+    }
+    return res.status(200).json({ staff_settings: settings });
+  } catch (error) {
+    console.error("❌ Error fetching staff settings:");
+    return res.status(500).json({ message: "Server error." })
+  }
+}
 
 exports.staffLogin = async (req, res) => {
   try {

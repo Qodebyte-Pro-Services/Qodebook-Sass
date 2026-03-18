@@ -202,6 +202,65 @@ router.patch('/business_settings/:business_id', ...requirePermission(BUSINESS_PE
 
 /**
  * @swagger
+ * /api/staff/view-business-settings:
+ *   get:
+ *     summary: View business staff settings
+ *     description: Retrieve the current staff authentication and session settings for the authenticated user's business. The business ID must be provided via the x-business-id header.
+ *     tags: [BusinessStaffSettings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: header
+ *         name: x-business-id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The ID of the business
+ *     responses:
+ *       200:
+ *         description: Business staff settings retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 staff_settings:
+ *                   $ref: '#/components/schemas/BusinessStaffSettings'
+ *       400:
+ *         description: Missing or invalid business ID in headers
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Missing business ID in headers.
+ *       404:
+ *         description: Business staff settings not found for the specified business
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Business staff settings not found.
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Server error.
+ */
+router.get('/view-business-settings', ...requireAuth(), staffController.staffviewbusinesssettings);
+
+/**
+ * @swagger
  * /api/staff/sessions/active:
  *   get:
  *     summary: Get all active staff sessions for a business
