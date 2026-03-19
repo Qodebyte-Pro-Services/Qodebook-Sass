@@ -15,182 +15,110 @@ exports.addCustomer = async (req, res) => {
 
 
 exports.listCustomers = async (req, res) => {
+  const { business_id, filter = 'all', limit = 50, offset = 0, sort_by = 'created_at' } = req.query;
+
+  if (!business_id) {
+    return res.status(400).json({ message: 'business_id is required.' });
+  }
+
+  const VALID_FILTERS = new Set(['all', 'top', 'returning', 'walk_in']);
+  const VALID_SORT_FIELDS = new Set(['created_at', 'name', 'total_purchases', 'order_count']);
+
+  if (!VALID_FILTERS.has(filter)) {
+    return res.status(400).json({ message: `Invalid filter.` });
+  }
+  if (!VALID_SORT_FIELDS.has(sort_by)) {
+    return res.status(400).json({ message: `Invalid sort_by.` });
+  }
+
+  const FILTER_CLAUSE = {
+    top:       'WHERE total_purchases > 0',
+    returning: 'WHERE order_count > 1',
+    walk_in:   'WHERE is_walk_in = true',
+    all:       '',
+  };
+
+  const ORDER_CLAUSE = {
+    total_purchases: 'ORDER BY total_purchases DESC',
+    order_count:     'ORDER BY order_count DESC',
+    name:            'ORDER BY name ASC',
+    created_at:      'ORDER BY created_at DESC',
+  };
+
+  const parsedLimit  = Math.max(1, parseInt(limit));
+  const parsedOffset = Math.max(0, parseInt(offset));
+
+  const query = `
+    WITH base AS (
+      -- Named customers
+      SELECT
+        c.id,
+        c.business_id,
+        c.name,
+        c.phone,
+        c.email,
+        c.created_at,
+        COUNT(o.id)::INT                 AS order_count,
+        COALESCE(SUM(o.total_amount), 0) AS total_purchases,
+        MAX(o.created_at)               AS last_purchase_date,
+        false                           AS is_walk_in
+      FROM customers c
+      LEFT JOIN orders o
+        ON o.customer_id = c.id
+       AND o.business_id = c.business_id
+      WHERE c.business_id = $1
+      GROUP BY c.id, c.business_id, c.name, c.phone, c.email, c.created_at
+
+      UNION ALL
+
+      -- Walk-in customers (only if exists)
+      SELECT
+        0::INT,
+        $1::INT,
+        'Walk-in Customers',
+        NULL,
+        NULL,
+        MIN(o.created_at),
+        COUNT(o.id)::INT,
+        COALESCE(SUM(o.total_amount), 0),
+        MAX(o.created_at),
+        true
+      FROM orders o
+      WHERE o.business_id = $1
+        AND o.customer_id IS NULL
+      HAVING COUNT(*) > 0
+    ),
+    filtered AS (
+      SELECT * FROM base
+      ${FILTER_CLAUSE[filter]}
+    )
+    SELECT *,
+      COUNT(*) OVER () AS total_count
+    FROM filtered
+    ${ORDER_CLAUSE[sort_by]}
+    LIMIT $2 OFFSET $3
+  `;
+
   try {
-    const { business_id, filter = 'all', limit = 50, offset = 0, sort_by = 'created_at' } = req.query;
+    const { rows } = await pool.query(query, [business_id, parsedLimit, parsedOffset]);
 
-    if (!business_id) {
-      return res.status(400).json({ message: 'business_id is required.' });
-    }
+    const total = rows.length ? parseInt(rows[0].total_count, 10) : 0;
 
-    const validFilters = ['all', 'top', 'returning', 'walk_in'];
-    if (!validFilters.includes(filter)) {
-      return res.status(400).json({ message: `Invalid filter. Must be one of: ${validFilters.join(', ')}` });
-    }
-
-    const validSortFields = ['created_at', 'name', 'total_purchases', 'order_count'];
-    if (!validSortFields.includes(sort_by)) {
-      return res.status(400).json({ message: `Invalid sort_by. Must be one of: ${validSortFields.join(', ')}` });
-    }
-
-    let query = `
-      WITH customers_data AS (
-        -- Named customers with order aggregations
-        SELECT 
-          c.id,
-          c.business_id,
-          c.name,
-          c.phone,
-          c.email,
-          c.created_at,
-          COUNT(DISTINCT o.id)::INT AS order_count,
-          COALESCE(SUM(o.total_amount), 0)::NUMERIC AS total_purchases,
-          MAX(o.created_at) AS last_purchase_date,
-          false AS is_walk_in
-        FROM customers c
-        LEFT JOIN orders o ON c.id = o.customer_id AND o.business_id = c.business_id
-        WHERE c.business_id = $1
-        GROUP BY c.id, c.business_id, c.name, c.phone, c.email, c.created_at
-
-        UNION ALL
-
-        -- Walk-in customers (orders with NULL customer_id)
-        SELECT 
-          0::INT AS id,
-          $1::INT AS business_id,
-          'Walk-in Customers' AS name,
-          NULL AS phone,
-          NULL AS email,
-          MIN(o.created_at)::TIMESTAMP AS created_at,
-          COUNT(DISTINCT o.id)::INT AS order_count,
-          COALESCE(SUM(o.total_amount), 0)::NUMERIC AS total_purchases,
-          MAX(o.created_at) AS last_purchase_date,
-          true AS is_walk_in
-        FROM orders o
-        WHERE o.business_id = $1 AND o.customer_id IS NULL
-        GROUP BY o.business_id
-      )
-      SELECT * FROM customers_data
-    `;
-
-    const params = [business_id];
-
-    switch (filter) {
-      case 'top':
-        query += ` WHERE total_purchases > 0`;
-        break;
-      case 'returning':
-        query += ` WHERE order_count > 1`;
-        break;
-      case 'walk_in':
-        query += ` WHERE is_walk_in = true`;
-        break;
-      case 'all':
-      default:
-        break;
-    }
-
-    let orderClause = '';
-    switch (sort_by) {
-      case 'total_purchases':
-        orderClause = ' ORDER BY total_purchases DESC';
-        break;
-      case 'order_count':
-        orderClause = ' ORDER BY order_count DESC';
-        break;
-      case 'name':
-        orderClause = ' ORDER BY name ASC';
-        break;
-      case 'created_at':
-      default:
-        orderClause = ' ORDER BY created_at DESC';
-        break;
-    }
-
-    query += orderClause;
-    query += ` LIMIT $2 OFFSET $3`;
-    params.push(parseInt(limit), parseInt(offset));
-
-    const result = await pool.query(query, params);
-
- 
-    let countQuery = '';
-    let countParams = [business_id];
-
-  switch (filter) {
-  case 'top':
-    countQuery = `
-      WITH customers_data AS (
-        SELECT c.id, SUM(o.total_amount) AS total_purchases
-        FROM customers c
-        LEFT JOIN orders o ON c.id = o.customer_id AND o.business_id = c.business_id
-        WHERE c.business_id = $1
-        GROUP BY c.id
-        
-        UNION ALL
-        
-        SELECT 0::INT AS id, COALESCE(SUM(o.total_amount), 0) AS total_purchases
-        FROM orders o
-        WHERE o.business_id = $1 AND o.customer_id IS NULL
-      )
-      SELECT COUNT(*) AS total FROM customers_data WHERE total_purchases > 0
-    `;
-    break;
-
-  case 'returning':
-    countQuery = `
-      WITH customers_data AS (
-        SELECT c.id, COUNT(DISTINCT o.id) AS order_count
-        FROM customers c
-        LEFT JOIN orders o ON c.id = o.customer_id AND o.business_id = c.business_id
-        WHERE c.business_id = $1
-        GROUP BY c.id
-        
-        UNION ALL
-        
-        SELECT 0::INT AS id, COUNT(DISTINCT o.id) AS order_count
-        FROM orders o
-        WHERE o.business_id = $1 AND o.customer_id IS NULL
-      )
-      SELECT COUNT(*) AS total FROM customers_data WHERE order_count > 1
-    `;
-    break;
-
-  case 'walk_in':
-    countQuery = `
-      SELECT (CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END) AS total
-      FROM orders
-      WHERE business_id = $1 AND customer_id IS NULL
-    `;
-    break;
-
-  case 'all':
-  default:
-    countQuery = `
-      WITH customers_data AS (
-        SELECT c.id FROM customers WHERE business_id = $1
-        UNION
-        SELECT 0::INT FROM orders WHERE business_id = $1 AND customer_id IS NULL LIMIT 1
-      )
-      SELECT COUNT(*) AS total FROM customers_data
-    `;
-    break;
-}
-
-    const countResult = await pool.query(countQuery, countParams);
-    const total = parseInt(countResult.rows[0].total, 10);
+    const customers = rows.map(({ total_count, ...rest }) => rest);
 
     return res.status(200).json({
       success: true,
       filter,
       pagination: {
-        current_page: Math.floor(parseInt(offset) / parseInt(limit)) + 1,
-        total_pages: Math.ceil(total / parseInt(limit)),
+        current_page: Math.floor(parsedOffset / parsedLimit) + 1,
+        total_pages: Math.ceil(total / parsedLimit),
         total_records: total,
-        limit: parseInt(limit),
-        offset: parseInt(offset)
+        limit: parsedLimit,
+        offset: parsedOffset,
       },
-      customers: result.rows
+      customers,
     });
+
   } catch (err) {
     console.error('Error listing customers:', err);
     return res.status(500).json({ message: 'Server error.' });
