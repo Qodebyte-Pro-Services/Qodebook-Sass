@@ -83,7 +83,7 @@ exports.listCustomers = async (req, res) => {
         NULL,
         NULL,
         MIN(o.created_at),
-        false,
+        true,
         COUNT(o.id)::INT,
         COALESCE(SUM(o.total_amount), 0),
         MAX(o.created_at),
