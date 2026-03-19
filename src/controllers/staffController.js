@@ -2396,18 +2396,78 @@ exports.updateRole = async (req, res) => {
 
 
 exports.deleteRole = async (req, res) => {
+  const client = await pool.connect();
+
   try {
     const { id } = req.params;
-    const result = await pool.query('DELETE FROM staff_roles WHERE role_id = $1 RETURNING *', [id]);
 
-    if (result.rowCount === 0) {
+  
+    await client.query('BEGIN');
+
+   
+    const roleResult = await client.query(
+      'SELECT role_id, business_id, role_name FROM staff_roles WHERE role_id = $1',
+      [id]
+    );
+
+    if (roleResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ message: 'Role not found.' });
     }
 
-    return res.status(200).json({ message: 'Role deleted successfully.' });
+    const roleToDelete = roleResult.rows[0];
+    const { business_id } = roleToDelete;
+
+   
+    const unassignedRoleResult = await client.query(
+      `SELECT role_id FROM staff_roles WHERE business_id = $1 AND role_name = 'unassigned' LIMIT 1`,
+      [business_id]
+    );
+
+    let unassignedRoleId;
+
+    if (unassignedRoleResult.rows.length > 0) {
+    
+      unassignedRoleId = unassignedRoleResult.rows[0].role_id;
+    } else {
+    
+      unassignedRoleId = uuidv4();
+      await client.query(
+        `INSERT INTO staff_roles (role_id, business_id, role_name, permissions, created_by)
+         VALUES ($1, $2, 'unassigned', $3::jsonb, $4)`,
+        [unassignedRoleId, business_id, JSON.stringify([]), 'system']
+      );
+    }
+
+  
+    const updateResult = await client.query(
+      `UPDATE staff SET assigned_position = $1 WHERE assigned_position = $2 AND business_id = $3`,
+      [unassignedRoleId, id, business_id]
+    );
+
+
+    await client.query(
+      'DELETE FROM staff_roles WHERE role_id = $1',
+      [id]
+    );
+
+
+    await client.query('COMMIT');
+
+    return res.status(200).json({
+      message: `Role "${roleToDelete.role_name}" deleted successfully.`,
+      details: {
+        deleted_role_id: id,
+        staff_reassigned: updateResult.rowCount,
+        reassigned_to_role: 'unassigned'
+      }
+    });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    await client.query('ROLLBACK');
+    console.error('Error deleting role:', err);
+    return res.status(500).json({ message: 'Server error while deleting role.' });
+  } finally {
+    client.release();
   }
 };
 
