@@ -116,65 +116,65 @@ exports.listCustomers = async (req, res) => {
     let countQuery = '';
     let countParams = [business_id];
 
-    switch (filter) {
-      case 'top':
-        countQuery = `
-          WITH customers_data AS (
-            SELECT c.id, SUM(o.total_amount) AS total_purchases
-            FROM customers c
-            LEFT JOIN orders o ON c.id = o.customer_id AND o.business_id = c.business_id
-            WHERE c.business_id = $1
-            GROUP BY c.id
-            
-            UNION ALL
-            
-            SELECT 0::INT, COALESCE(SUM(o.total_amount), 0)
-            FROM orders o
-            WHERE o.business_id = $1 AND o.customer_id IS NULL
-          )
-          SELECT COUNT(*) AS total FROM customers_data WHERE total_purchases > 0
-        `;
-        break;
+  switch (filter) {
+  case 'top':
+    countQuery = `
+      WITH customers_data AS (
+        SELECT c.id, SUM(o.total_amount) AS total_purchases
+        FROM customers c
+        LEFT JOIN orders o ON c.id = o.customer_id AND o.business_id = c.business_id
+        WHERE c.business_id = $1
+        GROUP BY c.id
+        
+        UNION ALL
+        
+        SELECT 0::INT AS id, COALESCE(SUM(o.total_amount), 0) AS total_purchases
+        FROM orders o
+        WHERE o.business_id = $1 AND o.customer_id IS NULL
+      )
+      SELECT COUNT(*) AS total FROM customers_data WHERE total_purchases > 0
+    `;
+    break;
 
-      case 'returning':
-        countQuery = `
-          WITH customers_data AS (
-            SELECT c.id, COUNT(DISTINCT o.id) AS order_count
-            FROM customers c
-            LEFT JOIN orders o ON c.id = o.customer_id AND o.business_id = c.business_id
-            WHERE c.business_id = $1
-            GROUP BY c.id
-            
-            UNION ALL
-            
-            SELECT 0::INT, COUNT(DISTINCT o.id)
-            FROM orders o
-            WHERE o.business_id = $1 AND o.customer_id IS NULL
-          )
-          SELECT COUNT(*) AS total FROM customers_data WHERE order_count > 1
-        `;
-        break;
+  case 'returning':
+    countQuery = `
+      WITH customers_data AS (
+        SELECT c.id, COUNT(DISTINCT o.id) AS order_count
+        FROM customers c
+        LEFT JOIN orders o ON c.id = o.customer_id AND o.business_id = c.business_id
+        WHERE c.business_id = $1
+        GROUP BY c.id
+        
+        UNION ALL
+        
+        SELECT 0::INT AS id, COUNT(DISTINCT o.id) AS order_count
+        FROM orders o
+        WHERE o.business_id = $1 AND o.customer_id IS NULL
+      )
+      SELECT COUNT(*) AS total FROM customers_data WHERE order_count > 1
+    `;
+    break;
 
-      case 'walk_in':
-        countQuery = `
-          SELECT (CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END) AS total
-          FROM orders
-          WHERE business_id = $1 AND customer_id IS NULL
-        `;
-        break;
+  case 'walk_in':
+    countQuery = `
+      SELECT (CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END) AS total
+      FROM orders
+      WHERE business_id = $1 AND customer_id IS NULL
+    `;
+    break;
 
-      case 'all':
-      default:
-        countQuery = `
-          WITH customers_data AS (
-            SELECT c.id FROM customers WHERE business_id = $1
-            UNION
-            SELECT 0::INT FROM orders WHERE business_id = $1 AND customer_id IS NULL
-          )
-          SELECT COUNT(*) AS total FROM customers_data
-        `;
-        break;
-    }
+  case 'all':
+  default:
+    countQuery = `
+      WITH customers_data AS (
+        SELECT c.id FROM customers WHERE business_id = $1
+        UNION
+        SELECT 0::INT FROM orders WHERE business_id = $1 AND customer_id IS NULL LIMIT 1
+      )
+      SELECT COUNT(*) AS total FROM customers_data
+    `;
+    break;
+}
 
     const countResult = await pool.query(countQuery, countParams);
     const total = parseInt(countResult.rows[0].total, 10);
