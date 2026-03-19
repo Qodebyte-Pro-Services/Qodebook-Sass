@@ -5,7 +5,10 @@ exports.addCustomer = async (req, res) => {
   try {
     const { business_id, name, phone, email } = req.body;
     if (!business_id || !name) return res.status(400).json({ message: 'business_id and name are required.' });
-    const result = await pool.query('INSERT INTO customers (business_id, name, phone, email) VALUES ($1, $2, $3, $4) RETURNING *', [business_id, name, phone, email]);
+    const result = await pool.query(
+      'INSERT INTO customers (business_id, name, phone, email, is_verified) VALUES ($1, $2, $3, $4, true) RETURNING *',
+      [business_id, name, phone, email]
+    );
     return res.status(201).json({ customer: result.rows[0] });
   } catch (err) {
     console.error(err);
