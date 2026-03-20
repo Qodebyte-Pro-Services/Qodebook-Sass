@@ -505,291 +505,266 @@ exports.overview = async (req, res) => {
     const start_date = req.query.start_date;
     const end_date = req.query.end_date;
 
-    
     const dateWhere = buildDateWhere(date_filter, start_date, end_date);
+    const expenseDateWhere = buildDateWhere(date_filter, start_date, end_date, "e.");
 
   
     const { clause: orderWhere, params: orderParams } = buildWhere(
       { business_id, branch_id },
       "o."
     );
-    const salesByCategoryResult = await pool.query(
-      `
-      SELECT c.name AS category, SUM(oi.total_price) AS total_sales
-      FROM order_items oi
-      JOIN orders o ON oi.order_id = o.id
-      JOIN variants v ON oi.variant_id = v.id
-      JOIN products p ON v.product_id = p.id
-      JOIN categories c ON p.category_id = c.id
-      WHERE o.status = 'completed'${orderWhere}${dateWhere}
-      GROUP BY c.name
-      ORDER BY total_sales DESC
-      `,
-      orderParams
-    );
-
-   
     const { clause: expenseWhere, params: expenseParams } = buildWhere(
       { business_id, branch_id },
       "e."
     );
-    const expenseByCategoryResult = await pool.query(
-      `
-      SELECT ec.name AS category, SUM(e.amount) AS total_expense
-      FROM expenses e
-      JOIN expense_categories ec ON e.category_id = ec.id
-      WHERE e.status = 'approved'${expenseWhere}
-      GROUP BY ec.name
-      ORDER BY total_expense DESC
-      `,
-      expenseParams
-    );
-
-   
     const { clause: budgetWhere, params: budgetParams } = buildWhere(
       { business_id, branch_id },
       "b."
     );
-    const budgetByCategoryResult = await pool.query(
-      `
-      SELECT ec.name AS category, SUM(b.amount) AS total_budget
-      FROM budgets b
-      JOIN expense_categories ec ON b.category_id = ec.id
-      WHERE TRUE${budgetWhere}
-      GROUP BY ec.name
-      ORDER BY total_budget DESC
-      `,
-      budgetParams
-    );
-
-    
-    const grossIncomeResult = await pool.query(
-      `
-      SELECT SUM(total_amount) AS gross_income
-      FROM orders o
-      WHERE o.status = 'completed'${orderWhere}${dateWhere}
-      `,
-      orderParams
-    );
-    const grossIncome = Number(grossIncomeResult.rows[0]?.gross_income || 0);
-
-   
     const { clause: productWhere, params: productParams } = buildWhere(
       { business_id, branch_id },
       "p."
     );
-    const cogsResult = await pool.query(
-      `
-      SELECT COALESCE(SUM(v.cost_price * oi.quantity), 0) AS cogs
-      FROM order_items oi
-      JOIN variants v ON oi.variant_id = v.id
-      JOIN products p ON v.product_id = p.id
-      JOIN orders o ON oi.order_id = o.id
-      WHERE o.status = 'completed'${orderWhere}${dateWhere}
-      `,
-      orderParams
+    const { clause: serviceWhere, params: serviceParams } = buildWhere(
+      { business_id, branch_id },
+      "s."
     );
-    const cogs = Number(cogsResult.rows[0]?.cogs || 0);
+    const countWhere = buildWhere({ business_id, branch_id }, "");
 
-
-    const totalExpenseResult = await pool.query(
-      `
-      SELECT SUM(amount) AS total_expense
-      FROM expenses e
-      WHERE e.status = 'approved'${expenseWhere}
-      `,
-      expenseParams
-    );
-    const totalExpense = Number(totalExpenseResult.rows[0]?.total_expense || 0);
-
-    const salesRevenueResult = await pool.query(
-  `
-  SELECT COALESCE(SUM(o.subtotal - o.discount_total - o.coupon_total), 0) AS sales_revenue
-  FROM orders o
-  WHERE o.status = 'completed'${orderWhere}${dateWhere}
-  `,
-  orderParams
-);
-const salesRevenue = Number(salesRevenueResult.rows[0]?.sales_revenue || 0);
-
-
-   const netIncome = salesRevenue - cogs - totalExpense;
-
-
-    const topProductsResult = await pool.query(
-      `
-      SELECT p.name, SUM(oi.quantity) AS units_sold, SUM(oi.total_price) AS total_sales
-      FROM order_items oi
-      JOIN orders o ON oi.order_id = o.id
-      JOIN variants v ON oi.variant_id = v.id
-      JOIN products p ON v.product_id = p.id
-      WHERE o.status = 'completed'${orderWhere}${dateWhere}
-      GROUP BY p.name
-      ORDER BY total_sales DESC
-      LIMIT 5
-      `,
-      orderParams
-    );
-
-   
-    const totalDiscountsResult = await pool.query(
-  `
-  SELECT 
-    COALESCE(SUM(o.discount_total), 0) 
-    + COALESCE(SUM(o.coupon_total), 0) AS total_discounts
-  FROM orders o
-  WHERE o.status = 'completed'
-  ${orderWhere}${dateWhere}
-  `,
-  orderParams
-);
-const discounts = Number(totalDiscountsResult.rows[0]?.total_discounts || 0);
-
-  const totalTaxesResult = await pool.query(
-  `
-  SELECT 
-    COALESCE(SUM(o.tax_total), 0) AS total_taxes
-  FROM orders o
-  WHERE o.status = 'completed'
-  ${orderWhere}${dateWhere}
-  `,
-  orderParams
-);
-const taxes = Number(totalTaxesResult.rows[0]?.total_taxes || 0);
-
-
-    const staffSalaryExpenseResult = await pool.query(
-      `
-      SELECT COALESCE(SUM(e.amount), 0) AS total_staff_salary_paid
-      FROM expenses e
-      JOIN expense_categories ec ON e.category_id = ec.id
-      WHERE e.status = 'approved' 
-      AND (LOWER(ec.name) = 'salary' OR e.staff_id IS NOT NULL)${expenseWhere}
-      `,
-      expenseParams
-    );
-    const totalStaffSalaryPaid = Number(
-      staffSalaryExpenseResult.rows[0]?.total_staff_salary_paid || 0
-    );
-
-
-  const counts = {};
-const tables = ["products", "staff", "customers", "services"];
-for (const table of tables) {
-  const { clause, params } = buildWhere({ business_id, branch_id }, "");
-  const result = await pool.query(
-    `SELECT COUNT(*) FROM ${table} WHERE TRUE${clause}`,
-    params
-  );
-  counts[table] = Number(result.rows[0]?.count || 0);
-}
-
-
-
-  
-   const variantsCountResult = await pool.query(
-  `
-  SELECT COUNT(*)
-  FROM variants v
-  JOIN products p ON v.product_id = p.id
-  WHERE TRUE${productWhere}
-  `,
-  productParams
-);
-    const variantsCount = Number(variantsCountResult.rows[0]?.count || 0);
-
-  const variantsInStockResult = await pool.query(
-  `
-  SELECT COUNT(*)
-  FROM variants v
-  JOIN products p ON v.product_id = p.id
-  WHERE v.quantity > 0${productWhere}
-  `,
-  productParams
-);
-    const variantsInStock = Number(variantsInStockResult.rows[0]?.count || 0);
-
-    
     const today = new Date().toISOString().slice(0, 10);
- const staffWithShiftTodayResult = await pool.query(
-  `
-  SELECT COUNT(DISTINCT staff_id) AS count
-  FROM staff_shifts s
-  WHERE work_days @> to_jsonb($1::text)
-  `,
-  [today]
-);
-    const staffWithShiftToday = Number(
-      staffWithShiftTodayResult.rows[0]?.count || 0
-    );
-
-  
-    const stockMovementResult = await pool.query(
-      `
-      SELECT COUNT(*) as movement_count, COALESCE(SUM(quantity),0) as total_qty
-      FROM inventory_logs
-      `,
-      []
-    );
-
-    const topStockMovementResult = await pool.query(
-      `
-      SELECT variant_id, SUM(quantity) as total_moved
-      FROM inventory_logs
-      GROUP BY variant_id
-      ORDER BY total_moved DESC
-      LIMIT 1
-      `,
-      []
-    );
-
-    
-    const topExpenseCategoryResult = await pool.query(
-      `
-      SELECT ec.name, SUM(e.amount) as total_expense
-      FROM expenses e
-      JOIN expense_categories ec ON e.category_id = ec.id
-      WHERE e.status = 'approved'${expenseWhere}
-      GROUP BY ec.name
-      ORDER BY total_expense DESC
-      LIMIT 1
-      `,
-      expenseParams
-    );
-
-    
-    const topBudgetCategoryResult = await pool.query(
-      `
-      SELECT ec.name, SUM(b.amount) as total_budget
-      FROM budgets b
-      JOIN expense_categories ec ON b.category_id = ec.id
-      WHERE TRUE${budgetWhere}
-      GROUP BY ec.name
-      ORDER BY total_budget DESC
-      LIMIT 1
-      `,
-      budgetParams
-    );
 
    
- const { clause: serviceWhere, params: serviceParams } = buildWhere(
-  { business_id, branch_id },
-  "s." 
-);
+    const [
+      salesByCategoryResult,
+      expenseByCategoryResult,
+      budgetByCategoryResult,
+      orderStatsResult,
+      cogsResult,
+      salesRevenueResult,
+      topProductsResult,
+      totalExpenseResult,
+      staffSalaryExpenseResult,
+      topExpenseCategoryResult,
+      topBudgetCategoryResult,
+      variantsCountResult,
+      variantsInStockResult,
+      staffWithShiftTodayResult,
+      stockMovementResult,
+      topStockMovementResult,
+      serviceTrackingResult,
+      productsCountResult,
+      staffCountResult,
+      customersCountResult,
+      servicesCountResult
+    ] = await Promise.all([
+     
+      pool.query(
+        `SELECT c.name AS category, SUM(oi.total_price) AS total_sales
+         FROM order_items oi
+         JOIN orders o ON oi.order_id = o.id
+         JOIN variants v ON oi.variant_id = v.id
+         JOIN products p ON v.product_id = p.id
+         JOIN categories c ON p.category_id = c.id
+         WHERE o.status = 'completed'${orderWhere}${dateWhere}
+         GROUP BY c.name
+         ORDER BY total_sales DESC`,
+        orderParams
+      ),
 
-const serviceTrackingResult = await pool.query(
-  `
-  SELECT s.name, COUNT(a.id) as usage_count, COALESCE(SUM(s.price),0) as total_revenue
-  FROM appointments a
-  JOIN services s ON a.service_id = s.id
-  WHERE TRUE${serviceWhere}
-  GROUP BY s.name
-  ORDER BY usage_count DESC
-  `,
-  serviceParams
-);
+     
+      pool.query(
+        `SELECT ec.name AS category, SUM(e.amount) AS total_expense
+         FROM expenses e
+         JOIN expense_categories ec ON e.category_id = ec.id
+         WHERE e.status = 'approved'${expenseWhere}
+         GROUP BY ec.name
+         ORDER BY total_expense DESC`,
+        expenseParams
+      ),
+
+   
+      pool.query(
+        `SELECT ec.name AS category, SUM(b.amount) AS total_budget
+         FROM budgets b
+         JOIN expense_categories ec ON b.category_id = ec.id
+         WHERE TRUE${budgetWhere}
+         GROUP BY ec.name
+         ORDER BY total_budget DESC`,
+        budgetParams
+      ),
 
     
+      pool.query(
+        `SELECT 
+          SUM(total_amount) AS gross_income,
+          COALESCE(SUM(discount_total + coupon_total), 0) AS total_discounts,
+          COALESCE(SUM(tax_total), 0) AS total_taxes
+         FROM orders o
+         WHERE o.status = 'completed'${orderWhere}${dateWhere}`,
+        orderParams
+      ),
+
+     
+      pool.query(
+        `SELECT COALESCE(SUM(v.cost_price * oi.quantity), 0) AS cogs
+         FROM order_items oi
+         JOIN variants v ON oi.variant_id = v.id
+         JOIN products p ON v.product_id = p.id
+         JOIN orders o ON oi.order_id = o.id
+         WHERE o.status = 'completed'${orderWhere}${dateWhere}`,
+        orderParams
+      ),
+ 
+      pool.query(
+        `SELECT COALESCE(SUM(o.subtotal - o.discount_total - o.coupon_total), 0) AS sales_revenue
+         FROM orders o
+         WHERE o.status = 'completed'${orderWhere}${dateWhere}`,
+        orderParams
+      ),
+
+    
+      pool.query(
+        `SELECT p.name, SUM(oi.quantity) AS units_sold, SUM(oi.total_price) AS total_sales
+         FROM order_items oi
+         JOIN orders o ON oi.order_id = o.id
+         JOIN variants v ON oi.variant_id = v.id
+         JOIN products p ON v.product_id = p.id
+         WHERE o.status = 'completed'${orderWhere}${dateWhere}
+         GROUP BY p.name
+         ORDER BY total_sales DESC
+         LIMIT 5`,
+        orderParams
+      ),
+
+     
+      pool.query(
+        `SELECT SUM(amount) AS total_expense
+         FROM expenses e
+         WHERE e.status = 'approved'${expenseWhere}${expenseDateWhere}`,
+        expenseParams
+      ),
+
+    
+      pool.query(
+        `SELECT COALESCE(SUM(e.amount), 0) AS total_staff_salary_paid
+         FROM expenses e
+         JOIN expense_categories ec ON e.category_id = ec.id
+         WHERE e.status = 'approved' 
+         AND (LOWER(ec.name) = 'salary' OR e.staff_id IS NOT NULL)${expenseWhere}${expenseDateWhere}`,
+        expenseParams
+      ),
+
+     
+      pool.query(
+        `SELECT ec.name, SUM(e.amount) as total_expense
+         FROM expenses e
+         JOIN expense_categories ec ON e.category_id = ec.id
+         WHERE e.status = 'approved'${expenseWhere}
+         GROUP BY ec.name
+         ORDER BY total_expense DESC
+         LIMIT 1`,
+        expenseParams
+      ),
+
+    
+      pool.query(
+        `SELECT ec.name, SUM(b.amount) as total_budget
+         FROM budgets b
+         JOIN expense_categories ec ON b.category_id = ec.id
+         WHERE TRUE${budgetWhere}
+         GROUP BY ec.name
+         ORDER BY total_budget DESC
+         LIMIT 1`,
+        budgetParams
+      ),
+
+     
+      pool.query(
+        `SELECT COUNT(*) as count
+         FROM variants v
+         JOIN products p ON v.product_id = p.id
+         WHERE TRUE${productWhere}`,
+        productParams
+      ),
+
+   
+      pool.query(
+        `SELECT COUNT(*) as count
+         FROM variants v
+         JOIN products p ON v.product_id = p.id
+         WHERE v.quantity > 0${productWhere}`,
+        productParams
+      ),
+
+   
+      pool.query(
+        `SELECT COUNT(DISTINCT staff_id) AS count
+         FROM staff_shifts s
+         WHERE work_days @> to_jsonb($1::text)`,
+        [today]
+      ),
+
+     
+      pool.query(
+        `SELECT COUNT(*) as movement_count, COALESCE(SUM(quantity),0) as total_qty
+         FROM inventory_logs`,
+        []
+      ),
+
+    
+      pool.query(
+        `SELECT variant_id, SUM(quantity) as total_moved
+         FROM inventory_logs
+         GROUP BY variant_id
+         ORDER BY total_moved DESC
+         LIMIT 1`,
+        []
+      ),
+
+    
+      pool.query(
+        `SELECT s.name, COUNT(a.id) as usage_count, COALESCE(SUM(s.price),0) as total_revenue
+         FROM appointments a
+         JOIN services s ON a.service_id = s.id
+         WHERE TRUE${serviceWhere}
+         GROUP BY s.name
+         ORDER BY usage_count DESC`,
+        serviceParams
+      ),
+
+      
+      pool.query(
+        `SELECT COUNT(*) as count FROM products WHERE TRUE${countWhere.clause}`,
+        countWhere.params
+      ),
+      pool.query(
+        `SELECT COUNT(*) as count FROM staff WHERE TRUE${countWhere.clause}`,
+        countWhere.params
+      ),
+      pool.query(
+        `SELECT COUNT(*) as count FROM customers WHERE TRUE${countWhere.clause}`,
+        countWhere.params
+      ),
+      pool.query(
+        `SELECT COUNT(*) as count FROM services WHERE TRUE${countWhere.clause}`,
+        countWhere.params
+      ),
+    ]);
+
+   
+    const grossIncome = Number(orderStatsResult.rows[0]?.gross_income || 0);
+    const discounts = Number(orderStatsResult.rows[0]?.total_discounts || 0);
+    const taxes = Number(orderStatsResult.rows[0]?.total_taxes || 0);
+    const cogs = Number(cogsResult.rows[0]?.cogs || 0);
+    const salesRevenue = Number(salesRevenueResult.rows[0]?.sales_revenue || 0);
+    const totalExpense = Number(totalExpenseResult.rows[0]?.total_expense || 0);
+    const totalStaffSalaryPaid = Number(staffSalaryExpenseResult.rows[0]?.total_staff_salary_paid || 0);
+    const variantsCount = Number(variantsCountResult.rows[0]?.count || 0);
+    const variantsInStock = Number(variantsInStockResult.rows[0]?.count || 0);
+    const staffWithShiftToday = Number(staffWithShiftTodayResult.rows[0]?.count || 0);
+    const netIncome = salesRevenue - cogs - totalExpense;
+
+  
     res.json({
       salesByCategory: salesByCategoryResult.rows,
       expenseByCategory: expenseByCategoryResult.rows,
@@ -802,12 +777,12 @@ const serviceTrackingResult = await pool.query(
       discounts,
       taxes,
       totalStaffSalaryPaid,
-      productsCount: counts.products,
+      productsCount: Number(productsCountResult.rows[0]?.count || 0),
       variantsCount,
       variantsInStock,
-      staffCount: counts.staff,
-      customersCount: counts.customers,
-      servicesCount: counts.services,
+      staffCount: Number(staffCountResult.rows[0]?.count || 0),
+      customersCount: Number(customersCountResult.rows[0]?.count || 0),
+      servicesCount: Number(servicesCountResult.rows[0]?.count || 0),
       staffWithShiftToday,
       stockMovement: stockMovementResult.rows[0],
       topStockMovement: topStockMovementResult.rows[0],
@@ -820,6 +795,340 @@ const serviceTrackingResult = await pool.query(
     res.status(500).json({ message: "Failed to fetch analytics overview." });
   }
 };
+
+// exports.overview = async (req, res) => {
+//   try {
+//     const business_id = req.query.business_id
+//       ? parseInt(req.query.business_id, 10)
+//       : req.business_id;
+
+//     const branch_id = req.query.branch_id
+//       ? parseInt(req.query.branch_id, 10)
+//       : req.branch_id;
+
+//     const date_filter = req.query.date_filter;
+//     const start_date = req.query.start_date;
+//     const end_date = req.query.end_date;
+
+    
+//     const dateWhere = buildDateWhere(date_filter, start_date, end_date);
+
+//     const expenseDateWhere = buildDateWhere(date_filter, start_date, end_date, "e.");
+
+
+  
+//     const { clause: orderWhere, params: orderParams } = buildWhere(
+//       { business_id, branch_id },
+//       "o."
+//     );
+//     const salesByCategoryResult = await pool.query(
+//       `
+//       SELECT c.name AS category, SUM(oi.total_price) AS total_sales
+//       FROM order_items oi
+//       JOIN orders o ON oi.order_id = o.id
+//       JOIN variants v ON oi.variant_id = v.id
+//       JOIN products p ON v.product_id = p.id
+//       JOIN categories c ON p.category_id = c.id
+//       WHERE o.status = 'completed'${orderWhere}${dateWhere}
+//       GROUP BY c.name
+//       ORDER BY total_sales DESC
+//       `,
+//       orderParams
+//     );
+
+   
+//     const { clause: expenseWhere, params: expenseParams } = buildWhere(
+//       { business_id, branch_id },
+//       "e."
+//     );
+//     const expenseByCategoryResult = await pool.query(
+//       `
+//       SELECT ec.name AS category, SUM(e.amount) AS total_expense
+//       FROM expenses e
+//       JOIN expense_categories ec ON e.category_id = ec.id
+//       WHERE e.status = 'approved'${expenseWhere}
+//       GROUP BY ec.name
+//       ORDER BY total_expense DESC
+//       `,
+//       expenseParams
+//     );
+
+   
+//     const { clause: budgetWhere, params: budgetParams } = buildWhere(
+//       { business_id, branch_id },
+//       "b."
+//     );
+//     const budgetByCategoryResult = await pool.query(
+//       `
+//       SELECT ec.name AS category, SUM(b.amount) AS total_budget
+//       FROM budgets b
+//       JOIN expense_categories ec ON b.category_id = ec.id
+//       WHERE TRUE${budgetWhere}
+//       GROUP BY ec.name
+//       ORDER BY total_budget DESC
+//       `,
+//       budgetParams
+//     );
+
+    
+//     const grossIncomeResult = await pool.query(
+//       `
+//       SELECT SUM(total_amount) AS gross_income
+//       FROM orders o
+//       WHERE o.status = 'completed'${orderWhere}${dateWhere}
+//       `,
+//       orderParams
+//     );
+//     const grossIncome = Number(grossIncomeResult.rows[0]?.gross_income || 0);
+
+   
+//     const { clause: productWhere, params: productParams } = buildWhere(
+//       { business_id, branch_id },
+//       "p."
+//     );
+//     const cogsResult = await pool.query(
+//       `
+//       SELECT COALESCE(SUM(v.cost_price * oi.quantity), 0) AS cogs
+//       FROM order_items oi
+//       JOIN variants v ON oi.variant_id = v.id
+//       JOIN products p ON v.product_id = p.id
+//       JOIN orders o ON oi.order_id = o.id
+//       WHERE o.status = 'completed'${orderWhere}${dateWhere}
+//       `,
+//       orderParams
+//     );
+//     const cogs = Number(cogsResult.rows[0]?.cogs || 0);
+
+
+//    const totalExpenseResult = await pool.query(
+//   `
+//   SELECT SUM(amount) AS total_expense
+//   FROM expenses e
+//   WHERE e.status = 'approved'${expenseWhere}${expenseDateWhere}
+//   `,
+//   expenseParams
+// );
+
+//     const totalExpense = Number(totalExpenseResult.rows[0]?.total_expense || 0);
+
+//     const salesRevenueResult = await pool.query(
+//   `
+//   SELECT COALESCE(SUM(o.subtotal - o.discount_total - o.coupon_total), 0) AS sales_revenue
+//   FROM orders o
+//   WHERE o.status = 'completed'${orderWhere}${dateWhere}
+//   `,
+//   orderParams
+// );
+// const salesRevenue = Number(salesRevenueResult.rows[0]?.sales_revenue || 0);
+
+
+//    const netIncome = salesRevenue - cogs - totalExpense;
+
+
+//     const topProductsResult = await pool.query(
+//       `
+//       SELECT p.name, SUM(oi.quantity) AS units_sold, SUM(oi.total_price) AS total_sales
+//       FROM order_items oi
+//       JOIN orders o ON oi.order_id = o.id
+//       JOIN variants v ON oi.variant_id = v.id
+//       JOIN products p ON v.product_id = p.id
+//       WHERE o.status = 'completed'${orderWhere}${dateWhere}
+//       GROUP BY p.name
+//       ORDER BY total_sales DESC
+//       LIMIT 5
+//       `,
+//       orderParams
+//     );
+
+   
+//     const totalDiscountsResult = await pool.query(
+//   `
+//   SELECT 
+//     COALESCE(SUM(o.discount_total), 0) 
+//     + COALESCE(SUM(o.coupon_total), 0) AS total_discounts
+//   FROM orders o
+//   WHERE o.status = 'completed'
+//   ${orderWhere}${dateWhere}
+//   `,
+//   orderParams
+// );
+// const discounts = Number(totalDiscountsResult.rows[0]?.total_discounts || 0);
+
+//   const totalTaxesResult = await pool.query(
+//   `
+//   SELECT 
+//     COALESCE(SUM(o.tax_total), 0) AS total_taxes
+//   FROM orders o
+//   WHERE o.status = 'completed'
+//   ${orderWhere}${dateWhere}
+//   `,
+//   orderParams
+// );
+// const taxes = Number(totalTaxesResult.rows[0]?.total_taxes || 0);
+
+
+//  const staffSalaryExpenseResult = await pool.query(
+//   `
+//   SELECT COALESCE(SUM(e.amount), 0) AS total_staff_salary_paid
+//   FROM expenses e
+//   JOIN expense_categories ec ON e.category_id = ec.id
+//   WHERE e.status = 'approved' 
+//   AND (LOWER(ec.name) = 'salary' OR e.staff_id IS NOT NULL)${expenseWhere}${expenseDateWhere}
+//   `,
+//   expenseParams
+// );
+//     const totalStaffSalaryPaid = Number(
+//       staffSalaryExpenseResult.rows[0]?.total_staff_salary_paid || 0
+//     );
+
+
+//   const counts = {};
+// const tables = ["products", "staff", "customers", "services"];
+// for (const table of tables) {
+//   const { clause, params } = buildWhere({ business_id, branch_id }, "");
+//   const result = await pool.query(
+//     `SELECT COUNT(*) FROM ${table} WHERE TRUE${clause}`,
+//     params
+//   );
+//   counts[table] = Number(result.rows[0]?.count || 0);
+// }
+
+
+
+  
+//    const variantsCountResult = await pool.query(
+//   `
+//   SELECT COUNT(*)
+//   FROM variants v
+//   JOIN products p ON v.product_id = p.id
+//   WHERE TRUE${productWhere}
+//   `,
+//   productParams
+// );
+//     const variantsCount = Number(variantsCountResult.rows[0]?.count || 0);
+
+//   const variantsInStockResult = await pool.query(
+//   `
+//   SELECT COUNT(*)
+//   FROM variants v
+//   JOIN products p ON v.product_id = p.id
+//   WHERE v.quantity > 0${productWhere}
+//   `,
+//   productParams
+// );
+//     const variantsInStock = Number(variantsInStockResult.rows[0]?.count || 0);
+
+    
+//     const today = new Date().toISOString().slice(0, 10);
+//  const staffWithShiftTodayResult = await pool.query(
+//   `
+//   SELECT COUNT(DISTINCT staff_id) AS count
+//   FROM staff_shifts s
+//   WHERE work_days @> to_jsonb($1::text)
+//   `,
+//   [today]
+// );
+//     const staffWithShiftToday = Number(
+//       staffWithShiftTodayResult.rows[0]?.count || 0
+//     );
+
+  
+//     const stockMovementResult = await pool.query(
+//       `
+//       SELECT COUNT(*) as movement_count, COALESCE(SUM(quantity),0) as total_qty
+//       FROM inventory_logs
+//       `,
+//       []
+//     );
+
+//     const topStockMovementResult = await pool.query(
+//       `
+//       SELECT variant_id, SUM(quantity) as total_moved
+//       FROM inventory_logs
+//       GROUP BY variant_id
+//       ORDER BY total_moved DESC
+//       LIMIT 1
+//       `,
+//       []
+//     );
+
+    
+//     const topExpenseCategoryResult = await pool.query(
+//       `
+//       SELECT ec.name, SUM(e.amount) as total_expense
+//       FROM expenses e
+//       JOIN expense_categories ec ON e.category_id = ec.id
+//       WHERE e.status = 'approved'${expenseWhere}
+//       GROUP BY ec.name
+//       ORDER BY total_expense DESC
+//       LIMIT 1
+//       `,
+//       expenseParams
+//     );
+
+    
+//     const topBudgetCategoryResult = await pool.query(
+//       `
+//       SELECT ec.name, SUM(b.amount) as total_budget
+//       FROM budgets b
+//       JOIN expense_categories ec ON b.category_id = ec.id
+//       WHERE TRUE${budgetWhere}
+//       GROUP BY ec.name
+//       ORDER BY total_budget DESC
+//       LIMIT 1
+//       `,
+//       budgetParams
+//     );
+
+   
+//  const { clause: serviceWhere, params: serviceParams } = buildWhere(
+//   { business_id, branch_id },
+//   "s." 
+// );
+
+// const serviceTrackingResult = await pool.query(
+//   `
+//   SELECT s.name, COUNT(a.id) as usage_count, COALESCE(SUM(s.price),0) as total_revenue
+//   FROM appointments a
+//   JOIN services s ON a.service_id = s.id
+//   WHERE TRUE${serviceWhere}
+//   GROUP BY s.name
+//   ORDER BY usage_count DESC
+//   `,
+//   serviceParams
+// );
+
+    
+//     res.json({
+//       salesByCategory: salesByCategoryResult.rows,
+//       expenseByCategory: expenseByCategoryResult.rows,
+//       budgetByCategory: budgetByCategoryResult.rows,
+//       totalExpense,
+//       grossIncome,
+//       cogs,
+//       netIncome,
+//       topProducts: topProductsResult.rows,
+//       discounts,
+//       taxes,
+//       totalStaffSalaryPaid,
+//       productsCount: counts.products,
+//       variantsCount,
+//       variantsInStock,
+//       staffCount: counts.staff,
+//       customersCount: counts.customers,
+//       servicesCount: counts.services,
+//       staffWithShiftToday,
+//       stockMovement: stockMovementResult.rows[0],
+//       topStockMovement: topStockMovementResult.rows[0],
+//       topExpenseCategory: topExpenseCategoryResult.rows[0],
+//       topBudgetCategory: topBudgetCategoryResult.rows[0],
+//       serviceTracking: serviceTrackingResult.rows,
+//     });
+//   } catch (err) {
+//     console.error("Analytics overview error:");
+//     res.status(500).json({ message: "Failed to fetch analytics overview." });
+//   }
+// };
 
   exports.variationAnalytics = async (req, res) => {
   try {
