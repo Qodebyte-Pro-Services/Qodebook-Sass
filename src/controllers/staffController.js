@@ -1045,10 +1045,14 @@ exports.staffLogin = async (req, res) => {
         ORDER BY login_time DESC LIMIT 1
       `, [staff.staff_id, business_id]);
 
-      if (activeSession.rows.length > 0) {
-        return res.status(403).json({
-          message: "Another active session exists. Please logout first.",
-        });
+        if (activeSession.rows.length > 0) {
+        await pool.query(`
+          UPDATE staff_login_logs
+          SET logout_time = NOW(), logout_reason = 'new_login_session'
+          WHERE staff_id = $1
+          AND business_id = $2
+          AND logout_time IS NULL
+        `, [staff.staff_id, business_id]);
       }
 
     const settings = await getBusinessStaffSettings(business_id, staff.branch_id);
