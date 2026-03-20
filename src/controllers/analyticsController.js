@@ -585,9 +585,9 @@ exports.overview = async (req, res) => {
       JOIN variants v ON oi.variant_id = v.id
       JOIN products p ON v.product_id = p.id
       JOIN orders o ON oi.order_id = o.id
-      WHERE o.status = 'completed'${productWhere}${dateWhere}
+      WHERE o.status = 'completed'${orderWhere}${dateWhere}
       `,
-      productParams
+      orderParams
     );
     const cogs = Number(cogsResult.rows[0]?.cogs || 0);
 
@@ -602,7 +602,18 @@ exports.overview = async (req, res) => {
     );
     const totalExpense = Number(totalExpenseResult.rows[0]?.total_expense || 0);
 
-    const netIncome = grossIncome - cogs - totalExpense;
+    const salesRevenueResult = await pool.query(
+  `
+  SELECT COALESCE(SUM(o.subtotal - o.discount_total - o.coupon_total), 0) AS sales_revenue
+  FROM orders o
+  WHERE o.status = 'completed'${orderWhere}${dateWhere}
+  `,
+  orderParams
+);
+const salesRevenue = Number(salesRevenueResult.rows[0]?.sales_revenue || 0);
+
+
+   const netIncome = salesRevenue - cogs - totalExpense;
 
 
     const topProductsResult = await pool.query(
@@ -783,6 +794,7 @@ const serviceTrackingResult = await pool.query(
       salesByCategory: salesByCategoryResult.rows,
       expenseByCategory: expenseByCategoryResult.rows,
       budgetByCategory: budgetByCategoryResult.rows,
+      totalExpense,
       grossIncome,
       cogs,
       netIncome,
