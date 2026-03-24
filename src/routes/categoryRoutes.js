@@ -33,7 +33,7 @@ const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
  *       409:
  *         description: Category name already exists
  */
-router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_CATEGORY), rateLimitMiddleware, categoryController.createCategory);
+router.post('/', ...requirePermission(PRODUCT_PERMISSIONS.CREATE_PRODUCT_CATEGORIES), rateLimitMiddleware, categoryController.createCategory);
 
 /**
  * @swagger
@@ -88,7 +88,7 @@ router.get('/', ...requirePermission(PRODUCT_PERMISSIONS.VIEW_PRODUCT_CATEGORIES
  *       409:
  *         description: Category name already exists
  */
-router.put('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_CATEGORY), rateLimitMiddleware, categoryController.updateCategory);
+router.put('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_PRODUCT_CATEGORIES), rateLimitMiddleware, categoryController.updateCategory);
 
 /**
  * @swagger
@@ -109,7 +109,7 @@ router.put('/:id', ...requirePermission(PRODUCT_PERMISSIONS.UPDATE_CATEGORY), ra
  *       200:
  *         description: Category deleted
  */
-router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_CATEGORY), rateLimitMiddleware, categoryController.deleteCategory);
+router.delete('/:id', ...requirePermission(PRODUCT_PERMISSIONS.DELETE_PRODUCT_CATEGORIES), rateLimitMiddleware, categoryController.deleteCategory);
 
 /**
  * @swagger
