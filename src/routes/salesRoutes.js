@@ -130,6 +130,22 @@ router.post('/create', ...requirePermission(SALES_PERMISSIONS.CREATE_SALE), rate
  */
 router.get('/', ...requirePermission(SALES_PERMISSIONS.VIEW_SALES), salesController.listSales);
 
+
+
+/**
+ * @swagger
+ * /api/sales/staff_sales_kpis:
+ *   get:
+ *     summary: List all Staff sales and KPIs for the current day
+ *     tags: [Sales]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of sales
+ */
+router.get('/staff_sales_kpis', ...requirePermission(SALES_PERMISSIONS.VIEW_SALES), salesController.getStaffSalesKPIs);
+
 /**
  * @swagger
  * /api/sales/{id}:

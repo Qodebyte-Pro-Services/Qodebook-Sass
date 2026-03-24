@@ -313,6 +313,136 @@ exports.listSales = async (req, res) => {
   }
 };
 
+exports.listStaffSalesAndKpi = async (req, res) => {
+  try {
+    const staff_id = req.user.staff_id;
+    
+    if (!staff_id) {
+      return res.status(400).json({ message: "Staff ID not found in token." });
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const query = `
+      SELECT 
+        o.*,
+        c.name AS customer_name, 
+        c.phone AS customer_phone, 
+        c.email AS customer_email,
+        b.branch_name AS branch_name,
+        COALESCE(s.full_name, CONCAT(u.first_name, ' ', u.last_name), '') AS recorded_by_name,
+
+        -- compute totals
+        COALESCE(SUM(op.amount), 0) AS total_paid,
+        (o.subtotal + o.tax_total - o.discount_total - o.coupon_total) AS total_due,
+        ((o.subtotal + o.tax_total - o.discount_total - o.coupon_total) - COALESCE(SUM(op.amount), 0)) AS balance,
+
+        -- aggregate payment details
+        COALESCE(
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'id', op.id,
+              'method', op.method,
+              'amount', op.amount,
+              'reference', op.reference,
+              'paid_at', op.paid_at
+            )
+          ) FILTER (WHERE op.id IS NOT NULL),
+          '[]'
+        ) AS payments
+
+      FROM orders o
+      LEFT JOIN customers c ON o.customer_id = c.id
+      LEFT JOIN branches b ON o.branch_id = b.id
+      LEFT JOIN staff s ON o.staff_id = s.staff_id
+      LEFT JOIN users u ON o.created_by_user_id = u.id
+      LEFT JOIN order_payments op ON o.id = op.order_id
+
+      WHERE o.status = 'completed' 
+        AND o.staff_id = $1
+        AND o.created_at >= $2 
+        AND o.created_at < $3
+
+      GROUP BY 
+        o.id, c.name, c.phone, c.email, b.branch_name, s.full_name, u.first_name, u.last_name
+      ORDER BY o.created_at DESC
+    `;
+
+    const result = await pool.query(query, [staff_id, today, tomorrow]);
+    const sales = result.rows;
+
+   
+    const kpis = {
+      total_transactions: sales.length,
+      total_sales_amount: 0,
+      total_discount: 0,
+      total_tax: 0,
+      order_type_breakdown: {
+        walk_in: { count: 0, percentage: 0 },
+        online_order: { count: 0, percentage: 0 }
+      },
+      payment_method_breakdown: {}
+    };
+
+   
+    sales.forEach(sale => {
+      kpis.total_sales_amount += parseFloat(sale.total_amount) || 0;
+      kpis.total_discount += parseFloat(sale.discount_total) || 0;
+      kpis.total_tax += parseFloat(sale.tax_total) || 0;
+
+     
+      const orderType = sale.order_type || 'walk_in';
+      if (kpis.order_type_breakdown[orderType] !== undefined) {
+        kpis.order_type_breakdown[orderType].count++;
+      }
+
+    
+      if (Array.isArray(sale.payments) && sale.payments.length > 0) {
+        sale.payments.forEach(payment => {
+          const method = payment.method || 'unknown';
+          if (!kpis.payment_method_breakdown[method]) {
+            kpis.payment_method_breakdown[method] = { count: 0, amount: 0 };
+          }
+          kpis.payment_method_breakdown[method].count++;
+          kpis.payment_method_breakdown[method].amount += parseFloat(payment.amount) || 0;
+        });
+      }
+    });
+
+  
+    const totalOrders = kpis.total_transactions || 1;
+    Object.keys(kpis.order_type_breakdown).forEach(type => {
+      kpis.order_type_breakdown[type].percentage = parseFloat(
+        ((kpis.order_type_breakdown[type].count / totalOrders) * 100).toFixed(2)
+      );
+    });
+
+   
+    const totalPayments = Object.values(kpis.payment_method_breakdown).reduce((sum, m) => sum + m.count, 0) || 1;
+    Object.keys(kpis.payment_method_breakdown).forEach(method => {
+      kpis.payment_method_breakdown[method].percentage = parseFloat(
+        ((kpis.payment_method_breakdown[method].count / totalPayments) * 100).toFixed(2)
+      );
+    });
+
+   
+    kpis.total_sales_amount = parseFloat(kpis.total_sales_amount.toFixed(2));
+    kpis.total_discount = parseFloat(kpis.total_discount.toFixed(2));
+    kpis.total_tax = parseFloat(kpis.total_tax.toFixed(2));
+
+    return res.status(200).json({ 
+      sales: sales,
+      kpis: kpis,
+      date: today.toISOString().split('T')[0],
+      staff_id: staff_id
+    });
+  } catch (err) {
+    console.error('❌ Error listing staff sales and KPI:', err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
 
   exports.getSale = async (req, res) => {
   try {
