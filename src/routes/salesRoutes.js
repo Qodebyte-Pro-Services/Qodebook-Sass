@@ -144,7 +144,7 @@ router.get('/', ...requirePermission(SALES_PERMISSIONS.VIEW_SALES), salesControl
  *       200:
  *         description: List of sales
  */
-router.get('/staff_sales_kpis', ...requirePermission(SALES_PERMISSIONS.VIEW_SALES), salesController.getStaffSalesKPIs);
+router.get('/staff_sales_kpis', ...requirePermission(SALES_PERMISSIONS.VIEW_SALES), salesController.listStaffSalesAndKpi);
 
 /**
  * @swagger
