@@ -209,7 +209,7 @@ exports.getVariantsByBusiness = async (req, res) => {
     }
 
     const result = await pool.query(`
-      SELECT v.*
+      SELECT v.*, p.category_id
       FROM variants v
       JOIN products p ON v.product_id = p.id
       WHERE p.business_id = $1
