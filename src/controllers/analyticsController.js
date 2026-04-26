@@ -488,7 +488,7 @@ function buildDateWhere(date_filter, start_date, end_date, alias = "o.") {
     default:
       return "";
   }
-}
+};
 
 
 exports.overview = async (req, res) => {
@@ -1321,7 +1321,7 @@ exports.stockAnalytics = async (req, res) => {
 
     if (!business_id) return res.status(400).json({ message: 'Business ID is required' });
 
-    // For current stock (no date filter or today) - use variants table for performance
+  
     if (!date_filter || date_filter === 'today') {
       let params = [business_id];
       let wheres = ['p.business_id = $1'];
@@ -1338,12 +1338,19 @@ exports.stockAnalytics = async (req, res) => {
       const stockMetricsResult = await pool.query(
         `
         SELECT 
-          COALESCE(SUM(v.quantity), 0) AS total_stock,
-          COUNT(CASE WHEN v.quantity = 0 THEN 1 END) AS out_of_stock,
-          COUNT(CASE WHEN v.quantity <= COALESCE(v.threshold, 0) AND v.quantity > 0 THEN 1 END) AS low_stock,
-          COUNT(CASE WHEN v.quantity > 0 THEN 1 END) AS in_stock,
-          COALESCE(SUM(v.cost_price * v.quantity), 0) AS inventory_value,
-          COALESCE(SUM(v.selling_price * v.quantity), 0) AS potential_sale_value
+          COALESCE(SUM(CASE WHEN LOWER(p.unit) != 'kg' OR p.unit IS NULL THEN v.quantity ELSE 0 END), 0) AS total_stock,
+          COUNT(CASE WHEN (LOWER(p.unit) != 'kg' OR p.unit IS NULL) AND v.quantity = 0 THEN 1 END) AS out_of_stock,
+          COUNT(CASE WHEN (LOWER(p.unit) != 'kg' OR p.unit IS NULL) AND v.quantity <= COALESCE(v.threshold, 0) AND v.quantity > 0 THEN 1 END) AS low_stock,
+          COUNT(CASE WHEN (LOWER(p.unit) != 'kg' OR p.unit IS NULL) AND v.quantity > 0 THEN 1 END) AS in_stock,
+          COALESCE(SUM(CASE WHEN LOWER(p.unit) != 'kg' OR p.unit IS NULL THEN v.cost_price * v.quantity ELSE 0 END), 0) AS inventory_value,
+          COALESCE(SUM(CASE WHEN LOWER(p.unit) != 'kg' OR p.unit IS NULL THEN v.selling_price * v.quantity ELSE 0 END), 0) AS potential_sale_value,
+          
+          COALESCE(SUM(CASE WHEN LOWER(p.unit) = 'kg' THEN v.quantity ELSE 0 END), 0) AS kg_total_stock,
+          COUNT(CASE WHEN LOWER(p.unit) = 'kg' AND v.quantity = 0 THEN 1 END) AS kg_out_of_stock,
+          COUNT(CASE WHEN LOWER(p.unit) = 'kg' AND v.quantity <= COALESCE(v.threshold, 0) AND v.quantity > 0 THEN 1 END) AS kg_low_stock,
+          COUNT(CASE WHEN LOWER(p.unit) = 'kg' AND v.quantity > 0 THEN 1 END) AS kg_in_stock,
+          COALESCE(SUM(CASE WHEN LOWER(p.unit) = 'kg' THEN v.cost_price * v.quantity ELSE 0 END), 0) AS kg_inventory_value,
+          COALESCE(SUM(CASE WHEN LOWER(p.unit) = 'kg' THEN v.selling_price * v.quantity ELSE 0 END), 0) AS kg_potential_sale_value
         FROM variants v
         JOIN products p ON v.product_id = p.id
         ${whereClause}
@@ -1358,11 +1365,18 @@ exports.stockAnalytics = async (req, res) => {
         lowStock: Number(row?.low_stock || 0),
         inStock: Number(row?.in_stock || 0),
         inventoryValue: Number(row?.inventory_value || 0),
-        potentialSaleValue: Number(row?.potential_sale_value || 0)
+        potentialSaleValue: Number(row?.potential_sale_value || 0),
+        
+        kgTotalStock: Number(row?.kg_total_stock || 0),
+        kgOutOfStock: Number(row?.kg_out_of_stock || 0),
+        kgLowStock: Number(row?.kg_low_stock || 0),
+        kgInStock: Number(row?.kg_in_stock || 0),
+        kgInventoryValue: Number(row?.kg_inventory_value || 0),
+        kgPotentialSaleValue: Number(row?.kg_potential_sale_value || 0)
       });
     }
 
-    // For historical data - reconstruct from inventory_logs
+  
     let params = [business_id];
     let idx = 2;
     let productWhere = `p.business_id = $1`;
@@ -1373,28 +1387,25 @@ exports.stockAnalytics = async (req, res) => {
       idx++;
     }
 
-    // Determine the cutoff date for historical reconstruction
+ 
     let cutoffCondition = '';
     if (date_filter === 'yesterday') {
       cutoffCondition = `AND il.created_at < CURRENT_DATE`;
     } else if (date_filter === 'this_week') {
       cutoffCondition = `AND il.created_at >= date_trunc('week', CURRENT_DATE)`;
     } else if (date_filter === 'last_7_days') {
-      // For last 7 days, we want the state at the end of each day, but since this is analytics,
-      // let's get the state as of the end of the 7-day period
       cutoffCondition = `AND il.created_at < CURRENT_DATE - INTERVAL '7 days' + INTERVAL '7 days'`;
     } else if (date_filter === 'this_month') {
       cutoffCondition = `AND il.created_at >= date_trunc('month', CURRENT_DATE)`;
     } else if (date_filter === 'this_year') {
       cutoffCondition = `AND il.created_at >= date_trunc('year', CURRENT_DATE)`;
     } else if (date_filter === 'custom' && start_date && end_date) {
-      // For custom range, get stock levels at the END of the end_date
       cutoffCondition = `AND il.created_at <= $${idx}::timestamp + INTERVAL '1 day' - INTERVAL '1 second'`;
       params.push(end_date);
       idx++;
     }
 
-    // Reconstruct historical stock levels from inventory logs
+
     const query = `
       WITH variant_initial_states AS (
         -- Get initial state for each variant (assuming initial quantity was 0)
@@ -1403,6 +1414,7 @@ exports.stockAnalytics = async (req, res) => {
           v.cost_price,
           v.selling_price,
           v.threshold,
+          p.unit,
           0 as initial_quantity
         FROM variants v
         JOIN products p ON v.product_id = p.id
@@ -1435,17 +1447,25 @@ exports.stockAnalytics = async (req, res) => {
           vis.cost_price,
           vis.selling_price,
           vis.threshold,
+          vis.unit,
           GREATEST(vis.initial_quantity + COALESCE(vm.net_movement, 0), 0) as historical_quantity
         FROM variant_initial_states vis
         LEFT JOIN variant_movements vm ON vis.variant_id = vm.variant_id
       )
       SELECT 
-        COALESCE(SUM(historical_quantity), 0) AS total_stock,
-        COUNT(CASE WHEN historical_quantity = 0 THEN 1 END) AS out_of_stock,
-        COUNT(CASE WHEN historical_quantity <= COALESCE(threshold, 0) AND historical_quantity > 0 THEN 1 END) AS low_stock,
-        COUNT(CASE WHEN historical_quantity > 0 THEN 1 END) AS in_stock,
-        COALESCE(SUM(cost_price * historical_quantity), 0) AS inventory_value,
-        COALESCE(SUM(selling_price * historical_quantity), 0) AS potential_sale_value
+        COALESCE(SUM(CASE WHEN LOWER(unit) != 'kg' OR unit IS NULL THEN historical_quantity ELSE 0 END), 0) AS total_stock,
+        COUNT(CASE WHEN (LOWER(unit) != 'kg' OR unit IS NULL) AND historical_quantity = 0 THEN 1 END) AS out_of_stock,
+        COUNT(CASE WHEN (LOWER(unit) != 'kg' OR unit IS NULL) AND historical_quantity <= COALESCE(threshold, 0) AND historical_quantity > 0 THEN 1 END) AS low_stock,
+        COUNT(CASE WHEN (LOWER(unit) != 'kg' OR unit IS NULL) AND historical_quantity > 0 THEN 1 END) AS in_stock,
+        COALESCE(SUM(CASE WHEN LOWER(unit) != 'kg' OR unit IS NULL THEN cost_price * historical_quantity ELSE 0 END), 0) AS inventory_value,
+        COALESCE(SUM(CASE WHEN LOWER(unit) != 'kg' OR unit IS NULL THEN selling_price * historical_quantity ELSE 0 END), 0) AS potential_sale_value,
+
+        COALESCE(SUM(CASE WHEN LOWER(unit) = 'kg' THEN historical_quantity ELSE 0 END), 0) AS kg_total_stock,
+        COUNT(CASE WHEN LOWER(unit) = 'kg' AND historical_quantity = 0 THEN 1 END) AS kg_out_of_stock,
+        COUNT(CASE WHEN LOWER(unit) = 'kg' AND historical_quantity <= COALESCE(threshold, 0) AND historical_quantity > 0 THEN 1 END) AS kg_low_stock,
+        COUNT(CASE WHEN LOWER(unit) = 'kg' AND historical_quantity > 0 THEN 1 END) AS kg_in_stock,
+        COALESCE(SUM(CASE WHEN LOWER(unit) = 'kg' THEN cost_price * historical_quantity ELSE 0 END), 0) AS kg_inventory_value,
+        COALESCE(SUM(CASE WHEN LOWER(unit) = 'kg' THEN selling_price * historical_quantity ELSE 0 END), 0) AS kg_potential_sale_value
       FROM historical_stock
     `;
 
@@ -1458,7 +1478,14 @@ exports.stockAnalytics = async (req, res) => {
       lowStock: Number(row.low_stock || 0),
       inStock: Number(row.in_stock || 0),
       inventoryValue: Number(row.inventory_value || 0),
-      potentialSaleValue: Number(row.potential_sale_value || 0)
+      potentialSaleValue: Number(row.potential_sale_value || 0),
+
+      kgTotalStock: Number(row.kg_total_stock || 0),
+      kgOutOfStock: Number(row.kg_out_of_stock || 0),
+      kgLowStock: Number(row.kg_low_stock || 0),
+      kgInStock: Number(row.kg_in_stock || 0),
+      kgInventoryValue: Number(row.kg_inventory_value || 0),
+      kgPotentialSaleValue: Number(row.kg_potential_sale_value || 0)
     });
 
   } catch (err) {
