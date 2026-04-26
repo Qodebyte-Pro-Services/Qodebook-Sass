@@ -130,7 +130,7 @@ exports.createSale = async (req, res) => {
       await client.query(
         `INSERT INTO order_items (order_id, variant_id, quantity, unit_price, total_price)
          VALUES ($1,$2,$3,$4,$5)`,
-        [order.id, item.variant_id, item.quantity, item.unit_price, item.total_price]
+        [order.id, item.variant_id, Number(item.quantity), item.unit_price, item.total_price]
       );
 
       const variantRes = await client.query(
@@ -138,8 +138,8 @@ exports.createSale = async (req, res) => {
         [item.variant_id]
       );
       if (variantRes.rows.length > 0) {
-        const oldQty = variantRes.rows[0].quantity;
-        const newQty = oldQty - item.quantity;
+        const oldQty = Number(variantRes.rows[0].quantity || 0);
+        const newQty = oldQty - Number(item.quantity);
 
         await client.query("UPDATE variants SET quantity = $1 WHERE id = $2", [
           newQty,
@@ -153,7 +153,7 @@ exports.createSale = async (req, res) => {
           [
             item.variant_id,
             "sale",
-            item.quantity,
+            Number(item.quantity),
             "decrease",
             note || "POS Sale transaction",
             business_id,

@@ -250,6 +250,7 @@ const uploadedFiles = (req.files || []).filter(f =>
         return val === 'true' || val === true;
       }
       if (['threshold', 'category_id'].includes(field)) {
+        if (field === 'threshold') return val !== null ? parseFloat(val) : null;
         return val !== null ? parseInt(val, 10) : null;
       }
       return val;

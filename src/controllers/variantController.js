@@ -370,7 +370,7 @@ if (req.body.replace_images === "true") {
     let idx = 1;
 
     const castValue = (field, val) => {
-      if (["quantity", "threshold"].includes(field)) return parseInt(val, 10);
+      if (["quantity", "threshold"].includes(field)) return parseFloat(val);
       if (["cost_price", "selling_price"].includes(field)) return parseFloat(val);
       if (field === "attributes") return typeof val === "string" ? val : JSON.stringify(val);
       if (field === "expiry_date") {

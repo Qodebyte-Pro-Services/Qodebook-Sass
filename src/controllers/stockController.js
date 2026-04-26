@@ -38,7 +38,7 @@ exports.transferStock = async (req, res) => {
       return res.status(404).json({ message: 'Variant not found in source branch.' });
     }
 
-    if (sourceVariant.rows[0].quantity < quantity) {
+    if (Number(sourceVariant.rows[0].quantity || 0) < Number(quantity)) {
       return res.status(400).json({ message: 'Insufficient stock in source branch.' });
     }
 
@@ -91,7 +91,7 @@ await pool.query(`
     return res.status(201).json({ 
       message: 'Stock transfer initiated.', 
       transfer,
-      remaining_stock: sourceVariant.rows[0].quantity - quantity
+      remaining_stock: Number(sourceVariant.rows[0].quantity || 0) - Number(quantity)
     });
 
   } catch (err) {
@@ -116,7 +116,7 @@ exports.completeTransfer = async (req, res) => {
     }
 
     const transfer = transferResult.rows[0];
-    const quantity = actual_quantity || transfer.quantity;
+    const quantity = Number(actual_quantity || transfer.quantity);
 
 
     let destVariant = await pool.query(
