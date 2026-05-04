@@ -92,6 +92,39 @@ const { rateLimitMiddleware } = require('../middlewares/rateLimitMiddleware');
  *               payment_mode:
  *                 type: string
  *                 example: "cash"
+ *               sale_type:
+ *                 type: string
+ *                 example: "regular"
+ *                 enum: [regular, installment, credit]
+ *               installment_plan:
+ *                 type: object
+ *                 nullable: true
+ *                 properties:
+ *                   down_payment:
+ *                     type: number
+ *                   remaining_balance:
+ *                     type: number
+ *                   number_of_payments:
+ *                     type: integer
+ *                   payment_frequency:
+ *                     type: string
+ *                     enum: [daily, weekly, monthly]
+ *                   start_date:
+ *                     type: string
+ *                     format: date
+ *                   notes:
+ *                     type: string
+ *               credit_details:
+ *                 type: object
+ *                 nullable: true
+ *                 properties:
+ *                   amount_paid:
+ *                     type: number
+ *                   balance:
+ *                     type: number
+ *                   credit_type:
+ *                     type: string
+ *                     enum: [full, partial, installment]
  *               discount:
  *                 type: number
  *                 nullable: true
@@ -187,5 +220,240 @@ router.get('/:id', ...requirePermission(SALES_PERMISSIONS.VIEW_SALES), salesCont
  *         description: Sale refunded
  */
 router.post('/refund/:id', authenticateToken, rateLimitMiddleware, salesController.refundSale);
+
+/**
+ * @swagger
+ * /api/sales/advance-installment:
+ *   post:
+ *     summary: Advance an installment payment
+ *     tags: [Sales]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [installment_payment_id, business_id, method, amount]
+ *             properties:
+ *               installment_payment_id:
+ *                 type: integer
+ *               business_id:
+ *                 type: integer
+ *               method:
+ *                 type: string
+ *               amount:
+ *                 type: number
+ *               reference:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Installment advanced successfully
+ */
+router.post('/advance-installment', ...requirePermission(SALES_PERMISSIONS.MANAGE_ORDERS), rateLimitMiddleware, salesController.advanceInstallment);
+
+/**
+ * @swagger
+ * /api/sales/complete-installment:
+ *   post:
+ *     summary: Complete an installment plan
+ *     tags: [Sales]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [plan_id, business_id]
+ *             properties:
+ *               plan_id:
+ *                 type: integer
+ *               business_id:
+ *                 type: integer
+ *               staff_id:
+ *                 type: string
+ *               created_by_user_id:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Installment plan completed and stock updated
+ */
+router.post('/complete-installment', ...requirePermission(SALES_PERMISSIONS.MANAGE_ORDERS),rateLimitMiddleware, salesController.completeInstallment);
+
+
+/**
+ * @swagger
+ * /api/sales/credit-accounts/business/{business_id}:
+ *   get:
+ *     summary: Get all credit accounts for a business
+ *     tags: [Sales]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: business_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of credit accounts
+ */
+router.get('/credit-accounts/business/:business_id', ...requirePermission(SALES_PERMISSIONS.MANAGE_ORDERS), salesController.getBusinessCreditAccounts);
+
+
+/**
+ * @swagger
+ * /api/sales/installment-plans/business/{business_id}:
+ *   get:
+ *     summary: Get all installment plans for a business
+ *     tags: [Sales]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: business_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of installment plans
+ */
+router.get('/installment-plans/business/:business_id', ...requirePermission(SALES_PERMISSIONS.MANAGE_ORDERS), salesController.getBusinessInstallmentPlans);
+
+/**
+ * @swagger
+ * /api/sales/installment-plans/{plan_id}/payments:
+ *   get:
+ *     summary: Get payments for an installment plan
+ *     tags: [Sales]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: plan_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of installment payments
+ */
+router.get('/installment-plans/:plan_id/payments', ...requirePermission(SALES_PERMISSIONS.MANAGE_ORDERS), salesController.getInstallmentPayments);
+
+
+/**
+ * @swagger
+ * /api/sales/credit-accounts/{id}:
+ *   get:
+ *     summary: Get details of a single credit account
+ *     tags: [Sales]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Credit account details
+ */
+router.get('/credit-accounts/:id', ...requirePermission(SALES_PERMISSIONS.MANAGE_ORDERS), salesController.getCreditAccount);
+
+/**
+ * @swagger
+ * /api/sales/credit-accounts/{id}/settle-installment:
+ *   patch:
+ *     summary: Mark an installment credit account as settled
+ *     description: Directly marks a credit account's status as settled. Only applies to credit accounts where credit_type is 'installment'.
+ *     tags: [Sales]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Credit account ID
+ *     responses:
+ *       200:
+ *         description: Credit account marked as settled
+ *       400:
+ *         description: Invalid credit type or already settled
+ *       404:
+ *         description: Credit account not found
+ *       500:
+ *         description: Server error
+ */
+router.patch('/credit-accounts/:id/settle-installment', ...requirePermission(SALES_PERMISSIONS.MANAGE_ORDERS), salesController.settleCreditInstallmentAccount);
+
+/**
+ * @swagger
+ * /api/sales/installment-plans/{plan_id}:
+ *   get:
+ *     summary: Get details of a single installment plan
+ *     tags: [Sales]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: plan_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Installment plan details
+ */
+router.get('/installment-plans/:plan_id', ...requirePermission(SALES_PERMISSIONS.MANAGE_ORDERS), salesController.getInstallmentPlan);
+
+/**
+ * @swagger
+ * /api/sales/installment-payments/{payment_id}:
+ *   get:
+ *     summary: Get details of a single installment payment
+ *     tags: [Sales]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: payment_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Installment payment details
+ */
+router.get('/installment-payments/:payment_id', ...requirePermission(SALES_PERMISSIONS.MANAGE_ORDERS), salesController.getInstallmentPayment);
+
+
+/**
+ * @swagger
+ * /api/sales/{id}:
+ *   delete:
+ *     summary: Delete a sale and refund inventory/clear logs
+ *     tags: [Sales]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Sale deleted successfully
+ */
+router.delete('/:id', ...requirePermission(SALES_PERMISSIONS.MANAGE_ORDERS), salesController.deleteSale);
+
 
 module.exports = router;
