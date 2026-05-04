@@ -137,15 +137,21 @@ exports.createSale = async (req, res) => {
       const ipMethods     = [payments[0]?.method || 'cash', ...Array(numPayments).fill(null)];
       const ipTypes       = ['down_payment', ...Array(numPayments).fill('installment')];
 
-      await client.query(
-        `INSERT INTO installment_payments
-           (installment_plan_id, payment_number, amount, due_date, paid_at, status, method, type)
-         SELECT
-           unnest($1::int[]), unnest($2::int[]), unnest($3::numeric[]),
-           unnest($4::timestamptz[]), unnest($5::timestamptz[]),
-           unnest($6::text[]), unnest($7::text[]), unnest($8::text[])`,
-        [ipPlanIds, ipNumbers, ipAmounts, ipDueDates, ipPaidDates, ipStatuses, ipMethods, ipTypes]
-      );
+     await client.query(
+  `INSERT INTO installment_payments
+     (installment_plan_id, payment_number, amount, due_date, paid_at, status, method, type)
+   SELECT
+     unnest($1::int[]),
+     unnest($2::int[]),
+     unnest($3::numeric[]),
+     unnest($4::timestamptz[]),
+     unnest($5::timestamptz[]),
+     unnest($6::installment_payment_status[]),
+     unnest($7::installment_payment_method[]),  
+     unnest($8::installment_payment_type[])   
+  `,
+  [ipPlanIds, ipNumbers, ipAmounts, ipDueDates, ipPaidDates, ipStatuses, ipMethods, ipTypes]
+);
 
     } else if (sale_type === 'credit') {
       await client.query(
