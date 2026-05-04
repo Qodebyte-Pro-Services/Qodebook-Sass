@@ -366,33 +366,6 @@ router.get('/installment-plans/:plan_id/payments', ...requirePermission(SALES_PE
  */
 router.get('/credit-accounts/:id', ...requirePermission(SALES_PERMISSIONS.MANAGE_ORDERS), salesController.getCreditAccount);
 
-/**
- * @swagger
- * /api/sales/credit-accounts/{id}/settle-installment:
- *   patch:
- *     summary: Mark an installment credit account as settled
- *     description: Directly marks a credit account's status as settled. Only applies to credit accounts where credit_type is 'installment'.
- *     tags: [Sales]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: Credit account ID
- *     responses:
- *       200:
- *         description: Credit account marked as settled
- *       400:
- *         description: Invalid credit type or already settled
- *       404:
- *         description: Credit account not found
- *       500:
- *         description: Server error
- */
-router.patch('/credit-accounts/:id/settle-installment', ...requirePermission(SALES_PERMISSIONS.MANAGE_ORDERS), salesController.settleCreditInstallmentAccount);
 
 /**
  * @swagger
@@ -433,6 +406,35 @@ router.get('/installment-plans/:plan_id', ...requirePermission(SALES_PERMISSIONS
  *         description: Installment payment details
  */
 router.get('/installment-payments/:payment_id', ...requirePermission(SALES_PERMISSIONS.MANAGE_ORDERS), salesController.getInstallmentPayment);
+
+
+/**
+ * @swagger
+ * /api/sales/credit-accounts/{id}/settle-installment:
+ *   patch:
+ *     summary: Mark an installment credit account as settled
+ *     description: Directly marks a credit account's status as settled. Only applies to credit accounts where credit_type is 'installment'.
+ *     tags: [Sales]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Credit account ID
+ *     responses:
+ *       200:
+ *         description: Credit account marked as settled
+ *       400:
+ *         description: Invalid credit type or already settled
+ *       404:
+ *         description: Credit account not found
+ *       500:
+ *         description: Server error
+ */
+router.patch('/credit-accounts/:id/settle-installment', ...requirePermission(SALES_PERMISSIONS.MANAGE_ORDERS), salesController.settleCreditInstallmentAccount);
 
 
 /**
