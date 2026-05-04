@@ -90,15 +90,22 @@ exports.createSale = async (req, res) => {
     );
     const order = orderRes.rows[0];
 
+
+   const validMethods = ['cash', 'card', 'transfer'];
+
+const safePayments = payments.map(p => ({
+  ...p,
+  method: validMethods.includes(p.method) ? p.method : 'cash'
+}));
  
     await client.query(
       `INSERT INTO order_payments (order_id, method, amount, reference)
        SELECT $1, unnest($2::text[]), unnest($3::numeric[]), unnest($4::text[])`,
       [
         order.id,
-        payments.map(p => p.method),
-        payments.map(p => p.amount),
-        payments.map(p => p.reference || null)
+       safePayments.map(p => p.method),
+       safePayments.map(p => p.amount),
+       safePayments.map(p => p.reference || null)
       ]
     );
 
@@ -134,7 +141,11 @@ exports.createSale = async (req, res) => {
       const ipDueDates    = [new Date(), ...Array.from({ length: numPayments }, (_, i) => getDueDate(i + 1))];
       const ipPaidDates   = [new Date(), ...Array(numPayments).fill(null)];
       const ipStatuses    = ['paid', ...Array(numPayments).fill('pending')];
-      const ipMethods     = [payments[0]?.method || 'cash', ...Array(numPayments).fill(null)];
+      const validMethods  = ['cash', 'card', 'transfer'];
+      const firstMethod   = validMethods.includes(payments[0]?.method)
+        ? payments[0].method
+        : 'cash';
+      const ipMethods     = [firstMethod, ...Array(numPayments).fill(null)];
       const ipTypes       = ['down_payment', ...Array(numPayments).fill('installment')];
 
      await client.query(
