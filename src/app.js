@@ -5,6 +5,7 @@ const helmet = require('helmet');
 require('./config/env');
 const cron = require("node-cron");
 const { updateStaffPaymentStatus } = require("./jobs/staff-payment");
+const { sendInstallmentReminders } = require("./jobs/installment-reminder");
 const reviewRoutes = require('./routes/reviewRoutes');
 const wishlistRoutes = require('./routes/wishlistRoutes');
 const loyaltyRoutes = require('./routes/loyaltyRoutes');
@@ -113,6 +114,11 @@ app.get('/', (req, res) => {
 cron.schedule("0 0 * * *", () => {
   console.log("🕒 Running daily staff payment status check...");
   updateStaffPaymentStatus();
+});
+
+cron.schedule("0 0 * * *", () => {
+  console.log("🕒 Running daily installment due date reminders...");
+  sendInstallmentReminders();
 });
 
 module.exports = app;

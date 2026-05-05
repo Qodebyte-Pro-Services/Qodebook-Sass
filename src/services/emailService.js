@@ -445,6 +445,101 @@ async function sendOwnerOtpNotification(to, otp, businessName) {
   return transporter.sendMail(mailOptions);
 }
 
+async function sendInstallmentReminderToCustomer(to, data) {
+  const { customerName, amount, dueDate, businessName } = data;
+  const isToday = new Date(dueDate).toDateString() === new Date().toDateString();
+  const subject = isToday ? `Installment Due Today - ${businessName}` : `Upcoming Installment Reminder - ${businessName}`;
+  const timeMsg = isToday ? 'is due today' : `is due on ${new Date(dueDate).toLocaleDateString()}`;
+
+  const body = `
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1e1b4b;">Installment Reminder</h1>
+    <p style="margin:0 0 24px;font-size:14px;color:#6b7280;">Hello ${customerName},</p>
+    <p style="font-size:15px;color:#374151;line-height:1.6;">
+      This is a friendly reminder that your installment payment for <strong style="color:#6366f1;">${businessName}</strong> ${timeMsg}.
+    </p>
+    ${infoBox(`
+      <p style="margin:0 0 12px;font-size:14px;font-weight:600;color:#1e1b4b;">Payment Details</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+        <tr>
+          <td style="padding:6px 0;font-size:13px;color:#6b7280;width:100px;">Amount Due</td>
+          <td style="padding:6px 0;font-size:14px;color:#1e1b4b;font-weight:700;">₦${Number(amount).toLocaleString()}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0;font-size:13px;color:#6b7280;">Due Date</td>
+          <td style="padding:6px 0;font-size:14px;color:#1e1b4b;font-weight:600;">${new Date(dueDate).toDateString()}</td>
+        </tr>
+      </table>
+    `)}
+    <p style="font-size:14px;color:#6b7280;margin-top:24px;">
+      Please ensure timely payment to avoid any service interruptions or penalties.
+    </p>
+    <p style="font-size:14px;color:#6b7280;margin-top:24px;">
+      Best regards,<br/><strong style="color:#374151;">${businessName} Team</strong>
+    </p>
+  `;
+
+  return transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to,
+    subject,
+    html: emailWrapper(body),
+  });
+}
+
+async function sendInstallmentReminderToOwner(to, data) {
+  const { ownerName, customerName, customerPhone, customerEmail, amount, dueDate, businessName } = data;
+  const isToday = new Date(dueDate).toDateString() === new Date().toDateString();
+  const subject = `Action Required: Customer Installment ${isToday ? 'Due Today' : 'Upcoming'} - ${businessName}`;
+
+  const body = `
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1e1b4b;">Installment Follow-up</h1>
+    <p style="margin:0 0 24px;font-size:14px;color:#6b7280;">Hello ${ownerName},</p>
+    <p style="font-size:15px;color:#374151;line-height:1.6;">
+      One of your customers has an installment payment ${isToday ? 'due today' : 'approaching its due date'}, but we couldn't send them a direct email reminder. Please reach out to them.
+    </p>
+    ${infoBox(`
+      <p style="margin:0 0 12px;font-size:14px;font-weight:600;color:#1e1b4b;">Customer Information</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+        <tr>
+          <td style="padding:6px 0;font-size:13px;color:#6b7280;width:120px;">Customer Name</td>
+          <td style="padding:6px 0;font-size:14px;color:#1e1b4b;font-weight:600;">${customerName}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0;font-size:13px;color:#6b7280;">Phone Number</td>
+          <td style="padding:6px 0;font-size:14px;color:#1e1b4b;font-weight:600;">${customerPhone || 'N/A'}</td>
+        </tr>
+         <tr>
+          <td style="padding:6px 0;font-size:13px;color:#6b7280;">Email</td>
+          <td style="padding:6px 0;font-size:14px;color:#1e1b4b;font-weight:600;">${customerEmail || 'No email provided'}</td>
+        </tr>
+      </table>
+    `)}
+    ${infoBox(`
+      <p style="margin:0 0 12px;font-size:14px;font-weight:600;color:#1e1b4b;">Payment Details</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+        <tr>
+          <td style="padding:6px 0;font-size:13px;color:#6b7280;width:120px;">Amount Due</td>
+          <td style="padding:6px 0;font-size:14px;color:#1e1b4b;font-weight:700;">₦${Number(amount).toLocaleString()}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0;font-size:13px;color:#6b7280;">Due Date</td>
+          <td style="padding:6px 0;font-size:14px;color:#1e1b4b;font-weight:600;">${new Date(dueDate).toDateString()}</td>
+        </tr>
+      </table>
+    `, 'info')}
+    <p style="font-size:14px;color:#6b7280;margin-top:24px;">
+      Best regards,<br/><strong style="color:#374151;">QodeBook Team</strong>
+    </p>
+  `;
+
+  return transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to,
+    subject,
+    html: emailWrapper(body),
+  });
+}
+
 module.exports = {
   sendOtpEmail,
   sendBusinessCreatedEmail,
@@ -455,4 +550,6 @@ module.exports = {
   sendPasswordChangeRequestNotification,
   sendStaffOtpEmail,
   sendOwnerOtpNotification,
+  sendInstallmentReminderToCustomer,
+  sendInstallmentReminderToOwner,
 };
